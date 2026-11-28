@@ -3,7 +3,7 @@ import type {ReactNode} from "react"
 import {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {Robot} from "@phosphor-icons/react"
 
 // Re-exported from their home in @agenta/entity-ui, which owns the agent identity's chrome.

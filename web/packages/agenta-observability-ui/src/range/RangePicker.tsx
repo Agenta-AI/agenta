@@ -3,18 +3,16 @@ import {useCallback, useMemo, useState, type KeyboardEvent} from "react"
 import {useT} from "@agenta/i18n"
 import rangeCatalog from "@agenta/i18n/catalogs/observabilityUi.range"
 import {ANALYTICS_RANGE_PRESETS, type SortResult, type SortTypes} from "@agenta/observability"
+import {DateRangeCalendar, Divider, type DateRangeValue} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
     fromLegacyButton,
     type ButtonProps,
     type LegacyButtonType,
-    DateRangeCalendar,
-    Divider,
     Popover,
     PopoverContent,
     PopoverTrigger,
-    type DateRangeValue,
 } from "@agenta/ui/ui"
 import {
     CalendarBlankIcon,

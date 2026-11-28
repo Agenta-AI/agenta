@@ -4,6 +4,7 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     AlertDialog,
     AlertDialogContent,
@@ -12,7 +13,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    LoadingButton,
 } from "@agenta/ui/ui"
 
 export interface RemoveFromAgentDialogProps {

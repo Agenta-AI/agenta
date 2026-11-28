@@ -17,6 +17,7 @@ import {
     type FilterMenuNode,
     type RowValidation,
 } from "@agenta/observability/filters"
+import {TreeSelect} from "@agenta/ui/composed"
 import {
     Button,
     DropdownMenu,
@@ -32,7 +33,6 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-    TreeSelect,
 } from "@agenta/ui/ui"
 import {CaretDownIcon, TrashIcon} from "@phosphor-icons/react"
 

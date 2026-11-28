@@ -5,10 +5,10 @@ import {fileOrigin} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
-import {CopyButton} from "@agenta/ui/components/presentational"
+import {CopyTooltip, SimpleTooltip as Tooltip} from "@agenta/ui/composed"
 import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
-import {Button, SimpleTooltip as Tooltip} from "@agenta/ui/ui"
-import {Info} from "@phosphor-icons/react"
+import {Button} from "@agenta/ui/ui"
+import {Copy, Info} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
@@ -109,17 +109,19 @@ export const DriveFilePreview = ({
                             ) : null}
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
-                            <Tooltip title={t("entityUi.drivePreview.copyPath")}>
-                                <CopyButton
-                                    text={shown}
-                                    buttonText={null}
-                                    icon
+                            <CopyTooltip
+                                copyText={shown}
+                                title={t("entityUi.drivePreview.copyPath")}
+                            >
+                                <Button
+                                    variant="outline"
                                     size="icon-sm"
                                     aria-label={t("entityUi.drivePreview.copyFilePath")}
-                                    successMessage=""
-                                    className="!h-7 !w-7 !p-0 !text-muted-foreground hover:!text-foreground"
-                                />
-                            </Tooltip>
+                                    className="!text-muted-foreground hover:!text-foreground"
+                                >
+                                    <Copy size={14} />
+                                </Button>
+                            </CopyTooltip>
                             <Tooltip title={t("entityUi.drivePreview.fileDetails")}>
                                 <Button
                                     variant="ghost"

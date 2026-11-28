@@ -1,7 +1,8 @@
 import {createContext, useContext, type ReactNode} from "react"
 
+import {EmptyState} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
-import {Button, EmptyState} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 
 import {usePhoneSections} from "./phoneSections"
 

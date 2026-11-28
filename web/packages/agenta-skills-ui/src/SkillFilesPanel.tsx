@@ -4,6 +4,7 @@ import {formatList, useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
 import {message} from "@agenta/ui/app-message"
+import {IconTile, SimpleTooltip} from "@agenta/ui/composed"
 import {
     COARSE_POINTER_QUERY,
     COMPACT_WINDOW_QUERY,
@@ -18,8 +19,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-    IconTile,
-    SimpleTooltip,
     Switch,
 } from "@agenta/ui/ui"
 import {

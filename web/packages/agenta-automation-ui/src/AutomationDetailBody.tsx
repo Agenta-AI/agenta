@@ -3,7 +3,7 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
-import {ItemViewTitle} from "@agenta/ui/ui"
+import {ItemViewTitle} from "@agenta/ui/composed"
 
 import {AutomationActiveSwitch} from "./AutomationActiveSwitch"
 import {AutomationAgentField} from "./AutomationAgentField"

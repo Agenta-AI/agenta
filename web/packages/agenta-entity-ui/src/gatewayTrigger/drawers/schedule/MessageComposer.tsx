@@ -2,7 +2,7 @@
 import {getScheduleMessage, setScheduleMessage} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import triggerScheduleCatalog from "@agenta/i18n/catalogs/entityUi.triggerSchedule"
-import {AutosizeTextarea} from "@agenta/ui/ui"
+import {AutosizeTextarea} from "@agenta/ui/composed"
 
 // ---------------------------------------------------------------------------
 // MessageComposer — one message, mapped onto the agent's primary input (`messages` for chat

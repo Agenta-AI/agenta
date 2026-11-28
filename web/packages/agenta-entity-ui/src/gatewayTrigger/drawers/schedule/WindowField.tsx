@@ -4,7 +4,7 @@ import {useId} from "react"
 import {localFaceToUtcIso, utcIsoToLocalFace} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import triggerScheduleCatalog from "@agenta/i18n/catalogs/entityUi.triggerSchedule"
-import {DateTimePicker} from "@agenta/ui/ui"
+import {DateTimePicker} from "@agenta/ui/composed"
 
 // ---------------------------------------------------------------------------
 // WindowField — optional UTC start/end bounds. [start, end): the schedule runs only at or after

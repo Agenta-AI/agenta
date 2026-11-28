@@ -12,6 +12,7 @@ import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {message} from "@agenta/ui/app-message"
+import {EmptyState} from "@agenta/ui/composed"
 import {
     Alert,
     AlertDialog,
@@ -22,7 +23,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    EmptyState,
 } from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, ViewFooterStart, type ViewProps} from "@agenta/ui/view-stack"
 import {Lightning, Trash} from "@phosphor-icons/react"

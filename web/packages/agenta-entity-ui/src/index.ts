@@ -441,7 +441,6 @@ export {
     // Components
     EntityBreadcrumb,
     EntityListItem,
-    SearchInput,
     EntityPicker,
     CascadingVariant,
     BreadcrumbVariant,
@@ -453,7 +452,6 @@ export {
     EntitySelectorModal,
     type EntityBreadcrumbProps,
     type EntityListItemProps,
-    type SearchInputProps,
     type EntityPickerVariant,
     type EntityPickerProps,
     type EntityPickerBaseProps,

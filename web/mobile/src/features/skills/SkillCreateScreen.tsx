@@ -14,6 +14,7 @@ import {
     type CreatedSkill,
     type ImportedSkill,
 } from "@agenta/skills-ui"
+import {IconTile, LoadingButton} from "@agenta/ui/composed"
 import {
     Alert,
     AlertDialog,
@@ -25,8 +26,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    IconTile,
-    LoadingButton,
 } from "@agenta/ui/ui"
 import {GithubLogo} from "@phosphor-icons/react"
 import {useAtom} from "jotai"

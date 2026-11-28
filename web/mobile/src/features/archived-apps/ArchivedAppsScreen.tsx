@@ -6,12 +6,13 @@ import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {PageToolbar} from "@agenta/ui/composed"
 import {
     ListTableExportButton,
     type ListTableCsvColumn,
     type ListTableSelection,
 } from "@agenta/ui/list-table"
-import {Button, PageToolbar} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"

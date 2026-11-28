@@ -3,7 +3,7 @@ import {useCallback, type KeyboardEvent} from "react"
 import {useT} from "@agenta/i18n"
 import toolbarCatalog from "@agenta/i18n/catalogs/observabilityUi.toolbar"
 import {searchQueryAtom} from "@agenta/observability"
-import {SearchInput} from "@agenta/ui/ui"
+import {SearchInput} from "@agenta/ui/composed"
 import {useAtom} from "jotai"
 
 import {useDropFilterField, useUpdateFilter} from "./filterControls"

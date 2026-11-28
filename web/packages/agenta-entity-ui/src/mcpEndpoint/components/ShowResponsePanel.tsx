@@ -14,9 +14,11 @@ import {useState} from "react"
 
 import {PROBE_RESPONSE_BODY_LIMIT} from "@agenta/entities/mcpEndpoint"
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
-import {CopyButton} from "@agenta/ui/components/presentational"
+import {CopyTooltip} from "@agenta/ui/composed"
 import {Button} from "@agenta/ui/ui"
+import {Copy} from "@phosphor-icons/react"
 
 export interface ShowResponsePanelProps {
     /** The status line, when the answer had one. */
@@ -25,7 +27,7 @@ export interface ShowResponsePanelProps {
 }
 
 export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) => {
-    const t = useT(mcpConnectCatalog)
+    const t = useT(mcpConnectCatalog, commonCatalog)
     const [open, setOpen] = useState(false)
     const text = [statusLine, body.slice(0, PROBE_RESPONSE_BODY_LIMIT)].filter(Boolean).join("\n")
 
@@ -46,7 +48,16 @@ export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) =>
                 <div className="mt-2 min-w-0 overflow-hidden rounded-control-sm border border-solid border-border">
                     <div className="flex items-center justify-between border-0 border-b border-solid border-border bg-muted py-1 pl-2 pr-1 text-meta text-muted-foreground">
                         {t("entityUi.mcpConnect.serverResponse")}
-                        <CopyButton text={text} icon variant="ghost" size="xs" />
+                        <CopyTooltip
+                            copyText={text}
+                            title={t("common.copy")}
+                            successMessage={t("common.copiedToClipboard")}
+                        >
+                            <Button variant="ghost" size="xs">
+                                <Copy size={14} />
+                                {t("common.copy")}
+                            </Button>
+                        </CopyTooltip>
                     </div>
                     <pre
                         data-testid="mcp-probe-response"

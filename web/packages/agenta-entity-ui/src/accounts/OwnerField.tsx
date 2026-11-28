@@ -3,7 +3,8 @@ import {useCallback, type ComponentType} from "react"
 import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import type {OwnerKind} from "@agenta/shared/types"
-import {ChoiceSwitch, Field} from "@agenta/ui/ui"
+import {ChoiceSwitch} from "@agenta/ui/composed"
+import {Field} from "@agenta/ui/ui"
 import {Buildings, User, UsersThree, type IconProps} from "@phosphor-icons/react"
 
 /** Who owns a connection, narrow to wide: the person, the project, the organization. */

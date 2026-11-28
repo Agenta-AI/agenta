@@ -2,10 +2,10 @@ import {type FC, type ReactNode, useCallback, useEffect, useState} from "react"
 
 import clsx from "clsx"
 
+import {AutosizeTextarea} from "../../../components/composed/input-affix"
+import {InputNumber} from "../../../components/composed/input-number"
 import EditableText from "../../../components/presentational/editable/EditableText"
 import {Input} from "../../../components/ui/input"
-import {AutosizeTextarea} from "../../../components/ui/input-composed"
-import {InputNumber} from "../../../components/ui/input-number"
 import {Switch} from "../../../components/ui/switch"
 import TreeRow from "../shared/TreeRow"
 

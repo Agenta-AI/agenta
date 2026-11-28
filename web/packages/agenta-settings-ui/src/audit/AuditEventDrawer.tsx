@@ -10,18 +10,13 @@ import type {ReactNode} from "react"
 
 import {eventByIdAtomFamily} from "@agenta/entities/event"
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
 import settingsAuditEventTypesCatalog from "@agenta/i18n/catalogs/settings.auditEventTypes"
 import {dayjs} from "@agenta/shared/utils"
-import {CopyButton} from "@agenta/ui/components/presentational"
-import {
-    EmptyState,
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetHeader,
-    SheetTitle,
-} from "@agenta/ui/ui"
+import {CopyTooltip, EmptyState} from "@agenta/ui/composed"
+import {Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
+import {Copy as CopyIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {localDate, localFromNow} from "../shared/localDate"
@@ -63,17 +58,16 @@ const List = ({children}: {children: ReactNode}) => (
     </div>
 )
 
-const Copy = ({text, label}: {text: string; label: string}) => (
-    <CopyButton
-        text={text}
-        buttonText={null}
-        icon
-        variant="ghost"
-        size="icon"
-        aria-label={label}
-        className="ml-auto shrink-0"
-    />
-)
+const Copy = ({text, label}: {text: string; label: string}) => {
+    const t = useT(commonCatalog)
+    return (
+        <CopyTooltip copyText={text} title={label} successMessage={t("common.copiedToClipboard")}>
+            <Button variant="ghost" size="icon" aria-label={label} className="ml-auto shrink-0">
+                <CopyIcon size={14} />
+            </Button>
+        </CopyTooltip>
+    )
+}
 
 const Mono = ({children}: {children: ReactNode}) => (
     <span className="min-w-0 break-all text-code">{children}</span>
@@ -108,7 +102,7 @@ export const AuditEventDrawer = ({
     names,
     currentUserId,
 }: AuditEventDrawerProps) => {
-    const t = useT(settingsAuditCatalog, settingsAuditEventTypesCatalog)
+    const t = useT(settingsAuditCatalog, settingsAuditEventTypesCatalog, commonCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId ?? ""))
 
     // Actor/count live in `attributes`; the top-level request fields are left unset by the backend.
@@ -233,11 +227,15 @@ export const AuditEventDrawer = ({
                             <Section
                                 title={t("settings.audit.attributes")}
                                 action={
-                                    <CopyButton
-                                        text={json}
-                                        buttonText={t("settings.audit.copyJson")}
-                                        variant="ghost"
-                                    />
+                                    <CopyTooltip
+                                        copyText={json}
+                                        title={t("settings.audit.copyJson")}
+                                        successMessage={t("common.copiedToClipboard")}
+                                    >
+                                        <Button variant="ghost">
+                                            {t("settings.audit.copyJson")}
+                                        </Button>
+                                    </CopyTooltip>
                                 }
                             >
                                 <pre className="m-0 max-h-90 overflow-y-auto whitespace-pre-wrap break-all rounded-lg border border-solid border-border bg-muted p-3.5 text-code-sm leading-relaxed text-foreground">

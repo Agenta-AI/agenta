@@ -5,10 +5,10 @@ import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
 import {ArrowsOutSimple, X} from "@phosphor-icons/react"
 import {createPortal} from "react-dom"
 
-import {BackLink} from "../components/ui/back-link"
+import {BackLink} from "../components/composed/back-link"
+import {SimpleTooltip} from "../components/composed/simple-tooltip"
 import {Button, ButtonSizeContext} from "../components/ui/button"
 import {SheetFooter} from "../components/ui/sheet"
-import {SimpleTooltip} from "../components/ui/tooltip-composed"
 import {cn} from "../components/ui/utils"
 
 // While the open view (stack or tab) shows its own ItemViewTitle; Tailwind needs whole names.

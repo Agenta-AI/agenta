@@ -1,12 +1,13 @@
 import {useId, useMemo, useState} from "react"
 
 import {useT, createT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {createApiKey} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
-import {CopyButton} from "@agenta/ui/components/presentational"
-import {LoadingButton, PasswordInput, Segmented, Switch} from "@agenta/ui/ui"
-import {ArrowSquareOut} from "@phosphor-icons/react"
+import {CopyTooltip, LoadingButton, PasswordInput, Segmented} from "@agenta/ui/composed"
+import {Button, Switch} from "@agenta/ui/ui"
+import {ArrowSquareOut, Copy} from "@phosphor-icons/react"
 
 import {CodeBlock} from "../channels/CodeBlock"
 import {BLOCK_TITLE} from "../channels/helpers"
@@ -50,7 +51,7 @@ const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; htmlFor?: s
  * default variant's latest revision.
  */
 export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiPanelProps) => {
-    const t = useT(publishCatalog)
+    const t = useT(publishCatalog, commonCatalog)
     const keyInputId = useId()
     const [lang, setLang] = useState<AgentSnippetLang>("python")
     const [stream, setStream] = useState(true)
@@ -95,7 +96,15 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                     >
                         {endpoint}
                     </span>
-                    <CopyButton buttonText={null} text={endpoint} icon={true} />
+                    <CopyTooltip
+                        copyText={endpoint}
+                        title={t("common.copy")}
+                        successMessage={t("common.copiedToClipboard")}
+                    >
+                        <Button variant="outline" aria-label={t("common.copy")}>
+                            <Copy size={14} />
+                        </Button>
+                    </CopyTooltip>
                 </div>
                 <span className="text-label text-muted-foreground">
                     {t("publish.authenticateHint")}

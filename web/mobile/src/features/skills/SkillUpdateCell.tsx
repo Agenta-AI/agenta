@@ -1,6 +1,7 @@
 import {useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
-import {Button, SimpleTooltip, Spinner} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowCircleUp, CheckCircle} from "@phosphor-icons/react"
 
 import {useSkillUpdates, useSkillUpdateStatus} from "./useSkillUpdates"

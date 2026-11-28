@@ -14,7 +14,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A user or entity avatar (`AvatarBox`) with image, initials or icon fallback. Square only.\n\n**Used in:** `Avatar`/`AvatarImage`/`AvatarFallback` have zero call-sites. Only `AvatarBox` ships, and only through `InitialsAvatar` — sidebar org/project pickers, workspace member rows, annotation assignment cells and the shared user author label (7 places).",
+                    "A user or entity avatar (`AvatarBox`) with image, initials or icon fallback. Square only.\n\n**Used in:** `Avatar` + `AvatarFallback` with `getInitials(name)` and `getAvatarColorStyle(name)` (`@agenta/ui/components/presentational`) render the initials avatars: the user author label, annotation assignment cells and the table user column.",
             },
         },
     },
@@ -67,7 +67,7 @@ export const Variants: Story = {
             <Row label="image — large">
                 <AvatarBox size="large" src={IMG} alt="avatar" />
             </Row>
-            {/* numeric size (InitialsAvatar/AssignmentsCell pass raw px) */}
+            {/* numeric size (raw px) */}
             <Row label="initials — numeric 18">
                 <AvatarBox size={18}>AE</AvatarBox>
             </Row>

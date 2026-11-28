@@ -9,8 +9,9 @@ import {useMemo, useState, type KeyboardEvent} from "react"
 import {useT} from "@agenta/i18n"
 import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
+import {InputAffix, SimpleTooltip} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
-import {Button, InputAffix, MENU_ITEM, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, MENU_ITEM} from "@agenta/ui/ui"
 import {
     CaretDown,
     Check,

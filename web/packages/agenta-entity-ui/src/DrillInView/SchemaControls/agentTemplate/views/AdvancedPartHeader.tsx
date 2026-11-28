@@ -3,7 +3,8 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {IconTile, ItemViewTitle, ItemViewTitleSkeleton, SkeletonBlock} from "@agenta/ui/ui"
+import {IconTile, ItemViewTitle, ItemViewTitleSkeleton} from "@agenta/ui/composed"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {ToolPermissionsSkeleton} from "../../DrawerSkeletons"
 

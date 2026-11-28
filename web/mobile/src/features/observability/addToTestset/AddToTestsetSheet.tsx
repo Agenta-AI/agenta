@@ -3,6 +3,7 @@ import {useState} from "react"
 import {useT} from "@agenta/i18n"
 import addToTestsetCatalog from "@agenta/i18n/catalogs/observability.addToTestset"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Alert,
     AlertDialog,
@@ -14,7 +15,6 @@ import {
     AlertDialogTitle,
     Badge,
     Button,
-    LoadingButton,
     Sheet,
     SheetContent,
     SheetFooter,

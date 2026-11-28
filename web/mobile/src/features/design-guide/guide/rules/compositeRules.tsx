@@ -1,3 +1,4 @@
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Button,
     Command,
@@ -7,7 +8,6 @@ import {
     CommandItem,
     CommandList,
     CommandShortcut,
-    SimpleTooltip,
     Tabs,
     TabsList,
     TabsTrigger,

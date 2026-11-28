@@ -3,16 +3,8 @@ import {useEffect, useRef, useState, type ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import sessionsFiltersCatalog from "@agenta/i18n/catalogs/sessions.filters"
 import {useSessionFilters, type SessionStatusFilter} from "@agenta/sessions/state"
-import {
-    SearchInput,
-    Segmented,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-    Switch,
-} from "@agenta/ui/ui"
+import {SearchInput, Segmented} from "@agenta/ui/composed"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch} from "@agenta/ui/ui"
 import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 import {Tip} from "../assets/Tip"

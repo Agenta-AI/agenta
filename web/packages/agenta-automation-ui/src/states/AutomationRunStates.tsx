@@ -3,7 +3,8 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {Button, IconTile, SkeletonBlock} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {
     ArrowClockwiseIcon,
     ChatCircleDots,

@@ -1,4 +1,6 @@
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
+import {Button} from "@agenta/ui/ui"
+import {Copy} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const meta = {
@@ -9,7 +11,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Wraps its single child in an @agenta/ui Tooltip (Radix) and copies `copyText` on click, briefly swapping the tooltip to a confirmation.\n\n**Used in:** 16 places — the layout breadcrumb, observability columns and the sessions table, the trace drawer header/type/linked-spans panels, the session drawer header and message panel, eval-run focus drawer and configuration fields, reference chips and query cells, organization settings, the EE audit-log cells, the annotation session navigation, and the playground tool-call view.",
+                    "Wraps its single child in an @agenta/ui Tooltip (Radix) and copies `copyText` on click, briefly swapping the tooltip to a confirmation. It is the kit's one copy control: for a copy button, wrap a `Button` with a copy icon and pass `successMessage` for a toast.\n\n**Used in:** 16 places — the layout breadcrumb, observability columns and the sessions table, the trace drawer header/type/linked-spans panels, the session drawer header and message panel, eval-run focus drawer and configuration fields, reference chips and query cells, organization settings, the EE audit-log cells, the annotation session navigation, and the playground tool-call view.",
             },
         },
     },
@@ -33,6 +35,17 @@ export const Variants: Story = {
                     <span className="text-xs text-colorText underline decoration-dotted">
                         call_abc123
                     </span>
+                </CopyTooltip>
+            </Row>
+            <Row label="copy button with a toast">
+                <CopyTooltip
+                    title="Copy"
+                    copyText="hello world"
+                    successMessage="Copied to clipboard"
+                >
+                    <Button variant="ghost" size="icon-sm" aria-label="Copy">
+                        <Copy size={14} />
+                    </Button>
                 </CopyTooltip>
             </Row>
         </div>

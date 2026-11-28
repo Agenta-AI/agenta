@@ -18,7 +18,6 @@ const watch = vi.hoisted(() => ({
 
 vi.mock("next/dynamic", () => ({default: () => () => null}))
 vi.mock("@agenta/ui/ui", () => ({
-    SimpleTooltip: ({children}: {children: React.ReactNode}) => children,
     Button: ({
         children,
         variant: _variant,
@@ -29,6 +28,9 @@ vi.mock("@agenta/ui/ui", () => ({
             {children}
         </button>
     ),
+}))
+vi.mock("@agenta/ui/composed", () => ({
+    SimpleTooltip: ({children}: {children: React.ReactNode}) => children,
 }))
 vi.mock("@agenta/shared/state", async () => {
     const {atom} = await import("jotai")

@@ -1,7 +1,8 @@
 import {useT} from "@agenta/i18n"
 import emptyCatalog from "@agenta/i18n/catalogs/observabilityUi.empty"
 import {filtersAtom, sortAtom} from "@agenta/observability"
-import {EmptyPlaceholder} from "@agenta/ui/components/presentational"
+import {EmptyState} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {ChatCircleIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -19,7 +20,7 @@ export const EmptySessions = ({showOnboarding = true}: {showOnboarding?: boolean
     if (isFiltered || !showOnboarding) {
         return (
             <div className="py-16">
-                <EmptyPlaceholder
+                <EmptyState
                     image={icon}
                     description={
                         <div className="flex flex-col gap-2">
@@ -38,7 +39,7 @@ export const EmptySessions = ({showOnboarding = true}: {showOnboarding?: boolean
 
     return (
         <div className="py-16">
-            <EmptyPlaceholder
+            <EmptyState
                 image={icon}
                 description={
                     <div className="flex flex-col gap-2">
@@ -50,12 +51,13 @@ export const EmptySessions = ({showOnboarding = true}: {showOnboarding?: boolean
                         </span>
                     </div>
                 }
-                primaryCta={{
-                    size: "middle",
-                    text: t("observabilityUi.empty.gettingStartedSessions"),
-                    onClick: () => window.open(SESSIONS_DOCS_URL, "_blank", "noopener,noreferrer"),
-                }}
-            />
+            >
+                <Button
+                    onClick={() => window.open(SESSIONS_DOCS_URL, "_blank", "noopener,noreferrer")}
+                >
+                    {t("observabilityUi.empty.gettingStartedSessions")}
+                </Button>
+            </EmptyState>
         </div>
     )
 }

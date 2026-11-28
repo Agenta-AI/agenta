@@ -27,7 +27,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A navigation trail composed from `Breadcrumb` > `BreadcrumbList` > items, links, the current page, separators and an ellipsis for collapsed crumbs. Prop tables for each part are below.\n\n**Used in:** indirectly only. No app file imports these parts; the sole consumer is `@agenta/ui` `components/selection/Breadcrumb.tsx`, which the entity picker renders as its breadcrumb variant (`@agenta/entity-ui` `UnifiedEntityPicker/variants/BreadcrumbVariant.tsx`).",
+                    "A navigation trail composed from `Breadcrumb` > `BreadcrumbList` > items, links, the current page, separators and an ellipsis for collapsed crumbs. Prop tables for each part are below.\n\n**Used in:** indirectly only. No app file imports these parts; the sole consumer is `@agenta/ui` `components/selection/EntityBreadcrumb.tsx`, which the entity picker renders as its breadcrumb variant (`@agenta/entity-ui` `UnifiedEntityPicker/variants/BreadcrumbVariant.tsx`).",
             },
         },
     },

@@ -1,7 +1,8 @@
 import {cloneElement, isValidElement, useState} from "react"
 
-import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {PencilSimpleLine} from "@phosphor-icons/react"
+
+import {EnhancedButton} from "@/oss/components/LegacyKit"
 
 import AnnotateDrawer from "../../index"
 import {AnnotateDrawerButtonProps} from "../types"

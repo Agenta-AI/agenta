@@ -1,13 +1,8 @@
 import {memo} from "react"
 
 import type {SidebarConfig} from "@agenta/navigation"
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuTrigger,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from "@agenta/ui/ui"
 
 import {FlyoutChildren} from "./NavMenu"
 

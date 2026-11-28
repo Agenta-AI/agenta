@@ -3,6 +3,7 @@ import {useState} from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
+import {PasswordInput} from "@agenta/ui/composed"
 import {
     Button,
     Dialog,
@@ -11,7 +12,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    PasswordInput,
 } from "@agenta/ui/ui"
 
 export interface McpTokenSignInDialogProps {

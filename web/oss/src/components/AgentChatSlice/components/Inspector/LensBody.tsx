@@ -5,8 +5,9 @@
 import {useMemo} from "react"
 
 import {sessionRecordsQueryFamily} from "@agenta/entities/session"
-import {CopyButton} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
+
+import {CopyButton} from "@/oss/components/LegacyKit"
 
 import {ContextLens} from "./lenses/ContextLens"
 import {ResponseLens} from "./lenses/ResponseLens"

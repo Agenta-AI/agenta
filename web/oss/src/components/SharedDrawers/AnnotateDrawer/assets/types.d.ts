@@ -1,7 +1,7 @@
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
-import type {EnhancedButtonProps} from "@agenta/ui/components/presentational"
 import {DrawerProps} from "antd"
 
+import type {EnhancedButtonProps} from "@/oss/components/LegacyKit"
 import {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 import {AnnotateDrawerSteps} from "./enum"

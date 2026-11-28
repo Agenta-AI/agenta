@@ -7,15 +7,8 @@ import {
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
-import {
-    Button,
-    MENU_ITEM,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    SearchInput,
-    SkeletonRows,
-} from "@agenta/ui/ui"
+import {SearchInput, SkeletonRows} from "@agenta/ui/composed"
+import {Button, MENU_ITEM, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {cn} from "@/lib/utils"

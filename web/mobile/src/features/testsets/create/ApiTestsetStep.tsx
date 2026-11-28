@@ -8,7 +8,8 @@ import {
     type AppEndpointLang,
 } from "@agenta/settings-ui"
 import {getAgentaApiUrl} from "@agenta/shared/api"
-import {Button, DialogFooter, Segmented} from "@agenta/ui/ui"
+import {Segmented} from "@agenta/ui/composed"
+import {Button, DialogFooter} from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 
 type SourceType = "csv" | "json"

@@ -5,10 +5,6 @@
  * These components work with any data type and don't depend on entity-specific APIs.
  */
 
-// Search
-export {SearchInput} from "./SearchInput"
-export type {SearchInputProps} from "./SearchInput"
-
 // List items
 export {ListItem, EntityListItem} from "./ListItem"
 export type {ListItemProps, EntityListItemProps} from "./ListItem"
@@ -27,13 +23,8 @@ export {LoadAllButton, LoadAllInline} from "./LoadAllButton"
 export type {LoadAllButtonProps, LoadAllInlineProps} from "./LoadAllButton"
 
 // Breadcrumb
-export {Breadcrumb, EntityBreadcrumb} from "./Breadcrumb"
-export type {
-    BreadcrumbProps,
-    EntityBreadcrumbProps,
-    BreadcrumbPathItem,
-    SelectionPathItem,
-} from "./Breadcrumb"
+export {EntityBreadcrumb} from "./EntityBreadcrumb"
+export type {EntityBreadcrumbProps, BreadcrumbPathItem} from "./EntityBreadcrumb"
 
 // Searchable list
 export {SearchableList} from "./SearchableList"

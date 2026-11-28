@@ -12,7 +12,7 @@ import {cn} from "./utils"
  * antd → @agenta/ui: `src`→`AvatarImage`, `children`/`icon`→`AvatarFallback`, `size`
  * (small/default/large + number)→`size`. Square only: no circle shape. The three Radix
  * parts (`Avatar`, `AvatarImage`, `AvatarFallback`) compose freely; `AvatarBox` is the
- * antd-shaped convenience wrapper (and the shape `InitialsAvatar` folds into).
+ * antd-shaped convenience wrapper.
  *
  * Measured antd parity (light + dark, app-OVERRIDDEN seed tokens — NOT stock 24/32/40):
  *  - box: small 24 / default 28 / large 34  → `size-avatar-sm/-/-lg`, plus antd's
@@ -156,7 +156,7 @@ const ICON_FONT: Record<AvatarSize, number> = {small: 12, default: 14, large: 16
 
 /**
  * antd-shaped convenience Avatar: one tag with `src`/`alt`/`icon`/children + `size`.
- * Mirrors antd's single-element API so call-sites (and `InitialsAvatar`) map 1:1.
+ * Mirrors antd's single-element API so call-sites map 1:1.
  */
 function AvatarBox({
     src,

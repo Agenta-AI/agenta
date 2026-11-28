@@ -1,7 +1,7 @@
 import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
-import {LoadingButton} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
 
 import {TemplateConnectList} from "./TemplateConnectList"
 import {TemplateUseCardGroup} from "./TemplateUseCardGroup"

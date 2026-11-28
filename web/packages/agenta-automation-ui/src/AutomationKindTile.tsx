@@ -1,4 +1,4 @@
-import {IconTile} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
 import {CalendarBlank, Lightning} from "@phosphor-icons/react"
 
 import type {AutomationKind} from "./automationModel"

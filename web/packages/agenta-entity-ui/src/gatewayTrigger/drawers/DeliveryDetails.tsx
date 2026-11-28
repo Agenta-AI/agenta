@@ -2,9 +2,11 @@ import type {ReactNode} from "react"
 
 import {triggerApplicationArtifactId, type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 import {formatLocale, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import triggerDeliveriesCatalog from "@agenta/i18n/catalogs/entityUi.triggerDeliveries"
-import {CopyButton} from "@agenta/ui"
+import {CopyTooltip} from "@agenta/ui/composed"
 import {Badge, Button} from "@agenta/ui/ui"
+import {Copy} from "@phosphor-icons/react"
 
 export function deliveryStatusColor(
     type?: string | null,
@@ -58,19 +60,19 @@ function DetailRow({label, children}: {label: string; children: ReactNode}) {
 }
 
 function Identifier({value}: {value: string}) {
-    const t = useT(triggerDeliveriesCatalog)
+    const t = useT(triggerDeliveriesCatalog, commonCatalog)
     return (
         <span className="flex min-w-0 items-center gap-1">
             <span className="min-w-0 truncate font-mono">{value}</span>
-            <CopyButton
-                text={value}
-                icon
-                buttonText=""
-                variant="ghost"
-                size="icon-sm"
+            <CopyTooltip
+                copyText={value}
+                title={t("common.copy")}
                 successMessage={t("entityUi.triggerDeliveries.idCopied")}
-                stopPropagation
-            />
+            >
+                <Button variant="ghost" size="icon-sm" aria-label={t("common.copy")}>
+                    <Copy size={14} />
+                </Button>
+            </CopyTooltip>
         </span>
     )
 }

@@ -12,9 +12,7 @@ const {RadioChange} = vi.hoisted(() => {
 })
 vi.mock("@agenta/ui/ui", () => ({
     Badge: ({children}: {children?: React.ReactNode}) => <span>{children}</span>,
-    IconTile: () => <span />,
     SkeletonBlock: () => <span />,
-    SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
     Field: ({
         label,
         labelEnd,
@@ -69,6 +67,12 @@ vi.mock("@agenta/ui/ui", () => ({
         </button>
     ),
     Input: (props: React.ComponentProps<"input">) => <input {...props} />,
+    Textarea: (props: React.ComponentProps<"textarea">) => <textarea {...props} />,
+    Spinner: () => <span />,
+}))
+vi.mock("@agenta/ui/composed", () => ({
+    IconTile: () => <span />,
+    SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
     InputAffix: ({
         onValueChange,
         prefix: _prefix,
@@ -76,9 +80,7 @@ vi.mock("@agenta/ui/ui", () => ({
     }: React.ComponentProps<"input"> & {onValueChange: (value: string) => void}) => (
         <input {...props} onChange={(e) => onValueChange(e.target.value)} />
     ),
-    Textarea: (props: React.ComponentProps<"textarea">) => <textarea {...props} />,
     PasswordInput: () => <input />,
-    Spinner: () => <span />,
 }))
 vi.mock("../../src/channels/icons", () => ({AgentaMark: () => null, platformLogo: () => null}))
 vi.mock("../../src/channels/qr", () => ({QrCode: () => null}))

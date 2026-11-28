@@ -2,7 +2,8 @@ import {useEffect, useId, useRef, useState} from "react"
 
 import {createT, useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
-import {IconTile, Input} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
+import {Input} from "@agenta/ui/ui"
 import {FileText} from "@phosphor-icons/react"
 
 const tNow = createT(skillsEditorCatalog)

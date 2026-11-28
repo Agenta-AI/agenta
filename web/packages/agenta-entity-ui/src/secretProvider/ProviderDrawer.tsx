@@ -33,17 +33,16 @@ import {providerTitleForKind} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
+import {Divider, SimpleTooltip} from "@agenta/ui/composed"
 import {
     Badge,
     Button,
     cn,
-    Divider,
     Sheet,
     SheetContent,
     SheetFooter,
     SheetHeader,
     SheetTitle,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {ArrowLeft, ArrowSquareOut, WarningCircle} from "@phosphor-icons/react"
 

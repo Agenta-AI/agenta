@@ -9,7 +9,8 @@
 import type {MCPAuthMode} from "@agenta/entities/mcpEndpoint"
 import {useT, type CatalogKey} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
-import {ChoiceSwitch, Field} from "@agenta/ui/ui"
+import {ChoiceSwitch} from "@agenta/ui/composed"
+import {Field} from "@agenta/ui/ui"
 
 type McpConnectKey = CatalogKey<typeof mcpConnectCatalog>
 

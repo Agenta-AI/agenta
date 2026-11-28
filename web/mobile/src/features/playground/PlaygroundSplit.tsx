@@ -1,7 +1,7 @@
 import {type ReactNode, useLayoutEffect, useRef, useState} from "react"
 
+import {Segmented, SplitPane} from "@agenta/ui/composed"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {Segmented, SplitPane} from "@agenta/ui/ui"
 
 type Pane = "config" | "runs"
 

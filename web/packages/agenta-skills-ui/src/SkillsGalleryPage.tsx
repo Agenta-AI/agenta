@@ -11,8 +11,8 @@
 import {useT} from "@agenta/i18n"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
+import {SearchInput} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
-import {SearchInput} from "@agenta/ui/ui"
 import {Checkbox} from "@agenta/ui/ui"
 
 import {NewSkillMenuButton, type NewSkillMenuButtonProps} from "./NewSkillMenuButton"

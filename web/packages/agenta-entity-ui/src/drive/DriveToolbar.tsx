@@ -16,6 +16,7 @@ import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {isCommentModeChord} from "@agenta/shared/previewPicker"
 import {getShortcut, isOnScreen, isOverlayOpen, shortcutText} from "@agenta/shared/utils"
+import {SimpleTooltip as Tooltip} from "@agenta/ui/composed"
 import {
     Button,
     DropdownMenu,
@@ -23,7 +24,6 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    SimpleTooltip as Tooltip,
     Spinner,
     Tabs,
     TabsList,

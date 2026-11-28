@@ -3,7 +3,7 @@ import {useMemo, type ReactNode} from "react"
 import {harnessCapabilitiesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
 import agentIntroCatalog from "@agenta/i18n/catalogs/entityUi.agentIntro"
-import {IconTile, SimpleTooltip} from "@agenta/ui/ui"
+import {IconTile, SimpleTooltip} from "@agenta/ui/composed"
 import {Compass, Cpu, HardDrives, Robot, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 

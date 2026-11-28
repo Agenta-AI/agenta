@@ -4,11 +4,11 @@ import {parseWorkflowKeyFromUri} from "@agenta/entities/workflow"
 import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import {useT} from "@agenta/i18n"
 import evaluationScreensCatalog from "@agenta/i18n/catalogs/evaluations.screens"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Button,
     Field,
     Input,
-    LoadingButton,
     SheetDescription,
     SheetFooter,
     SheetHeader,

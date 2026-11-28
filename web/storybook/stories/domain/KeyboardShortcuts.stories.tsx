@@ -8,8 +8,9 @@
 import {ApprovalCard} from "@agenta/chat/components"
 import type {PendingApproval} from "@agenta/chat/model"
 import {shortcutAria} from "@agenta/shared/utils"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {KeyboardShortcutsSheet, ShortcutKeys, ShortcutsHelpButton} from "@agenta/ui/shortcuts"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {CaretDoubleLeft, CaretDoubleRight, GearSix, Robot} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 

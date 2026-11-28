@@ -1,5 +1,6 @@
 import {useUserDisplayName} from "@agenta/entities/shared"
-import {Avatar, AvatarFallback, Badge, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Avatar, AvatarFallback, Badge} from "@agenta/ui/ui"
 
 const initials = (name: string) =>
     name

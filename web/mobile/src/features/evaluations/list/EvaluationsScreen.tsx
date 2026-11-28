@@ -5,6 +5,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {PageToolbar} from "@agenta/ui/composed"
 import {ListTableColumnsMenu} from "@agenta/ui/list-table"
 import {
     AlertDialog,
@@ -16,7 +17,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    PageToolbar,
     Spinner,
 } from "@agenta/ui/ui"
 import dynamic from "next/dynamic"

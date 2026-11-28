@@ -3,7 +3,7 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 
-import {BackLink} from "../components/ui/back-link"
+import {BackLink} from "../components/composed/back-link"
 import {cn} from "../utils/styles"
 
 export interface PhoneScreenHeaderProps {

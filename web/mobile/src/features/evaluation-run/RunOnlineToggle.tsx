@@ -7,13 +7,8 @@ import {
     type RunHeader,
 } from "@agenta/entities/evaluationRun"
 import {message} from "@agenta/ui/app-message"
-import {
-    LoadingButton,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {PlayIcon, StopIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 

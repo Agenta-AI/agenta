@@ -12,14 +12,8 @@ import {
 import {useT} from "@agenta/i18n"
 import chatChatTableCatalog from "@agenta/i18n/catalogs/chat.chatTable"
 import {downloadCsv} from "@agenta/shared/utils"
-import {
-    Button,
-    cn,
-    Dialog,
-    DialogContent,
-    DialogTitle,
-    SimpleTooltip as Tooltip,
-} from "@agenta/ui/ui"
+import {SimpleTooltip as Tooltip} from "@agenta/ui/composed"
+import {Button, cn, Dialog, DialogContent, DialogTitle} from "@agenta/ui/ui"
 import {ArrowsOutSimple, Check, Copy, DownloadSimple} from "@phosphor-icons/react"
 
 import {

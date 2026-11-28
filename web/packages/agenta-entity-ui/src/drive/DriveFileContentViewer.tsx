@@ -4,7 +4,7 @@ import {resolveDriveFileKind} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
-import {LoadingButton, SimpleTooltip} from "@agenta/ui/ui"
+import {LoadingButton, SimpleTooltip} from "@agenta/ui/composed"
 import {DownloadSimple} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 

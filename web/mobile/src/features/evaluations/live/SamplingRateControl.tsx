@@ -1,5 +1,6 @@
 import {parseSamplingRate} from "@agenta/entities/evaluationRun"
-import {InputNumber, Slider} from "@agenta/ui/ui"
+import {InputNumber} from "@agenta/ui/composed"
+import {Slider} from "@agenta/ui/ui"
 
 /** The share of live traces to evaluate, in percent: a slider and a number box. */
 export const SamplingRateControl = ({

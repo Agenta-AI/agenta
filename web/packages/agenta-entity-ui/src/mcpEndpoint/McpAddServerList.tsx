@@ -13,6 +13,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {McpServerMark} from "@agenta/ui/agent-icon"
+import {EmptyState, SearchInput} from "@agenta/ui/composed"
 import {
     Alert,
     Button,
@@ -21,9 +22,7 @@ import {
     EmptyDescription,
     EmptyHeader,
     EmptyMedia,
-    EmptyState,
     EmptyTitle,
-    SearchInput,
 } from "@agenta/ui/ui"
 import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 

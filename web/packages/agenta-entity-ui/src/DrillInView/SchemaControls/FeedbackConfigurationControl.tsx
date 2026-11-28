@@ -12,13 +12,13 @@ import {memo, useCallback, useEffect, useId, useMemo, useRef, useState} from "re
 
 import {useT, type CatalogKey} from "@agenta/i18n"
 import feedbackConfigCatalog from "@agenta/i18n/catalogs/entityUi.feedbackConfig"
+import {InputNumber} from "@agenta/ui/composed"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {
     Alert,
     Button,
     Field,
     Input,
-    InputNumber,
     Select,
     SelectContent,
     SelectItem,

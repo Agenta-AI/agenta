@@ -4,9 +4,9 @@ import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/te
 import {TestcaseTable, type EntityColumnHeader} from "@agenta/entity-ui/testcase"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
+import {PageToolbar} from "@agenta/ui/composed"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import type {ColumnDefs} from "@agenta/ui/table"
-import {PageToolbar} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {useAtomValue} from "jotai"
 

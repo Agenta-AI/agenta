@@ -4,9 +4,9 @@ import {
     type RunHeader,
 } from "@agenta/entities/evaluationRun"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
-import {CopyButton} from "@agenta/ui/components/presentational"
+import {CopyTooltip} from "@agenta/ui/composed"
 import {Badge, Button} from "@agenta/ui/ui"
-import {PencilSimple} from "@phosphor-icons/react"
+import {Copy, PencilSimple} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {RunStatusTag} from "../overview/RunStatusTag"
@@ -80,15 +80,11 @@ export const RunSummaryCard = ({
                 <code className="min-w-0 truncate text-code-sm text-muted-foreground" title={runId}>
                     {shortId(runId)}
                 </code>
-                <CopyButton
-                    text={runId}
-                    icon
-                    buttonText={null}
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Copy run ID"
-                    successMessage="Run ID copied"
-                />
+                <CopyTooltip copyText={runId} title="Copy run ID" successMessage="Run ID copied">
+                    <Button variant="ghost" size="icon-sm" aria-label="Copy run ID">
+                        <Copy size={14} />
+                    </Button>
+                </CopyTooltip>
             </div>
         </section>
     )

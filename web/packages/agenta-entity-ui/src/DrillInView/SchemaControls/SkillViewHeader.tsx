@@ -9,6 +9,7 @@ import {useT} from "@agenta/i18n"
 import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {SkillMark} from "@agenta/ui/agent-icon"
+import {ItemViewTitle, SimpleTooltip, type ItemViewTitleEditable} from "@agenta/ui/composed"
 import {BottomSheet, useIsPhone} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -18,13 +19,10 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    ItemViewTitle,
     MENU_ITEM,
     Popover,
     PopoverContent,
     PopoverTrigger,
-    SimpleTooltip,
-    type ItemViewTitleEditable,
 } from "@agenta/ui/ui"
 import {DotsThree, DownloadSimple} from "@phosphor-icons/react"
 

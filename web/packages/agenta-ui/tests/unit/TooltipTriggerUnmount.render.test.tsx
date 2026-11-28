@@ -4,6 +4,7 @@ import {useState} from "react"
 import {act, cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
+import {SimpleTooltip} from "../../src/components/composed/simple-tooltip"
 import {Button} from "../../src/components/ui/button"
 import {
     DropdownMenu,
@@ -11,7 +12,6 @@ import {
     DropdownMenuTrigger,
 } from "../../src/components/ui/dropdown-menu"
 import {Popover, PopoverContent, PopoverTrigger} from "../../src/components/ui/popover"
-import {SimpleTooltip} from "../../src/components/ui/tooltip-composed"
 import TableSettingsDropdown from "../../src/InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown"
 import type {ColumnVisibilityState} from "../../src/InfiniteVirtualTable/types"
 

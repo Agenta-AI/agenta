@@ -1,11 +1,11 @@
 import {useState} from "react"
 
+import {InputNumber} from "@agenta/ui/composed"
 import {
     Alert,
     Button,
     Field,
     Input,
-    InputNumber,
     Select,
     SelectContent,
     SelectItem,

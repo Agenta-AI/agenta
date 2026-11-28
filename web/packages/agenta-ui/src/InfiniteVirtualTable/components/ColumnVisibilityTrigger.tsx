@@ -6,10 +6,10 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import {GearSix} from "@phosphor-icons/react"
 
+import {SimpleTooltip} from "../../components/composed/simple-tooltip"
 import {Button} from "../../components/ui/button"
 import {Checkbox} from "../../components/ui/checkbox"
 import {Popover, PopoverContent, PopoverTrigger} from "../../components/ui/popover"
-import {SimpleTooltip} from "../../components/ui/tooltip-composed"
 import type {ColumnVisibilityState} from "../types"
 
 type ColumnVisibilityControls<Row extends object> = ColumnVisibilityState<Row>

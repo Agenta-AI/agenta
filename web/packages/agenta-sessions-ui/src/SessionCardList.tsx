@@ -16,7 +16,8 @@ import {
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
 import {timeAgo} from "@agenta/shared/utils"
-import {SimpleTooltip, SkeletonBlock, Spinner} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {
     ArrowRightIcon,
     ChatCircleIcon,

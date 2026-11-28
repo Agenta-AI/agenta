@@ -19,7 +19,8 @@
  * ```
  */
 
-import {InitialsAvatar} from "@agenta/ui"
+import {getAvatarColorStyle, getInitials} from "@agenta/ui"
+import {Avatar, AvatarFallback} from "@agenta/ui/ui"
 
 import {useUserDisplayName, useIsCurrentUser} from "./atoms"
 
@@ -112,7 +113,11 @@ export function UserAuthorLabel({
         <span
             className={`inline-flex items-center gap-1.5 text-ellipsis overflow-hidden ${className ?? ""}`}
         >
-            {showAvatar && <InitialsAvatar name={displayName} className="w-4 h-4 text-caption" />}
+            {showAvatar && (
+                <Avatar className="size-4 text-caption" style={getAvatarColorStyle(displayName)}>
+                    <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+                </Avatar>
+            )}
             {showPrefix && prefix && `${prefix} `}
             {label}
         </span>

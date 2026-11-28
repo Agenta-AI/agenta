@@ -14,7 +14,8 @@ import {useEffect, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import parameterEditorCatalog from "@agenta/i18n/catalogs/entityUi.parameterEditor"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plus, Wrench} from "@phosphor-icons/react"
 
 import {RowRemoveAction} from "./RowRemoveAction"

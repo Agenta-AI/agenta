@@ -15,9 +15,9 @@ import {useT} from "@agenta/i18n"
 import catalogAppCardCatalog from "@agenta/i18n/catalogs/entityUi.catalogAppCard"
 import catalogChooserCatalog from "@agenta/i18n/catalogs/entityUi.catalogChooser"
 import {ScrollSentinel} from "@agenta/ui"
+import {InputAffix} from "@agenta/ui/composed"
 import {
     Button,
-    InputAffix,
     Spinner,
     Tooltip,
     TooltipContent,

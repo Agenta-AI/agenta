@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
-import {ChoiceSwitch} from "@agenta/ui/ui"
+import {ChoiceSwitch} from "@agenta/ui/composed"
 
 export interface OwnerOption<Owner extends string> {
     value: Owner

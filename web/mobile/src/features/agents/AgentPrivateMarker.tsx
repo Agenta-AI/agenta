@@ -1,4 +1,4 @@
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {LockSimpleIcon} from "@phosphor-icons/react"
 
 import {sharingCopy} from "@/lib/sharingCopy"

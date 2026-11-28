@@ -5,7 +5,8 @@
  */
 import type {ReactNode} from "react"
 
-import {Badge, Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Badge, Button} from "@agenta/ui/ui"
 import {X} from "@phosphor-icons/react"
 import clsx from "clsx"
 

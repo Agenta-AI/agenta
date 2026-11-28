@@ -26,7 +26,8 @@ import {
 import {useT} from "@agenta/i18n"
 import galleryCatalog from "@agenta/i18n/catalogs/home.templateGallery"
 import {FilterRailLayout, LoadError} from "@agenta/ui/components/presentational"
-import {SearchInput, SkeletonBlock} from "@agenta/ui/ui"
+import {SearchInput} from "@agenta/ui/composed"
+import {SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {TemplateCard} from "./TemplateCard"

@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
-import {SearchInput, SkeletonRows} from "@agenta/ui/ui"
+import {SearchInput, SkeletonRows} from "@agenta/ui/composed"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"

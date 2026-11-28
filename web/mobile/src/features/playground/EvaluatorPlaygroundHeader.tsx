@@ -2,7 +2,8 @@ import type {ReactNode} from "react"
 
 import type {WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {AppPicker, RunOnSelector, type RunOnMode} from "@agenta/playground-ui/panels/evaluator"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {X} from "@phosphor-icons/react"
 
 import {NavDrawer} from "../nav/NavDrawer"

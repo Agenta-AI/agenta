@@ -18,6 +18,7 @@ import {
     type SharingPerson,
     type SharingWriteResult,
 } from "@agenta/sessions-ui/sharing"
+import {ChoiceSwitch, LoadingButton} from "@agenta/ui/composed"
 import {
     Alert,
     AlertDialog,
@@ -28,8 +29,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    ChoiceSwitch,
-    LoadingButton,
     SkeletonBlock,
 } from "@agenta/ui/ui"
 import {UsersIcon} from "@phosphor-icons/react"

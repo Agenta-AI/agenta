@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
 import type {SidebarScope} from "@agenta/navigation"
-import {RightPaneHost} from "@agenta/ui/ui"
+import {RightPaneHost} from "@agenta/ui/composed"
 
 import {useAgentSidebarSync} from "../agent-sidebar/useAgentSidebarSync"
 import {useCanonicalProjectRoute} from "../context/useCanonicalProjectRoute"

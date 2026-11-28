@@ -1,5 +1,5 @@
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
-import {Segmented} from "@agenta/ui/ui"
+import {Segmented} from "@agenta/ui/composed"
 
 /** One button per environment; an environment with nothing deployed cannot be picked. */
 export const EndpointEnvironmentPicker = ({

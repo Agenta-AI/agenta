@@ -2,7 +2,8 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import authSharedCatalog from "@agenta/i18n/catalogs/auth.shared"
-import {LoadingButton, cn} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {cn} from "@agenta/ui/ui"
 
 import {KEYCAP_CLASS, SURFACE_CLASS} from "./classes"
 import {LastUsedBadge} from "./LastUsedBadge"

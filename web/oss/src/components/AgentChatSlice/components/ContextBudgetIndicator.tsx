@@ -10,7 +10,7 @@
  */
 import {useMemo} from "react"
 
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {Warning} from "@phosphor-icons/react"
 import type {UIMessage} from "ai"
 

@@ -2,7 +2,8 @@ import {createElement, type ReactElement, type ReactNode} from "react"
 
 import {createT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
-import {SimpleTooltip, Spinner} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Spinner} from "@agenta/ui/ui"
 
 const tNow = createT(navigationCatalog)
 

@@ -1,5 +1,6 @@
 import {RegionInfoText} from "@agenta/auth-ui"
-import {EnhancedModal, ModalContent} from "@agenta/ui"
+
+import {EnhancedModal, ModalContent} from "@/oss/components/LegacyKit"
 
 interface RegionInfoModalProps {
     open: boolean

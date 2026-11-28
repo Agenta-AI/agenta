@@ -2,7 +2,8 @@ import {memo, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import emptyCatalog from "@agenta/i18n/catalogs/observabilityUi.empty"
-import {EmptyPlaceholder, EmptyState} from "@agenta/ui/components/presentational"
+import {VideoEmptyState} from "@agenta/ui/components/presentational"
+import {EmptyState} from "@agenta/ui/composed"
 import {ProhibitIcon, TreeStructureIcon} from "@phosphor-icons/react"
 
 export interface EmptyObservabilityProps {
@@ -30,8 +31,8 @@ export const EmptyObservability = memo(
         if (rateLimited) {
             return (
                 <div className="py-16">
-                    <EmptyPlaceholder
-                        image={<ProhibitIcon size={32} />}
+                    <EmptyState
+                        image={<ProhibitIcon size={32} className="text-muted-foreground" />}
                         description={
                             <div className="flex flex-col gap-2">
                                 <span className="text-title text-foreground">
@@ -51,7 +52,7 @@ export const EmptyObservability = memo(
         if (!showOnboarding) {
             return (
                 <div className="py-16">
-                    <EmptyPlaceholder
+                    <EmptyState
                         image={<TreeStructureIcon size={32} className="text-muted-foreground" />}
                         description={
                             <div className="flex flex-col gap-2">
@@ -69,7 +70,7 @@ export const EmptyObservability = memo(
         }
 
         return (
-            <EmptyState
+            <VideoEmptyState
                 className="py-4"
                 videoId={videoId}
                 previewAlt={t("observabilityUi.empty.demoAlt")}

@@ -45,6 +45,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
+import {Segmented} from "@agenta/ui/composed"
 import {
     LIST_COLUMN_WIDTH,
     ListTable,
@@ -52,7 +53,7 @@ import {
     type ListTableColumn,
 } from "@agenta/ui/list-table"
 import {useIsPhone} from "@agenta/ui/phone"
-import {Button, Segmented} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     CheckCircle,

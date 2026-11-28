@@ -1,4 +1,5 @@
-import {Input, SimpleTooltip, Switch} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Input, Switch} from "@agenta/ui/ui"
 
 /**
  * "Run on historical data", shown off and disabled with its start and end dates, as in the old

@@ -2,7 +2,8 @@ import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import refineCatalog from "@agenta/i18n/catalogs/playground.refine"
-import {Button, Dialog, DialogContent, DialogTitle, Segmented, Switch} from "@agenta/ui/ui"
+import {Segmented} from "@agenta/ui/composed"
+import {Button, Dialog, DialogContent, DialogTitle, Switch} from "@agenta/ui/ui"
 import {X} from "@phosphor-icons/react"
 import clsx from "clsx"
 

@@ -7,10 +7,11 @@
  * returning no-op stubs here is safe.
  */
 
-export const InitialsAvatar = () => null
 export const cn = (...args: unknown[]) => args.filter(Boolean).join(" ")
 export const textColors = {}
 export const bgColors = {}
 export const EnhancedModal = () => null
-export const ModalContent = () => null
-export const ModalFooter = () => null
+export const Avatar = () => null
+export const AvatarFallback = () => null
+export const getAvatarColorStyle = () => ({})
+export const getInitials = (name: string) => name.slice(0, 2).toUpperCase()

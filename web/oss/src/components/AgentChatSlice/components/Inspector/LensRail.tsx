@@ -2,7 +2,8 @@
  * LensRail — the three-tab lens selector (build-spec §2), shared by the docked Inspector and the
  * compare-column drawer. Always three tabs; the Raw `{}` toggle lives in the header, not here.
  */
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 
 import type {InspectorLens} from "./state"
 

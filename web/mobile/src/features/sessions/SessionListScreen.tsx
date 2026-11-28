@@ -18,8 +18,9 @@ import {
     useSessionsList,
 } from "@agenta/sessions/state"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
+import {PageToolbar} from "@agenta/ui/composed"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {Button, PageToolbar} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"

@@ -3,9 +3,11 @@ import {useId, useState} from "react"
 import {useT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import publishCatalog from "@agenta/i18n/catalogs/publish"
-import {CopyButton, getInitials} from "@agenta/ui/components/presentational"
-import {Alert, Button, Input, LoadingButton, Segmented, Textarea} from "@agenta/ui/ui"
+import {getInitials} from "@agenta/ui/components/presentational"
+import {CopyTooltip, LoadingButton, Segmented} from "@agenta/ui/composed"
+import {Alert, Button, Input, Textarea} from "@agenta/ui/ui"
 import {PaneFooter} from "@agenta/ui/view-stack"
+import {Copy} from "@phosphor-icons/react"
 import {useMutation, useQuery, useQueryClient, type QueryKey} from "@tanstack/react-query"
 
 import {CodeBlock} from "../channels/CodeBlock"
@@ -145,15 +147,20 @@ export const EmbedSettingsForm = ({
                         code={snippet.data}
                         maxHeightClass="max-h-80"
                         actions={
-                            <CopyButton
-                                text={embedAssistantPrompt(snippet.data)}
-                                buttonText={t("publish.copyPrompt")}
-                                icon
-                                variant="ghost"
-                                size="xs"
+                            <CopyTooltip
+                                copyText={embedAssistantPrompt(snippet.data)}
+                                title={t("publish.copyPrompt")}
                                 successMessage={t("publish.promptCopied")}
-                                data-testid="agent-embed-copy-prompt"
-                            />
+                            >
+                                <Button
+                                    variant="ghost"
+                                    size="xs"
+                                    data-testid="agent-embed-copy-prompt"
+                                >
+                                    <Copy size={14} />
+                                    {t("publish.copyPrompt")}
+                                </Button>
+                            </CopyTooltip>
                         }
                         data-testid="agent-embed-snippet"
                     />

@@ -23,7 +23,7 @@
  *   ListItem,
  *   VirtualList,
  *   LoadMoreButton,
- *   Breadcrumb,
+ *   EntityBreadcrumb,
  *
  *   // Presentational
  *   VersionBadge,
@@ -54,7 +54,6 @@ export * from "./presentational"
 // ============================================================================
 
 export {EnhancedModal, type EnhancedModalProps, type EnhancedModalStyles} from "./EnhancedModal"
-export {ModalContent, ModalFooter, type ModalContentProps, type ModalFooterProps} from "./modal"
 
 // ============================================================================
 // ACTION COMPONENTS

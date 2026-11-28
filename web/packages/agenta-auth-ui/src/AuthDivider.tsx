@@ -1,4 +1,4 @@
-import {Divider} from "@agenta/ui/ui"
+import {Divider} from "@agenta/ui/composed"
 
 /** The "or" rule between the social block and the email block; the caller translates `label`. */
 export const AuthDivider = ({label}: {label: string}) => (

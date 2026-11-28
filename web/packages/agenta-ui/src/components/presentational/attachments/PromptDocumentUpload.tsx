@@ -26,8 +26,8 @@ import {dataUriToObjectUrl, isBase64} from "@agenta/shared/utils"
 import {FileArchive, MinusCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
 
+import {InputAffix} from "../../composed/input-affix"
 import {Button} from "../../ui/button"
-import {InputAffix} from "../../ui/input-composed"
 
 import {usePromptFileUpload} from "./usePromptFileUpload"
 

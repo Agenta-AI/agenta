@@ -7,8 +7,8 @@ import {useCallback, useState} from "react"
 
 import {CancelSubscriptionReasons, CANCEL_REASON_OTHER} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
-import {EnhancedModal, type EnhancedModalProps} from "@agenta/ui/components/modal"
 
+import {EnhancedModal, type EnhancedModalProps} from "@/oss/components/LegacyKit"
 import {cancelSubscription, useSubscriptionData, useUsageData} from "@/oss/services/billing"
 
 const AutoRenewalCancelModal = ({...props}: EnhancedModalProps) => {

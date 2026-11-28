@@ -7,7 +7,7 @@ import {providerKeyAddedSignalAtom} from "@agenta/shared/state"
 import type {LlmProvider} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
 import {useAccordionSectionOpen} from "@agenta/ui/components/presentational"
-import {LoadingButton, PasswordInput} from "@agenta/ui/ui"
+import {LoadingButton, PasswordInput} from "@agenta/ui/composed"
 import {CheckCircle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 

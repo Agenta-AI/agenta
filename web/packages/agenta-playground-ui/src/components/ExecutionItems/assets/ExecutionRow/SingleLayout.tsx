@@ -8,7 +8,8 @@ import {executionItemController, playgroundController} from "@agenta/playground"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
 import {HeightCollapse} from "@agenta/ui/components"
 import {CollapseToggleButton, CollapsibleGroupHeader} from "@agenta/ui/components/presentational"
-import {Button, SimpleTooltip, type ButtonProps} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button, type ButtonProps} from "@agenta/ui/ui"
 import {
     ArrowsOutLineHorizontalIcon,
     CopyIcon,

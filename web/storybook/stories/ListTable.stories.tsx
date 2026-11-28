@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {PageToolbar} from "@agenta/ui/composed"
 import {
     ListTable,
     ListTableViewToggle,
@@ -7,7 +8,7 @@ import {
     type ListTableGroup,
     type ListTableView,
 } from "@agenta/ui/list-table"
-import {Button, PageToolbar} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**

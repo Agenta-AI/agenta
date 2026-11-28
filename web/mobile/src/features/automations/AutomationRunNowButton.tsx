@@ -1,7 +1,8 @@
 import type {Automation} from "@agenta/automation-ui"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {Play} from "@phosphor-icons/react"
 
 import {useAutomationRunNow} from "./useAutomationRunNow"

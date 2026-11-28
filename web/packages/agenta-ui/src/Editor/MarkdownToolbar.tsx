@@ -60,6 +60,7 @@ import {
     type TextFormatType,
 } from "lexical"
 
+import {SimpleTooltip} from "../components/composed/simple-tooltip"
 import {Button} from "../components/ui/button"
 import {
     DropdownMenu,
@@ -70,7 +71,6 @@ import {
 } from "../components/ui/dropdown-menu"
 import {Input} from "../components/ui/input"
 import {Popover, PopoverContent, PopoverTrigger} from "../components/ui/popover"
-import {SimpleTooltip} from "../components/ui/tooltip-composed"
 import {useScrollFadeEdges} from "../hooks/useScrollFadeEdges"
 import {useIsMacPlatform} from "../shortcuts/ShortcutKeys"
 import {cn} from "../utils/styles"

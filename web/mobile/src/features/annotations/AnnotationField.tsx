@@ -1,15 +1,8 @@
 import {useId} from "react"
 
 import {isEmptyValue, type AnnotationMetricField} from "@agenta/annotation"
-import {
-    AutosizeTextarea,
-    Segmented,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@agenta/ui/ui"
+import {AutosizeTextarea, Segmented} from "@agenta/ui/composed"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 
 import {AnnotationFieldLabel} from "./AnnotationFieldLabel"
 import {AnnotationMultiSelect} from "./AnnotationMultiSelect"

@@ -14,13 +14,13 @@ import {
     type AnalyticsRun,
     type AnalyticsWindow,
 } from "@agenta/observability/analytics"
+import {Segmented} from "@agenta/ui/composed"
 import {
     Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-    Segmented,
     SkeletonBlock,
     cn,
 } from "@agenta/ui/ui"

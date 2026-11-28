@@ -10,7 +10,8 @@ import {
 import type {FileActivityOp} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
-import {Button, cn, SimpleTooltip as Tooltip} from "@agenta/ui/ui"
+import {SimpleTooltip as Tooltip} from "@agenta/ui/composed"
+import {Button, cn} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 

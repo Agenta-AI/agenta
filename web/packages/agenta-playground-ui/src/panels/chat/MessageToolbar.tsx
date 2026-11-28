@@ -3,13 +3,13 @@ import {useEffect, useRef, useState, type ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
 import {CollapseToggleButton} from "@agenta/ui/components/presentational"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     ArrowClockwise,

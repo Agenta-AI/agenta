@@ -13,8 +13,9 @@ import {
     type LatestVersion,
 } from "@agenta/playground/state"
 import {projectIdAtom} from "@agenta/shared/state"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {ClockCounterClockwise, WarningCircle} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai-family"

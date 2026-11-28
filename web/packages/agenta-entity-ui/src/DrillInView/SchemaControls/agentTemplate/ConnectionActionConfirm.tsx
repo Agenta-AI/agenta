@@ -3,6 +3,7 @@ import {useState} from "react"
 
 import {useT, type CatalogKey} from "@agenta/i18n"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Button,
     Dialog,
@@ -11,7 +12,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    LoadingButton,
 } from "@agenta/ui/ui"
 
 export type ConnectionAction = "revoke" | "delete"

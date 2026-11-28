@@ -18,6 +18,7 @@ import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import type {LlmProvider} from "@agenta/shared/types"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {IconTile} from "@agenta/ui/composed"
 import {
     formatListDateTime,
     LIST_COLUMN_WIDTH,
@@ -26,7 +27,7 @@ import {
     type ListTableColumn,
     type ListTableGroup,
 } from "@agenta/ui/list-table"
-import {Button, IconTile} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {PencilSimpleLine, Plus, Trash, Vault} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 

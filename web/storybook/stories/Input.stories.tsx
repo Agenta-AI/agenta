@@ -1,11 +1,5 @@
-import {
-    AutosizeTextarea,
-    Input as ShadInput,
-    InputAffix,
-    PasswordInput,
-    SearchInput,
-    Textarea,
-} from "@agenta/ui/ui"
+import {AutosizeTextarea, InputAffix, PasswordInput, SearchInput} from "@agenta/ui/composed"
+import {Input as ShadInput, Textarea} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 

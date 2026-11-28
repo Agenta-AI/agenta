@@ -1,7 +1,7 @@
 /** "No account yet" or "Not signed in yet": a filled row with a person tile and the action at the right. */
 import type {ReactNode} from "react"
 
-import {IconTile} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
 import {UserCircle} from "@phosphor-icons/react"
 
 export function EmptyAccountBox({text, children}: {text: string; children?: ReactNode}) {

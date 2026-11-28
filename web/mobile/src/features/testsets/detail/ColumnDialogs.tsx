@@ -1,5 +1,6 @@
 import {useEffect, useState} from "react"
 
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Button,
     Dialog,
@@ -10,7 +11,6 @@ import {
     DialogTitle,
     Input,
     Label,
-    SimpleTooltip,
     Spinner,
 } from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"

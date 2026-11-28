@@ -22,8 +22,8 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 
+import {LoadingButton} from "./composed/loading-button"
 import {Button} from "./ui/button"
-import {LoadingButton} from "./ui/button-composed"
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "./ui/dialog"
 import {cn} from "./ui/utils"
 

@@ -10,14 +10,8 @@ import {useEffect, useId, useMemo, useRef} from "react"
 import {createT, useT} from "@agenta/i18n"
 import chatElicitationCatalog from "@agenta/i18n/catalogs/chat.elicitation"
 import {dayjs, type ElicitationStep} from "@agenta/shared/utils"
-import {
-    AutosizeTextarea,
-    DatePicker,
-    DateTimePicker,
-    Input,
-    SimpleTooltip,
-    Spinner,
-} from "@agenta/ui/ui"
+import {AutosizeTextarea, DateTimePicker, SimpleTooltip} from "@agenta/ui/composed"
+import {DatePicker, Input, Spinner} from "@agenta/ui/ui"
 import {Check, Info} from "@phosphor-icons/react"
 
 import {ElicitationChips} from "./ElicitationChips"

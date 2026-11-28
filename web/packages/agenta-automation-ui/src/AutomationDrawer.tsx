@@ -7,16 +7,8 @@ import {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
-import {
-    Button,
-    cn,
-    LoadingButton,
-    Sheet,
-    SheetContent,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Button, cn, Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
 
 import {AutomationCreateBody} from "./AutomationCreateBody"

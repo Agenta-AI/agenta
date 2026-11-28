@@ -11,16 +11,9 @@ import {useCallback, useState} from "react"
 
 import {richText, useT} from "@agenta/i18n"
 import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
+import {LoadingButton} from "@agenta/ui/composed"
 import {cn, textColors} from "@agenta/ui/styles"
-import {
-    Button,
-    Checkbox,
-    LoadingButton,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    Textarea,
-} from "@agenta/ui/ui"
+import {Button, Checkbox, Popover, PopoverContent, PopoverTrigger, Textarea} from "@agenta/ui/ui"
 import {CaretUp} from "@phosphor-icons/react"
 
 import type {CommitDeployOption} from "../../types"

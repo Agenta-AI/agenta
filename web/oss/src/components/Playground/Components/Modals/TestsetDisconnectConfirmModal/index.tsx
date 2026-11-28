@@ -1,9 +1,10 @@
 import {loadableController} from "@agenta/entities/loadable"
 import {playgroundController} from "@agenta/playground"
-import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {Button, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {EnhancedModal, ModalContent} from "@/oss/components/LegacyKit"
 
 import {initialState, testsetDisconnectConfirmModalAtom} from "./store/state"
 

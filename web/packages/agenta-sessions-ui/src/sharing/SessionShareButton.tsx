@@ -1,5 +1,6 @@
 import type {SessionSharingState} from "@agenta/entities/sharing"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {LockSimpleIcon, UsersIcon} from "@phosphor-icons/react"
 
 import {sessionSharingCopy as copy} from "./copy"

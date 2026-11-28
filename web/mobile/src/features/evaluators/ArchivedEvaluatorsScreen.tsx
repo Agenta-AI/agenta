@@ -5,7 +5,7 @@ import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {PageToolbar} from "@agenta/ui/ui"
+import {PageToolbar} from "@agenta/ui/composed"
 import {useSetAtom} from "jotai"
 
 import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"

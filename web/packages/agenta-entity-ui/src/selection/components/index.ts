@@ -8,7 +8,6 @@
 export {
     EntityBreadcrumb,
     EntityListItem,
-    SearchInput,
     VirtualEntityList,
     LoadMoreButton,
     LoadMoreInline,
@@ -20,7 +19,6 @@ export {
 export type {
     EntityBreadcrumbProps,
     EntityListItemProps,
-    SearchInputProps,
     LoadMoreButtonProps,
     LoadMoreInlineProps,
     EndOfListProps,

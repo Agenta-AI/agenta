@@ -4,6 +4,7 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Button,
     DropdownMenu,
@@ -11,7 +12,6 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {ArrowClockwise, DotsThreeVertical, MinusCircle, Trash, XCircle} from "@phosphor-icons/react"
 

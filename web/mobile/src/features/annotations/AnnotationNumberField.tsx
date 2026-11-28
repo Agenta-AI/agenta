@@ -1,6 +1,7 @@
 import {useId, useRef} from "react"
 
-import {InputNumber, Slider} from "@agenta/ui/ui"
+import {InputNumber} from "@agenta/ui/composed"
+import {Slider} from "@agenta/ui/ui"
 
 import {AnnotationFieldLabel} from "./AnnotationFieldLabel"
 

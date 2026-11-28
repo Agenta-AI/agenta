@@ -2,6 +2,7 @@ import {useEffect, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Button,
     Dialog,
@@ -11,7 +12,6 @@ import {
     DialogTitle,
     Field,
     Input,
-    LoadingButton,
 } from "@agenta/ui/ui"
 
 export interface NamePromptModalProps {

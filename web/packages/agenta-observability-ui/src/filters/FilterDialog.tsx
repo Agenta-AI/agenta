@@ -21,11 +21,11 @@ import {
     type FilterItem,
     type FilterMenuNode,
 } from "@agenta/observability/filters"
+import {Divider} from "@agenta/ui/composed"
 import {
     Button,
     type ButtonProps,
     type LegacyButtonSize,
-    Divider,
     Popover,
     PopoverContent,
     PopoverTrigger,

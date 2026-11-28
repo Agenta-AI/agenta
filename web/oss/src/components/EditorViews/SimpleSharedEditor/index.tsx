@@ -1,6 +1,5 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {
     EditorProvider,
     useLexicalComposerContext,
@@ -26,6 +25,8 @@ import {Button, MenuProps} from "antd"
 import clsx from "clsx"
 import {$getRoot} from "lexical"
 import dynamic from "next/dynamic"
+
+import {EnhancedButton} from "@/oss/components/LegacyKit"
 
 import {checkIsHTML, checkIsJSON, checkIsYAML, getDisplayedContent} from "../assets/helper"
 

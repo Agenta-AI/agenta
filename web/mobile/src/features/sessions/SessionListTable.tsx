@@ -6,6 +6,7 @@ import type {SessionRowVm} from "@agenta/sessions/row"
 import {useSessionFilterAtoms, useSessionPins, useSessionsList} from "@agenta/sessions/state"
 import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {
     LIST_COLUMN_WIDTH,
@@ -13,7 +14,7 @@ import {
     type ListTableColumn,
     type ListTableGroup,
 } from "@agenta/ui/list-table"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 

@@ -12,8 +12,9 @@ import React, {useCallback, useEffect, useId, useMemo, useRef, useState} from "r
 
 import {useT} from "@agenta/i18n"
 import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
+import {InputAffix} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
-import {InputAffix, Spinner} from "@agenta/ui/ui"
+import {Spinner} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
 import {useTreeSelectMode, type TreeSelectNode} from "../../../hooks"

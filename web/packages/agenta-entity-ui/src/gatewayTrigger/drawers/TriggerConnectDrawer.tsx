@@ -11,16 +11,15 @@ import triggerConnectCatalog from "@agenta/i18n/catalogs/entityUi.triggerConnect
 import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
+import {Divider, LoadingButton} from "@agenta/ui/composed"
 import {
     Button,
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
-    Divider,
     Field,
     Input,
-    LoadingButton,
     Select,
     SelectContent,
     SelectItem,

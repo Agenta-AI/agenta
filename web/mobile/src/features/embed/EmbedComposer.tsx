@@ -1,6 +1,7 @@
 import {useRef, useState, type KeyboardEvent} from "react"
 
-import {AutosizeTextarea, Button} from "@agenta/ui/ui"
+import {AutosizeTextarea} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {ArrowUp, Paperclip, X} from "@phosphor-icons/react"
 
 /** The visitor's text and files; a refused send keeps the draft. */

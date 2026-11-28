@@ -11,7 +11,8 @@ import {
     setTraceDrawerTraceAtom,
     traceDrawerActiveSpanIdAtom,
 } from "@agenta/observability/traceDrawer"
-import {Button, SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowsIn, ArrowsOut, X} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"

@@ -7,8 +7,9 @@ import {
 } from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
+import {IconTile} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
-import {IconTile, Spinner} from "@agenta/ui/ui"
+import {Spinner} from "@agenta/ui/ui"
 import {CaretRight, GithubLogo, PencilSimple, UploadSimple} from "@phosphor-icons/react"
 
 // A filled row: its edge is visible at rest, so it sits on the alignment line (ALIGN-01).

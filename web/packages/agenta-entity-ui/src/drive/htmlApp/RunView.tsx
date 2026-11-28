@@ -12,6 +12,7 @@ import {
 import {createT, useT} from "@agenta/i18n"
 import driveAppCatalog from "@agenta/i18n/catalogs/entityUi.driveApp"
 import type {PickerRect} from "@agenta/shared/previewPicker"
+import {SimpleTooltip as Tooltip} from "@agenta/ui/composed"
 import {
     frameRectToRoot,
     PreviewCommentLayer,
@@ -21,7 +22,7 @@ import {
     type PreviewPinRect,
     type PreviewRect,
 } from "@agenta/ui/quote-selection"
-import {Button, SimpleTooltip as Tooltip, Skeleton, cn} from "@agenta/ui/ui"
+import {Button, Skeleton, cn} from "@agenta/ui/ui"
 import {ArrowsClockwise, CaretLeft, Copy, LockSimple, Warning} from "@phosphor-icons/react"
 import {createPortal} from "react-dom"
 

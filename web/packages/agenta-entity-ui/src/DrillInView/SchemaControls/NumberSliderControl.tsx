@@ -13,10 +13,10 @@ import {memo, useCallback, useEffect, useId, useState} from "react"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
+import {InputNumber} from "@agenta/ui/composed"
 import {cn, flexLayouts, gapClasses, textColors} from "@agenta/ui/styles"
 import {
     Button,
-    InputNumber,
     Slider,
     Tooltip,
     TooltipContent,

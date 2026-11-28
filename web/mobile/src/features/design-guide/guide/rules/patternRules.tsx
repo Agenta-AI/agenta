@@ -1,4 +1,5 @@
-import {Button, IconTile, Input} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
+import {Button, Input} from "@agenta/ui/ui"
 import {
     ArrowClockwiseIcon,
     CopyIcon,

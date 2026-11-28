@@ -7,7 +7,7 @@ import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {livePollInterval} from "@agenta/navigation"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {SkeletonRows} from "@agenta/ui/ui"
+import {SkeletonRows} from "@agenta/ui/composed"
 import {useQuery} from "@tanstack/react-query"
 import {useStore} from "jotai"
 

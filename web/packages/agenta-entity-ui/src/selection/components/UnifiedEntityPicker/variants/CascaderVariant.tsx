@@ -11,7 +11,7 @@ import React, {type ReactNode, useCallback, useEffect, useRef, useState} from "r
 
 import {useT} from "@agenta/i18n"
 import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
-import {Cascader, type CascaderOption} from "@agenta/ui/ui"
+import {Cascader, type CascaderOption} from "@agenta/ui/composed"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"

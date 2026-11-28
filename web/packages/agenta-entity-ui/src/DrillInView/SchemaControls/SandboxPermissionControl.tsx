@@ -18,8 +18,8 @@ import {useCallback, useMemo} from "react"
 
 import {useT, type CatalogKey} from "@agenta/i18n"
 import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
+import {AutosizeTextarea} from "@agenta/ui/composed"
 import {
-    AutosizeTextarea,
     Combobox,
     Select,
     SelectContent,

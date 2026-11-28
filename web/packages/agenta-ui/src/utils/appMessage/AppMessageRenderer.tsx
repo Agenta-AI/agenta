@@ -4,6 +4,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {createPortal} from "react-dom"
 
+import {Notification, NotificationViewport} from "../../components/composed/notification"
 import {
     AlertDialog,
     AlertDialogCancel,
@@ -14,7 +15,6 @@ import {
     AlertDialogTitle,
 } from "../../components/ui/alert-dialog"
 import {Button} from "../../components/ui/button"
-import {Notification, NotificationViewport} from "../../components/ui/notification"
 import {Toaster} from "../../components/ui/toast"
 import {cn} from "../../components/ui/utils"
 

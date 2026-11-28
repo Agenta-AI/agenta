@@ -1,17 +1,10 @@
 import {useMemo, useState} from "react"
 
 import {annotationSessionController, type SessionView} from "@agenta/annotation"
+import {LoadingButton, SearchInput} from "@agenta/ui/composed"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {
-    LoadingButton,
-    SearchInput,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@agenta/ui/ui"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 

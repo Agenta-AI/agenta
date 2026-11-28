@@ -6,15 +6,8 @@ import type {AgentSecretBinding} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
-import {
-    Button,
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    LoadingButton,
-} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 
 import type {AgentSecretRequestSeed} from "./agentSecretRules"
 import {SecretAttachFields} from "./attach/SecretAttachFields"

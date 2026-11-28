@@ -11,17 +11,9 @@ import {type SessionDriveData} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
-import {CopyButton} from "@agenta/ui/components/presentational"
-import {
-    Button,
-    Empty,
-    EmptyDescription,
-    EmptyHeader,
-    EmptyMedia,
-    EmptyTitle,
-    SimpleTooltip as Tooltip,
-} from "@agenta/ui/ui"
-import {Folder, FolderSimple, GitBranch} from "@phosphor-icons/react"
+import {CopyTooltip, SimpleTooltip as Tooltip} from "@agenta/ui/composed"
+import {Button, Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from "@agenta/ui/ui"
+import {Copy, Folder, FolderSimple, GitBranch} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
@@ -171,17 +163,19 @@ export const FolderView = ({
                             toggle joins it when this folder is a git repo. Root ("") has no path. */}
                         <div className="flex shrink-0 items-center gap-1">
                             {folderPath ? (
-                                <Tooltip title={t("entityUi.driveExplorer.copyPath")}>
-                                    <CopyButton
-                                        text={folderPath}
-                                        buttonText={null}
-                                        icon
+                                <CopyTooltip
+                                    copyText={folderPath}
+                                    title={t("entityUi.driveExplorer.copyPath")}
+                                >
+                                    <Button
+                                        variant="outline"
                                         size="icon-sm"
                                         aria-label={t("entityUi.driveBrowser.copyFolderPath")}
-                                        successMessage=""
-                                        className="!h-7 !w-7 !p-0 !text-muted-foreground hover:!text-foreground"
-                                    />
-                                </Tooltip>
+                                        className="!text-muted-foreground hover:!text-foreground"
+                                    >
+                                        <Copy size={14} />
+                                    </Button>
+                                </CopyTooltip>
                             ) : null}
                             {repo.isRepo ? (
                                 <Tooltip title={t("entityUi.driveBrowser.repositoryDetails")}>

@@ -2,10 +2,10 @@ import {useEffect, useState, type FormEvent} from "react"
 
 import {useT} from "@agenta/i18n"
 import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Field,
     Input,
-    LoadingButton,
     Button,
     Select,
     SelectContent,

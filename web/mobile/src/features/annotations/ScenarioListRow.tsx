@@ -1,7 +1,8 @@
 import type {ReactNode} from "react"
 
 import {scenarioStatusLabel, scenarioStatusTone, type StatusTone} from "@agenta/annotation"
-import {Checkbox, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Checkbox} from "@agenta/ui/ui"
 import {CheckCircle} from "@phosphor-icons/react"
 
 import {ScenarioEvaluatorCell} from "./ScenarioEvaluatorCell"

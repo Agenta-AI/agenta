@@ -28,8 +28,8 @@ import {memo, useCallback, useEffect, useState} from "react"
 import {XCircle} from "@phosphor-icons/react"
 
 import {cn, flexLayouts, gapClasses} from "../../../utils/styles"
+import {InputNumber} from "../../composed/input-number"
 import {Button} from "../../ui/button"
-import {InputNumber} from "../../ui/input-number"
 import {Slider} from "../../ui/slider"
 
 // ============================================================================

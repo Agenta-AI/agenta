@@ -1,6 +1,6 @@
 import type {ButtonHTMLAttributes} from "react"
 
-import {IconTile} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
 import {CaretDown} from "@phosphor-icons/react"
 import clsx from "clsx"
 

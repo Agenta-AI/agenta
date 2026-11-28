@@ -15,8 +15,8 @@ import {useEffect, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import parameterEditorCatalog from "@agenta/i18n/catalogs/entityUi.parameterEditor"
+import {AutosizeTextarea} from "@agenta/ui/composed"
 import {
-    AutosizeTextarea,
     Button,
     Combobox,
     Input,

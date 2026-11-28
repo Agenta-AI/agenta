@@ -1,6 +1,7 @@
 import type {FormEvent} from "react"
 
-import {Button, Field, Input, LoadingButton, Textarea} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Button, Field, Input, Textarea} from "@agenta/ui/ui"
 
 import {useQueueDetailsForm} from "./useQueueDetailsForm"
 

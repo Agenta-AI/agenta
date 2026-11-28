@@ -14,7 +14,8 @@ import {
 } from "@agenta/sessions-ui"
 import {userAtom} from "@agenta/shared/state"
 import {timeAgo} from "@agenta/shared/utils"
-import {Button, IconTile, SimpleTooltip} from "@agenta/ui/ui"
+import {IconTile, SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {
     ArrowBendDownRight,
     ChatCircle,

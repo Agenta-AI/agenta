@@ -82,13 +82,19 @@ vi.mock("@agenta/ui/ui", () => {
     const part = ({children}: {children?: ReactNode}) => createElement("div", null, children)
     return {
         Button: button,
-        LoadingButton: button,
         Sheet: part,
         SheetContent: part,
         SheetHeader: part,
         SheetTitle: part,
         SheetFooter: part,
         cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
+    }
+})
+vi.mock("@agenta/ui/composed", () => {
+    const button = ({children, onClick}: {children: ReactNode; onClick?: () => void}) =>
+        createElement("button", {type: "button", onClick}, children)
+    return {
+        LoadingButton: button,
     }
 })
 // The form and the edit side are not this file's subject.

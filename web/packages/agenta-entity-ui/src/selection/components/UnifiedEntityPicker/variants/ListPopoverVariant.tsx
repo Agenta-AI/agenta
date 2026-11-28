@@ -14,11 +14,11 @@ import React, {useCallback, useEffect, useId, useRef} from "react"
 
 import {useT} from "@agenta/i18n"
 import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
-import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
+import {EntityListItem} from "@agenta/ui/components/selection"
+import {SearchInput} from "@agenta/ui/composed"
+import {Divider, EmptyState} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
 import {
-    Divider,
-    EmptyState,
     Popover,
     PopoverAnchor,
     PopoverContent,
@@ -230,7 +230,7 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                 <div className="mb-2">
                     <SearchInput
                         value={searchTerm}
-                        onChange={setSearchTerm}
+                        onValueChange={setSearchTerm}
                         placeholder={t("entityUi.selection.searchLevel", {
                             label: labelInSentence(parentLabel),
                         })}

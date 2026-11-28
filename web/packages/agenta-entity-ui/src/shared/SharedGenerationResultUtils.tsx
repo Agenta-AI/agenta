@@ -10,9 +10,9 @@ import {
     type ExecutionStatus,
 } from "@agenta/shared/utils"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Badge,
-    LoadingButton,
     statusBadgeVariant,
     SkeletonBlock,
     Tooltip,

@@ -206,7 +206,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
                 {prop: "shortcut", values: `string | string[]`, note: `e.g. ["⌘", "K"]`},
                 {prop: "side", values: `"top" | "right" | "bottom" | "left"`},
             ],
-            code: `import {SimpleTooltip} from "@agenta/ui/ui"`,
+            code: `import {SimpleTooltip} from "@agenta/ui/composed"`,
             rules: [...tooltipRules, ...moreTooltipExamples],
         },
         {

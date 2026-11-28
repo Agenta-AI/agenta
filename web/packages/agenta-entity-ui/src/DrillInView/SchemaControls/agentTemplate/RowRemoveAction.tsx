@@ -1,7 +1,8 @@
 /** A row's quiet remove bin, "Remove {name}"; none on a phone screen, where the item view removes (ACT-03). */
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {Trash} from "@phosphor-icons/react"
 
 import {usePhoneSections} from "./phoneSections"

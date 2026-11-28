@@ -12,7 +12,7 @@ components/
 │   ├── VirtualList.tsx      # Virtualized list (@tanstack/react-virtual)
 │   ├── LoadMoreButton.tsx   # Pagination button
 │   ├── LoadAllButton.tsx    # Load all with progress
-│   ├── Breadcrumb.tsx       # Navigation breadcrumb
+│   ├── EntityBreadcrumb.tsx # Navigation breadcrumb
 │   └── index.ts
 ├── presentational/      # Pure display components
 │   ├── version/             # VersionBadge
@@ -24,11 +24,6 @@ components/
 │   ├── field/               # FieldHeader
 │   ├── select/              # SimpleDropdownSelect
 │   ├── editable/            # EditableText
-│   ├── CopyButton.tsx       # Copy to clipboard button
-│   └── index.ts
-├── modal/               # Modal layout components
-│   ├── ModalContent.tsx     # Standardized modal content
-│   ├── ModalFooter.tsx      # Standardized modal footer
 │   └── index.ts
 ├── EnhancedModal.tsx        # Modal wrapper with lazy rendering
 └── index.ts
@@ -43,22 +38,19 @@ import {
     ListItem,
     VirtualList,
     LoadMoreButton,
-    Breadcrumb,
+    EntityBreadcrumb,
 
     // Presentational
     VersionBadge,
     RevisionLabel,
     EntityPathLabel,
     EntityNameWithVersion,
-    CopyButton,
     SectionCard,
     MetadataHeader,
     EditableText,
 
     // Modal
     EnhancedModal,
-    ModalContent,
-    ModalFooter,
 } from "@agenta/ui"
 ```
 
@@ -66,14 +58,14 @@ import {
 
 Building blocks for list selection UIs with search, virtual scrolling, and pagination.
 
-| Component        | Description                                         |
-| ---------------- | --------------------------------------------------- |
-| `SearchInput`    | Search input with clear button and keyboard support |
-| `ListItem`       | Generic list item with click/navigate variants      |
-| `VirtualList`    | Virtualized list using @tanstack/react-virtual      |
-| `LoadMoreButton` | Pagination button with count display                |
-| `LoadAllButton`  | Load all pages with progress indicator              |
-| `Breadcrumb`     | Navigation breadcrumb with back button              |
+| Component          | Description                                         |
+| ------------------ | --------------------------------------------------- |
+| `SearchInput`      | Search input with clear button and keyboard support |
+| `ListItem`         | Generic list item with click/navigate variants      |
+| `VirtualList`      | Virtualized list using @tanstack/react-virtual      |
+| `LoadMoreButton`   | Pagination button with count display                |
+| `LoadAllButton`    | Load all pages with progress indicator              |
+| `EntityBreadcrumb` | Navigation breadcrumb with back button              |
 
 ## Presentational Components
 
@@ -85,7 +77,6 @@ Pure display components with no data fetching or business logic.
 | `RevisionLabel`         | Revision details (version, date, message, author) |
 | `EntityPathLabel`       | Hierarchical paths ("App / Variant / v1")         |
 | `EntityNameWithVersion` | Entity name with version badge                    |
-| `CopyButton`            | Copy to clipboard with visual feedback            |
 | `SectionCard`           | Card container for section content                |
 | `SectionHeaderRow`      | Header row with left/right content                |
 | `ConfigBlock`           | Configuration block with title                    |
@@ -102,8 +93,6 @@ Pure display components with no data fetching or business logic.
 | Component       | Description                                                         |
 | --------------- | ------------------------------------------------------------------- |
 | `EnhancedModal` | Modal wrapper with lazy rendering, auto-height, smart style merging |
-| `ModalContent`  | Standardized modal content layout with gap options                  |
-| `ModalFooter`   | Standardized footer with cancel/confirm buttons                     |
 
 ### Modal Pattern: Content Extraction
 
@@ -161,7 +150,6 @@ function MyModalContent({onClose, ...props}) {
 
 1. **Selection components**: Add to `selection/` folder
 2. **Pure display components**: Add to `presentational/` with subfolder if needed
-3. **Modal utilities**: Add to `modal/` folder
-4. **Standalone components**: Add directly to `components/` folder
+3. **Standalone components**: Add directly to `components/` folder
 
 Always export from the appropriate `index.ts` file.

@@ -4,7 +4,8 @@ import {createT, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {useInlineRename} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
-import {Input, SimpleTooltip, type ItemViewTitleEditable} from "@agenta/ui/ui"
+import {SimpleTooltip, type ItemViewTitleEditable} from "@agenta/ui/composed"
+import {Input} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
 
 const tNow = createT(automationsEditorCatalog)

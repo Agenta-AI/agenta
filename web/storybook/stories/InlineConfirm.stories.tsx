@@ -1,6 +1,7 @@
 import {useState} from "react"
 
-import {Button, InlineConfirm} from "@agenta/ui/ui"
+import {InlineConfirm} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // The confirm is NOT a popover — it renders under the control that opened it, so the row it

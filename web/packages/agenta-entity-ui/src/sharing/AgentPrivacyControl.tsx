@@ -3,14 +3,8 @@ import {useState} from "react"
 import {useT} from "@agenta/i18n"
 import sharingCatalog from "@agenta/i18n/catalogs/entityUi.sharing"
 import {personName} from "@agenta/sessions-ui/sharing"
-import {
-    Button,
-    LoadingButton,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    SkeletonBlock,
-} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Button, Popover, PopoverContent, PopoverTrigger, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretDownIcon, LockSimpleIcon, UsersIcon, WarningCircleIcon} from "@phosphor-icons/react"
 
 import {AgentPrivacyDialog, type AgentPrivacyProps} from "./AgentPrivacyDialog"

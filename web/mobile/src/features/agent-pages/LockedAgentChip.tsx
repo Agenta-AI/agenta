@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import lockedFilterCatalog from "@agenta/i18n/catalogs/agentPages.lockedFilter"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {LockSimple} from "@phosphor-icons/react"
 
 import {useAgentRow} from "../agent-layout/useAgentRow"

@@ -7,25 +7,6 @@ import {afterEach, beforeEach, expect, it, vi} from "vitest"
 vi.mock("@agenta/ui/ui", () => {
     const Wrap = ({children}: {children: React.ReactNode}) => <div>{children}</div>
     return {
-        ItemViewTitle: ({
-            title,
-            description,
-            status,
-            actions,
-        }: {
-            title: string
-            description?: React.ReactNode
-            status?: React.ReactNode
-            actions?: React.ReactNode
-        }) => (
-            <div>
-                <h2>{title}</h2>
-                {status}
-                {actions}
-                {description ? <div>{description}</div> : null}
-            </div>
-        ),
-        SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
         Accordion: Wrap,
         AccordionContent: Wrap,
         AccordionItem: Wrap,
@@ -59,7 +40,6 @@ vi.mock("@agenta/ui/ui", () => {
             />
         ),
         Input: (props: React.ComponentProps<"input">) => <input {...props} />,
-        PasswordInput: () => <input />,
         RadioGroup: Wrap,
         RadioGroupItem: (props: {"data-testid"?: string}) => (
             <input type="radio" data-testid={props["data-testid"]} />
@@ -105,6 +85,30 @@ vi.mock("@agenta/ui/ui", () => {
                 onClick={() => onCheckedChange(!checked)}
             />
         ),
+    }
+})
+vi.mock("@agenta/ui/composed", () => {
+    return {
+        ItemViewTitle: ({
+            title,
+            description,
+            status,
+            actions,
+        }: {
+            title: string
+            description?: React.ReactNode
+            status?: React.ReactNode
+            actions?: React.ReactNode
+        }) => (
+            <div>
+                <h2>{title}</h2>
+                {status}
+                {actions}
+                {description ? <div>{description}</div> : null}
+            </div>
+        ),
+        SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
+        PasswordInput: () => <input />,
     }
 })
 import {ChannelManagePanel} from "../../src/channels/ChannelManagePanel"

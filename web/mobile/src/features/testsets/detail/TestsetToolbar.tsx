@@ -5,6 +5,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import testsetScreensCatalog from "@agenta/i18n/catalogs/testsets.screens"
 import {message} from "@agenta/ui/app-message"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -15,7 +16,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    SimpleTooltip,
     Spinner,
 } from "@agenta/ui/ui"
 import {ArrowCounterClockwise, Plus, UploadSimple} from "@phosphor-icons/react"

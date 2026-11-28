@@ -28,10 +28,11 @@ import {useCallback, useId, useMemo, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import formViewCatalog from "@agenta/i18n/catalogs/entityUi.formView"
+import {InputNumber} from "@agenta/ui/composed"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
-import {Button, Input, InputNumber, Switch} from "@agenta/ui/ui"
+import {Button, Input, Switch} from "@agenta/ui/ui"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
 import {dump as yamlDump, load as yamlLoad} from "js-yaml"
 

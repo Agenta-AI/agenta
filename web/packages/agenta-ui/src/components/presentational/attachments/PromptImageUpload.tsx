@@ -28,8 +28,8 @@ import {generateId} from "@agenta/shared/utils"
 import {Image as ImageIcon, MinusCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
 
+import {InputAffix} from "../../composed/input-affix"
 import {Button} from "../../ui/button"
-import {InputAffix} from "../../ui/input-composed"
 import {Progress} from "../../ui/progress"
 import {Spinner} from "../../ui/spinner"
 

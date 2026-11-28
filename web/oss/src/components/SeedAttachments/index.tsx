@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {AttachmentCard, AttachmentCardGrid} from "@agenta/chat/components"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
 /**

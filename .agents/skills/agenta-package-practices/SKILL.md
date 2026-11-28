@@ -110,6 +110,7 @@ import type {SimpleChatMessage, MessageContent, ToolCall} from "@agenta/shared/t
 
 ```typescript
 import {...} from "@agenta/ui/ui"                 // shadcn primitives (Button, Dialog, Sheet, ...)
+import {...} from "@agenta/ui/composed"           // built from the primitives (SimpleTooltip, LoadingButton, Segmented, SplitPane, ...)
 import {...} from "@agenta/ui"                    // presentational components, cn, textColors
 import {...} from "@agenta/ui/table"              // InfiniteVirtualTable, paginated stores
 import {...} from "@agenta/ui/editor"             // Editor, JSON parsing utilities
@@ -140,23 +141,18 @@ instead of raw antd `Modal` in package code. In `web/mobile`, and for new
 surfaces, compose `Dialog`/`Sheet` from `@agenta/ui/ui` directly.
 
 ```typescript
-import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
+import {EnhancedModal} from "@agenta/ui"
 
-function MyModal({open, onClose}: {open: boolean; onClose: () => void}) {
+function MyModal({open, onClose, onConfirm}: MyModalProps) {
     return (
-        <EnhancedModal open={open} onCancel={onClose} title="Modal Title" footer={null}>
-            <ModalContent>{/* Main content */}</ModalContent>
-            <ModalFooter>
-                <Button onClick={onClose}>Cancel</Button>
-                <Button type="primary">Confirm</Button>
-            </ModalFooter>
+        <EnhancedModal open={open} onCancel={onClose} onOk={onConfirm} title="Modal Title">
+            {/* Main content */}
         </EnhancedModal>
     )
 }
 ```
 
-Why: consistent styling, proper scroll handling via `ModalContent`, standardized footer
-via `ModalFooter`, theme integration.
+Why: consistent styling, scroll handling inside the modal body, theme integration.
 
 ## Style utilities and presentational components
 
@@ -188,6 +184,7 @@ import {
 
 ```text
 Need a primitive (button, dialog, ...)? → @agenta/ui/ui
+Need a kit composition (SimpleTooltip, LoadingButton, Segmented, RightPane, ...)? → @agenta/ui/composed
 Need a modal?                          → Dialog from @agenta/ui/ui (EnhancedModal for antd-style call sites)
 Class-name utils or theme colors?      → cn, textColors, bgColors from @agenta/ui
 Section layout primitives?             → SectionCard, SectionLabel, ConfigBlock from @agenta/ui

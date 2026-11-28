@@ -1,6 +1,6 @@
 import {useCallback, useState} from "react"
 
-import {Cascader, type CascaderOption} from "@agenta/ui/ui"
+import {Cascader, type CascaderOption} from "@agenta/ui/composed"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const meta = {

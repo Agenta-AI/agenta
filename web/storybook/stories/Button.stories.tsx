@@ -1,5 +1,6 @@
-import {EnhancedButton, RunButton} from "@agenta/ui/components/presentational"
-import {Button as ShadButton, LoadingButton} from "@agenta/ui/ui"
+import {RunButton} from "@agenta/ui/components/presentational"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Button as ShadButton} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
@@ -18,7 +19,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The `@agenta/ui` cva Button with `variant` and `size` props, plus `LoadingButton` for async actions. See the subcomponent table below for the `LoadingButton` props.\n\n**Used in:** 43 files, mostly through the facades (`EnhancedButton`, `CopyButton`, `RunButton`, `CollapseToggleButton`, `DropdownButton`, `ScrollToTopButton`). Direct call-sites include the playground controls bar and execution rows (`@agenta/playground-ui`), the chat message list and attachment buttons, the Lexical editor toolbar, the virtualized table toolbar and filters, and the drill-in controls. `LoadingButton` is narrower — 5 places, all modal and table footers.",
+                    "The `@agenta/ui` cva Button with `variant` and `size` props, plus `LoadingButton` for async actions. See the subcomponent table below for the `LoadingButton` props.\n\n**Used in:** 43 files, mostly through the facades (`RunButton`, `CollapseToggleButton`, `DropdownButton`, `ScrollToTopButton`). Direct call-sites include the playground controls bar and execution rows (`@agenta/playground-ui`), the chat message list and attachment buttons, the Lexical editor toolbar, the virtualized table toolbar and filters, and the drill-in controls. `LoadingButton` is narrower — 5 places, all modal and table footers.",
             },
         },
     },
@@ -253,9 +254,6 @@ export const AbsorbedPresets: Story = {
     render: () => (
         <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-3">
-                <EnhancedButton tooltipProps={{title: "I am a tooltip"}}>
-                    EnhancedButton
-                </EnhancedButton>
                 <ShadButton variant="outline">
                     <Plus />
                     Add item

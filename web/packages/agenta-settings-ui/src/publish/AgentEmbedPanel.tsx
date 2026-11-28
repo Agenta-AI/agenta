@@ -1,7 +1,8 @@
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import publishCatalog from "@agenta/i18n/catalogs/publish"
-import {Alert, Button, EmptyState, LoadingButton, SkeletonBlock} from "@agenta/ui/ui"
+import {EmptyState, LoadingButton} from "@agenta/ui/composed"
+import {Alert, Button, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretRight, ChatCircleText} from "@phosphor-icons/react"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 

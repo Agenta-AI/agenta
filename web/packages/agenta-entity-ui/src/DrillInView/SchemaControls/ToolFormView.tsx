@@ -17,8 +17,8 @@ import {useToolActionDetail, type ToolCatalogActionDetails} from "@agenta/entiti
 import {useT, type CatalogKey} from "@agenta/i18n"
 import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import {buildGatewayToolSlug, safeStringify} from "@agenta/shared/utils"
+import {AutosizeTextarea} from "@agenta/ui/composed"
 import {
-    AutosizeTextarea,
     Input,
     Select,
     SelectContent,

@@ -21,17 +21,8 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
-import {
-    Button,
-    Empty,
-    EmptyContent,
-    EmptyHeader,
-    EmptyMedia,
-    EmptyTitle,
-    IconTile,
-    SearchInput,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
+import {IconTile, SearchInput, SimpleTooltip} from "@agenta/ui/composed"
+import {Button, Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle} from "@agenta/ui/ui"
 import type {ViewDef} from "@agenta/ui/view-stack"
 import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"

@@ -1,5 +1,6 @@
 import {McpServerMark, SkillMark} from "@agenta/ui/agent-icon"
-import {Button, IconTile} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {HardDrives, Plugs, Plus} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 

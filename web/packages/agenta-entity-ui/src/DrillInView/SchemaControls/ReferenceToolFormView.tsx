@@ -7,18 +7,12 @@ import {formatNumber, useT} from "@agenta/i18n"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
+import {AutosizeTextarea, IconTile, ItemViewTitle} from "@agenta/ui/composed"
 import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {
-    Alert,
-    AutosizeTextarea,
-    Button,
-    IconTile,
-    ItemViewTitle,
-    SkeletonBlock,
-} from "@agenta/ui/ui"
+import {Alert, Button, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretDown, Compass, Cpu, Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 

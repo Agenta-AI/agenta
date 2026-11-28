@@ -29,9 +29,10 @@ import {
     type SkillSourceImportResponse,
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
+import {IconTile} from "@agenta/ui/composed"
 import type {NewSkillBodyProps as BridgeNewSkillBodyProps} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {Button, Checkbox, IconTile, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
+import {Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {useViewTitle} from "@agenta/ui/view-stack"
 import {ArrowUp, CaretRight, Export, PencilSimple, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
