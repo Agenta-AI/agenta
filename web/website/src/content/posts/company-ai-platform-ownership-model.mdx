@@ -1,0 +1,230 @@
+---
+slug: company-ai-platform-ownership-model
+title: "Who Owns What in an Internal AI Platform? Platform Engineering vs. Domain Builders"
+description: "A practical operating model and RACI matrix for CTOs dividing ownership between platform engineering and domain builders in an internal AI agent platform."
+category: Engineering
+date: 2026-10-31
+author: mahmoud-mabrouk
+heroImage: /blog/company-ai-platform-ownership-model/hero.webp
+ogImage: /blog/company-ai-platform-ownership-model/hero.webp
+readingTime: 13 min read
+tags:
+  - AI Coworker
+  - Company Brain
+  - Open Source
+  - AI Engineering
+  - Enterprise AI
+faq:
+  - question: "Who should own an internal AI platform inside a company?"
+    answer: "An internal AI platform works best under a federated hub-and-spoke ownership model. Platform engineering and security own the governed substrate: container sandboxes, network egress policies, project-level secret references, model and harness routing, OAuth and MCP server connections, role-based access control (RBAC), and OpenTelemetry tracing. Domain builders in product, support, marketing, sales, finance, and operations own the workflow and context layer: plain-language instructions, reusable skills, persistent shared agent files, human approval rules, and channel publishing."
+  - question: "How do you let non-technical teams build AI agents without exposing API keys or production databases?"
+    answer: "Separate credential management from agent configuration. In an open-source AI coworker platform like Agenta, engineers with the Developer or Admin role configure project-level model connections, OAuth app integrations, and MCP server headers once. Agent configurations store only connection slugs and secret references (such as gateway_connection and header_secret_refs), never raw API keys or bearer tokens. Domain builders with the Editor role can attach approved tools and set action-level permissions (Allow reads, Ask on writes) without ever viewing or handling underlying credentials."
+  - question: "What is the best default permission policy when domain teams build their own AI coworkers?"
+    answer: "Set the default policy to 'Allow reads' (or 'Ask for write and delete' on MCP servers) with new_tool_permission set to 'ask'. Under this contract, read-only lookups such as searching documentation, reading tickets, or querying analytics run automatically, while any action that mutates external state or sends a message pauses the run and renders an interactive approval card for a human to review."
+  - question: "How do domain teams edit and test agents in chat without breaking scheduled production automations?"
+    answer: "Use immutable workflow revisions and pinned triggers. Every time a domain builder updates an agent's instructions, skills, or tool policies in Agenta, the platform commits a numbered workflow_revision. Scheduled cron jobs and webhook event subscriptions can bind to a specific verified revision ID, allowing builders to test changes in interactive sessions while recurring production runs stay locked to the approved revision."
+  - question: "What happens to a department's AI coworkers when the person who built them leaves the company?"
+    answer: "In Agenta, new agents and chats start private to their creator so builders can experiment safely. Once an agent is switched to 'Shared with project', the entire team can use it across web, Slack, Telegram, or an embeddable web chat widget. If the original creator leaves the project, shared agents remain active for the team, and any project Admin or Owner can use the 'Take ownership' control (manage_agent_ownership) to reassign stewardship without rebuilding the workflow."
+---
+
+When companies roll out an [internal AI agent platform](/blog/internal-ai-agent-platform-build-vs-buy), the hardest failures rarely happen inside the model API. They happen at the organizational boundary between platform engineering and the business teams trying to automate their daily work.
+
+Draw the boundary too far toward engineering, and your platform team becomes a permanent ticket queue. Every time support wants to adjust a triage rule, marketing wants to update a brand playbook, or finance wants to tweak a weekly report format, someone has to file a Jira ticket and wait two weeks for a software engineer to edit a Python file and open a pull request. Within a quarter, domain teams stop asking and go back to pasting company data into personal chat tabs.
+
+Draw the boundary too far toward decentralized self-service, and you get shadow AI sprawl. Five departments buy five disconnected SaaS tools, paste long-lived production API keys directly into browser prompts, maintain conflicting copies of company documentation, and wire up unreviewed write actions that post directly to customer channels.
+
+The solution is a **federated internal AI platform ownership model** where organizational responsibilities map directly to software boundaries. Platform engineering owns the **governed substrate** (sandboxes, credentials, network policies, model harnesses, and observability), while non-technical and semi-technical domain builders own the **coworker and knowledge layer** (plain-language instructions, reusable skills, persistent shared agent files, and human approval rules).
+
+This guide provides a concrete operating model, a 10-point RACI matrix, and the exact architectural guardrails CTOs use to let every department build and run AI coworkers safely.
+
+## TL;DR: The 3 operating models for an internal AI platform
+
+| Operating Model                         | Who Builds & Updates Agents                             | Primary Failure Mode                                          | Best Fit                                                                                 |
+| :-------------------------------------- | :------------------------------------------------------ | :------------------------------------------------------------ | :--------------------------------------------------------------------------------------- |
+| **1. Centralized Engineering Queue**    | Platform & AI engineers only (via Git PRs)              | 2-to-4-week backlog for simple prompt or workflow edits       | Customer-facing core product features with strict SLAs                                   |
+| **2. Decentralized Departmental Silos** | Individual teams in separate SaaS tools                 | Shadow AI, duplicated seat fees, fragmented company memory    | Short-term prototypes with zero shared data or tools                                     |
+| **3. Federated Hub-and-Spoke**          | **Platform** owns rails; **Domain Builders** own agents | Requires clear permission and revision boundaries in software | Company-wide AI coworkers and [company AI brains](/blog/how-to-build-a-company-ai-brain) |
+
+## Why internal AI platforms fail without a software-enforced ownership seam
+
+Enterprise engineering teams have learned this lesson before. During the cloud migration era, companies that forced application developers to file infrastructure tickets for every environment variable ground to a halt, while companies that handed raw root AWS credentials to every team suffered predictable security incidents. Platform engineering solved that tension by building golden paths: self-service workflows constrained by identity, network, and policy guardrails.
+
+Internal AI platforms require the same separation of concerns, with one critical difference: **the primary builders of internal AI coworkers are domain experts across support, operations, marketing, sales, finance, and product, not just software engineers.**
+
+In [GitLab's "Hub & Spoke & Hub" AI operating model](https://handbook.gitlab.com/handbook/company/cadence/ai-operating-model/) and [Microsoft's Agent Center of Excellence (CoE) framework](https://www.microsoft.com/en-us/microsoft-cloud/blog/2025/07/29/creating-an-agent-center-of-excellence-roles-and-responsibilities/), high-performing organizations split responsibility into three layers:
+
+1. **The Central Infrastructure Hub (Platform Engineering & Security):** Manages the runtime environment, identity and access control, secret vaults, network boundaries, model routing, and audit telemetry.
+2. **The Functional Spokes (Domain Builders):** Subject-matter experts inside each department who define what the coworker should do, write plain-language instructions, curate departmental knowledge, review high-impact actions, and measure business results.
+3. **The Shared Library Seam (Reusable Skills & Templates):** A shared project catalog where proven skills, connectors, and coworker configurations built by one spoke can be reused across the organization.
+
+When teams try to implement this federated model on top of raw code frameworks (like LangGraph or CrewAI), the model collapses because non-engineers cannot edit Python graphs. When they try to implement it on closed per-seat SaaS tools, platform engineering loses control over container sandboxes, network egress, and self-hosted data residency.
+
+To make federated ownership work in practice, the platform itself must separate the **infrastructure substrate** from the **agent configuration seam**.
+
+![Two-plane ownership architecture separating the Platform Engineering Substrate, Shared Governance Seam, and Domain Builder Workspace](/blog/company-ai-platform-ownership-model/platform-vs-domain-ownership-layers.webp)
+
+## The 3-layer ownership architecture in practice
+
+In an [open-source AI coworker platform](https://agenta.ai) like Agenta (released under the [MIT License](https://opensource.org/license/mit)), the runtime architecture is divided into five execution components (`Application -> Agent Workflow Service -> Runner -> Harness -> Sandbox`) that map cleanly onto three organizational ownership zones.
+
+### Layer 1: The Platform Engineering Substrate (Owned by Platform & Security)
+
+Platform engineering deploys the platform once via [Docker Compose](https://docs.docker.com/compose/), [Kubernetes Helm](https://helm.sh/), or Agenta Cloud and manages four foundational rails:
+
+- **Isolated computer and browser sandboxes:** Every agent session that runs scripts, inspects files, or uses a headless browser executes inside an isolated [Daytona](https://www.daytona.io/) container (or a configured local sandbox on self-hosted deployments). Platform engineers define the sandbox policy, including outbound `network.mode` (`on`, `off`, or `allowlist` restricted to specific CIDR ranges like `10.0.0.0/8`) and `enforcement: "strict"` so a run fails closed if a boundary cannot be applied.
+- **Execution harnesses and model routing:** A _harness_ is the coding-grade agent runtime that drives the reasoning loop, executes shell and file operations inside the sandbox, and calls models and tools. Platform engineers enable supported harnesses across [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://github.com/openai/codex) ([Agenta Codex harness](https://agenta.ai/docs/changelog/codex-harness)), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models), and connect model providers (Anthropic, OpenAI, Google, Bedrock, Vertex, OpenRouter, or self-hosted endpoints).
+- **Project-level secrets and OAuth connections:** Engineers with the `Developer` or `Admin` role register API keys, OAuth integrations, and [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers at the project level. Raw secrets never enter an agent template.
+- **Role-Based Access Control (RBAC) and OpenTelemetry tracing:** Platform administrators assign cumulative roles (`Owner`, `Admin`, `Developer`, `Editor`, `Annotator`, `Viewer`) and monitor [OpenTelemetry](https://opentelemetry.io/) traces (`workflow`, `agent`, `llm`, and `tool` spans) plus token and cost attribution across teams.
+
+### Layer 2: The Shared Governance Seam (Co-Owned Contract)
+
+Between the infrastructure substrate and the daily workspace sits the governance seam. This is where platform engineering sets the safety envelope and domain leads configure workflow-specific guardrails:
+
+- **MCP tool filtering (`policy.tools`):** When an internal MCP server exposes 40 database or CRM operations, the connection policy can filter which tools are advertised to the model (`mode: "include"`), hiding administrative or destructive endpoints completely.
+- **Action-level permissions (`Allow`, `Ask`, `Deny`, and `Allow reads`):** Every tool call resolves through a deterministic permission gate (`control-what-an-agent-can-do`). Setting an agent's baseline policy to `Allow reads` (or selecting `Ask for write and delete` on an MCP server) lets read-only queries run automatically while pausing any write or delete action for human approval.
+- **Immutable workflow revisions (`workflow_revision`):** Every configuration change saves a versioned revision with full diff history, ensuring that domain experimentation never silently alters a pinned production schedule.
+
+### Layer 3: The Domain Builder Workspace (Owned by Functional Teams)
+
+On top of that governed seam, non-technical and semi-technical builders in support, operations, marketing, sales, finance, and product (holding the `Editor` role) own their coworkers end to end without filing engineering tickets:
+
+- **Plain-language instructions and reusable skills:** Domain builders shape how the coworker works by chatting with it or editing plain-language instructions and reusable skills shared across the project.
+- **Two-tier organizational memory:** Builders curate [persistent shared agent files (`AI Drive`)](https://agenta.ai/docs/concepts/files-and-knowledge) for durable team playbooks, brand rules, and reports that survive across sessions, while using temporary session files for one-off uploads and scratch work.
+- **Multi-surface publishing and approvals:** Domain owners publish their coworkers to [Slack channels and threads](https://agenta.ai/docs/guides/connect-slack), [Telegram](https://agenta.ai/docs/guides/connect-telegram), WhatsApp, or an [embeddable web chat widget (`Publish > Embed`)](https://agenta.ai/docs/guides/embed-an-agent) inside internal dashboards and client portals, and review interactive approval cards when an agent requests permission to execute a write action.
+
+## The complete RACI matrix for an internal AI platform
+
+When rolling out your [AI transformation](/blog/how-to-start-ai-transformation), ambiguity around decision rights is what causes friction between security, platform engineering, and business units. In a RACI model:
+
+- **R (Responsible):** The team that executes the work in the platform.
+- **A (Accountable):** The single role that approves and owns the outcome.
+- **C (Consulted):** Teams that provide requirements or security review before changes go live.
+- **I (Informed):** Stakeholders notified via trace logs, release notes, or channel updates.
+
+![RACI decision-rights matrix across Platform Engineering, Security/IT, Domain Lead, and Domain Builders](/blog/company-ai-platform-ownership-model/internal-ai-platform-raci-matrix.webp)
+
+| Operational Decision or Layer                                     | Platform Eng (`Admin` / `Developer`) | Security & IT                  | Domain Lead & Builders (`Editor`) |
+| :---------------------------------------------------------------- | :----------------------------------- | :----------------------------- | :-------------------------------- |
+| **1. Hosting, VPC, & Sandbox CIDR Egress (`daytona` / `local`)**  | **R** (Deploys & configures)         | **A** (Sets network policy)    | **I** (Runs inside boundary)      |
+| **2. Harness (`Claude Code`, `Codex`, `Pi`) & Model Connections** | **R / A** (Connects providers)       | **C** (Reviews data terms)     | **C** (Selects per agent)         |
+| **3. OAuth App & Custom MCP Server Onboarding**                   | **R** (Wires connection slug)        | **A** (Approves scopes)        | **C** (Requests integration)      |
+| **4. Tool Filtering & Default `Allow reads` / `Ask` Policy**      | **C** (Sets project defaults)        | **C** (Defines write rules)    | **R / A** (Configures per agent)  |
+| **5. Plain-Language Instructions & Reusable Skills**              | **I** (Zero ticket queue)            | **I** (Audits via revisions)   | **R / A** (Authors & iterates)    |
+| **6. Persistent Shared Agent Files (`AI Drive`) & Knowledge**     | **I** (Provides storage mount)       | **C** (Data classification)    | **R / A** (Curates & updates)     |
+| **7. Private-to-Shared Agent Promotion & Ownership Transfer**     | **C** (`Take ownership` backup)      | **I** (Visibility audit)       | **R / A** (`Share with project`)  |
+| **8. Cron Schedules & Webhook Event Subscriptions**               | **C** (Monitors concurrency)         | **I** (Reviews trigger auth)   | **R / A** (Creates & pins rev)    |
+| **9. Slack, Telegram, WhatsApp, & Web Embed Rollout**             | **C** (Domain allowlist for embed)   | **C** (Channel bot scopes)     | **R / A** (Publishes coworker)    |
+| **10. Runtime Human Approvals (`Approve` / `Deny` Cards)**        | **I** (Logged in trace spans)        | **I** (Compliance audit trail) | **R / A** (Approves live actions) |
+
+## 4 technical guardrails that let domain teams move without engineering tickets
+
+A RACI chart on a wiki page only works if the platform enforces those boundaries automatically. Here are the four technical mechanisms in Agenta that let domain builders iterate every day while keeping platform and security teams in full control.
+
+### 1. Reference-only credentials (`gateway_connection` and `header_secret_refs`)
+
+The fastest way to fail a security audit is letting builders paste raw bearer tokens or database passwords into agent configurations. In Agenta, agent templates store **references to credentials, never secret values**:
+
+```json
+{
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "connection": { "mode": "agenta", "slug": "anthropic-production" }
+  },
+  "mcps": [
+    {
+      "name": "internal-billing-api",
+      "connection": {
+        "type": "gateway",
+        "namespace": "custom",
+        "slug": "internal-billing-api"
+      },
+      "policy": {
+        "tools": {
+          "mode": "include",
+          "names": ["get_invoice", "list_subscriptions", "issue_credit"]
+        },
+        "permission": "ask",
+        "tool_permissions": {
+          "get_invoice": "allow",
+          "list_subscriptions": "allow"
+        },
+        "new_tool_permission": "ask"
+      }
+    }
+  ]
+}
+```
+
+When a platform engineer with the `Developer` role sets up `internal-billing-api` (or maps an HTTP header using `credentials.type: "header_secret_refs"`), the secret stays encrypted in the project vault. A domain builder with the `Editor` role can attach `internal-billing-api` to a finance or support coworker, inspect its available tools, and commit new revisions without ever seeing the token.
+
+Just as important, Agenta's documentation makes an explicit security distinction between **connection scope** and **tool permissions**:
+
+- **Connection credentials set the hard security perimeter:** If an agent must never access payroll tables, the platform engineer connects a service account whose database or API role cannot read payroll.
+- **Tool permissions (`allow`, `ask`, `deny`) govern agent behavior inside that perimeter:** They decide what the coworker may run on its own versus what pauses for human review.
+
+### 2. "Allow reads, ask on writes" (`allow_reads` and `new_tool_permission: "ask"`)
+
+Domain teams move fastest when their coworkers can gather context freely but ask before changing state. In Agenta's permission drawer (`Advanced > Permissions` or per-MCP server settings):
+
+- Choosing **`Allow reads`** sets the baseline so any connected-app tool marked `READ-ONLY` executes immediately, while write and delete actions pause the turn and display an `Approval needed to continue` card in chat.
+- On an MCP server, picking **`Ask for write and delete`** automatically sets `permission: "ask"`, grants `allow` to every currently advertised read-only tool in `tool_permissions`, and sets `new_tool_permission: "ask"`.
+- Because `new_tool_permission` defaults to `"ask"`, if an engineering team deploys a new version of an internal MCP server on Friday afternoon that advertises a new `refund_customer` tool, existing coworkers will not call it silently. The unmapped tool automatically waits for human approval until the domain owner reviews it.
+
+### 3. Private-by-default experimentation and orphan-proof ownership transfer
+
+When domain builders are afraid that a half-finished agent will clutter the company workspace or misfire in a shared Slack channel, they hesitate to experiment.
+
+Agenta solves this with a clean [private-to-shared lifecycle](https://agenta.ai/docs/guides/share-agents-and-chats):
+
+1. **Private sandbox by default:** Every new agent and chat created by a user starts `Private`. Only the creator can see or run it, even if other users are organization Owners or Admins. Meanwhile, reusable skills remain shared across the project so builders can pull in proven team skills right away.
+2. **Controlled chat collaboration (`Can view` vs. `Can send`):** When a builder wants feedback on a run, they can invite specific project members to that chat with `Can view` (read-only) or `Can send` (able to send messages and answer approval cards, provided their project role is `Editor` or above).
+3. **One-click promotion to `Shared with project`:** Once the coworker is tested, the owner switches its visibility to `Shared with project`. Before confirming, Agenta displays an explicit notice listing which connected accounts (such as Gmail, HubSpot, or Linear) project members will be able to invoke through the agent.
+4. **Orphan-proof continuity when employees change roles:** If the domain builder who created a shared departmental coworker leaves the project, the shared agent keeps running without interruption. Any project `Admin` or `Owner` holds the `manage_agent_ownership` permission and can click **`Take ownership`** in the privacy menu to assign a new steward.
+
+### 4. Immutable revisions (`workflow_revision`) vs. pinned automations
+
+In a traditional code repository, developers use branches so work-in-progress commits do not break production cron jobs. Domain builders need that same safety without learning Git branching.
+
+Every time a builder edits instructions, adds a skill, or updates tool permissions in Agenta, `commit_revision` appends an immutable `workflow_revision` tied to a `base_revision_id` (preventing concurrent edits from clobbering each other with a `409` conflict check). When the team schedules a recurring cron job (`create_schedule`) or wires up a webhook trigger (`create_subscription`), the automation binds to the verified revision at creation time. The domain team can keep iterating on the next version of the coworker in chat all week while the 6:00 AM daily briefing continues running the locked, approved revision.
+
+## Day-to-day handoff walkthrough: Launching a Support & GTM Triage Coworker
+
+To see how this split works without bureaucracy, trace how a 120-person software company launches a **Customer Support & GTM Triage Coworker** across Zendesk, Linear, Slack, and an internal support portal.
+
+![Agenta AI coworker workspace where domain builders configure instructions, reusable skills, shared agent files, and tool permissions](/blog/company-ai-platform-ownership-model/agenta.webp)
+
+| Step & Owner                                | Action Taken in the Platform                                                                                                                                                                                                                                                                 | Time Required                   |
+| :------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------ |
+| **Step 1: Platform Engineer (`Developer`)** | Connects the company's Linear, Zendesk, and Slack OAuth apps plus an internal customer-lookup MCP server in project settings; sets the [Daytona](https://www.daytona.io/) sandbox egress allowlist.                                                                                          | **15 minutes (one-time setup)** |
+| **Step 2: Support Lead (`Editor`)**         | Creates a new `Private` agent in chat; writes plain-language triage instructions; uploads escalation rubrics and product FAQ docs into persistent shared agent files (`AI Drive`).                                                                                                           | **30 minutes (zero tickets)**   |
+| **Step 3: Support Lead (`Editor`)**         | Attaches Zendesk, Linear, and the internal MCP server using `Allow reads`; keeps `create_linear_issue` and `post_customer_reply` set to `Ask` so every write pauses for an approval card.                                                                                                    | **10 minutes**                  |
+| **Step 4: Support Lead + Team (`Editor`)**  | Switches the coworker to `Shared with project`; publishes it to `#support-triage` in [Slack](https://agenta.ai/docs/guides/connect-slack) and embeds it into the internal support dashboard via [`Publish > Embed`](https://agenta.ai/docs/guides/embed-an-agent) with the domain allowlist. | **10 minutes**                  |
+| **Step 5: Ongoing Iteration (`Editor`)**    | When a new product tier launches next month, the Support Lead updates the shared pricing note in `AI Drive` and refines the reusable triage skill in chat. Platform engineering touches nothing.                                                                                             | **5 minutes per update**        |
+
+## 4 organizational anti-patterns that break internal AI platforms (and how to fix them)
+
+### 1. Routing plain-language instruction and skill edits through Jira
+
+If a support manager or growth lead knows exactly why an agent misclassified an inbound lead, forcing them to write a ticket so a backend engineer can copy-paste their paragraph into a code repo wastes both teams' time. Keep code deployments for custom infrastructure and MCP servers; let domain `Editors` own instructions, reusable skills, and persistent shared agent files directly in the workspace.
+
+### 2. Using tool `deny` rules as a substitute for credential scoping
+
+As noted in Agenta's MCP security architecture, a tool `deny` policy tells the agent runner not to offer or execute that tool, which prevents accidental or unapproved calls. However, if an agent has shell access inside its sandbox and is handed a super-admin credential, `deny` is a behavioral control, not a credential perimeter. Always scope the underlying OAuth account or API key to the minimum permissions the department should ever hold, and use `allow` / `ask` / `deny` to govern human review inside that perimeter.
+
+### 3. Letting every department maintain its own disconnected knowledge copy
+
+When marketing, sales, and support each upload separate PDFs of product capabilities into isolated chat tools, three out of four copies go stale within a month. Store canonical product facts, positioning, and operational playbooks in persistent shared agent files (`AI Drive`) inside a shared project so every coworker reads from the same source of truth (see our comparison of [best company brain software](/blog/best-company-brain-software) and [best open-source company brain projects](/blog/best-open-source-company-brain)).
+
+### 4. Paying a $30 to $60 per-seat tax for occasional approvers
+
+In federated organizations, 20 domain builders might actively design coworkers while 150 teammates interact with those coworkers in Slack, read shared outputs, or click `Approve` on paused tool calls. Per-seat SaaS platforms penalize this collaboration by charging full monthly seat fees for every viewer and approver. Choose a platform model with **unlimited seats on paid plans** or self-host an open-source platform so governance and collaboration never trigger a procurement bill.
+
+## A 30-day rollout checklist for CTOs and platform leads
+
+If you are transitioning from ad-hoc prototypes or fragmented SaaS pilots to a governed internal AI platform, use this sequence to establish clean ownership boundaries in your first month:
+
+1. **Week 1: Stand up the governed substrate.** Deploy [Agenta](https://agenta.ai) via [Docker Compose](https://docs.docker.com/compose/), [Kubernetes Helm](https://helm.sh/), or Agenta Cloud. Configure SSO and [RBAC roles](https://agenta.ai/docs/administration/access-control/rbac) (`Admin` and `Developer` for platform engineers; `Editor` for domain builders; `Viewer` for read-only stakeholders). Connect your model providers or supported [Claude](https://agenta.ai/docs/guides/connect-a-claude-subscription) and [ChatGPT subscriptions](/blog/company-brain-for-claude), and verify [Daytona](https://www.daytona.io/) sandbox isolation.
+2. **Week 2: Wire project-level connections and default policies.** Have platform engineering register the core OAuth integrations and internal MCP servers using secret references (`gateway_connection` and `header_secret_refs`). Set the baseline agent policy pattern to `Allow reads` with `new_tool_permission: "ask"`.
+3. **Week 3: Seed shared organizational memory and launch 2 domain spokes.** Create the initial persistent shared agent files (`AI Drive`) for company context, and onboard two domain leads (for example, Customer Support and Marketing/SEO) to build their first coworkers privately, test them in chat, and promote them to `Shared with project`.
+4. **Week 4: Publish to team surfaces and pin recurring schedules.** Connect the approved coworkers to [Slack](https://agenta.ai/docs/guides/connect-slack), [Telegram](https://agenta.ai/docs/guides/connect-telegram), or an [embeddable web chat widget](https://agenta.ai/docs/guides/embed-an-agent), pin daily or weekly schedules to verified `workflow_revision` IDs, and review the first week of OpenTelemetry trace and cost analytics together.
