@@ -226,7 +226,7 @@ async def test_update_without_a_client_secret_keeps_the_stored_one(monkeypatch):
         async def get_by_id(self, *, provider_id, organization_id):
             return _Provider()
 
-        async def update(self, *, updated_by_id, provider_id, flags):
+        async def update(self, *, updated_by_id, provider_id, **fields):
             return _Provider()
 
     class _Session2(_Session):

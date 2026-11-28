@@ -725,22 +725,22 @@ class OrganizationProvidersService:
                 existing = await dao.get_by_slug(
                     slug=payload.slug, organization_id=organization_id
                 )
-                if existing and existing.id != provider_id:
+                if existing and existing.id != provider.id:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Provider with slug '{payload.slug}' already exists",
                     )
-                provider.slug = payload.slug
-
-            if payload.name is not None:
-                provider.name = payload.name
-
-            if payload.description is not None:
-                provider.description = payload.description
 
             if settings_changed:
                 updated_secret = UpdateSecretDTO(
-                    header=Header(name=provider.slug, description=provider.description),
+                    header=Header(
+                        name=payload.slug or provider.slug,
+                        description=(
+                            payload.description
+                            if payload.description is not None
+                            else provider.description
+                        ),
+                    ),
                     secret=UpdateSecretPayloadDTO(
                         kind=SecretKind.SSO_PROVIDER,
                         data=SSOProviderDTO(
@@ -760,9 +760,14 @@ class OrganizationProvidersService:
                     update_secret_dto=updated_secret,
                 )
 
+            # The vault calls above close the shared session and detach `provider`, so a
+            # change has to go through the DAO to reach the database.
             provider = await dao.update(
                 updated_by_id=user_id,
                 provider_id=provider_id,
+                slug=payload.slug,
+                name=payload.name,
+                description=payload.description,
                 flags=flags,
             )
 
