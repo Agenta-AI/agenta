@@ -32,6 +32,14 @@ import {
     resetSession,
 } from "../support/annotationSessionFake"
 
+// Radix measures the slider thumb; jsdom has no ResizeObserver.
+const noop = () => undefined
+globalThis.ResizeObserver ??= class {
+    observe = noop
+    unobserve = noop
+    disconnect = noop
+} as unknown as typeof ResizeObserver
+
 let host: HTMLDivElement
 let root: Root
 
@@ -111,14 +119,14 @@ describe("the annotation form panel", () => {
         expect(callsOf("clearSubmitError")).toEqual(["s-1"])
     })
 
-    it("Mark completed is disabled until a metric is filled", async () => {
+    it("Mark completed and next is disabled until a metric is filled", async () => {
         await render(true)
-        expect(button("Mark completed")?.disabled).toBe(true)
+        expect(button("Mark completed and next")?.disabled).toBe(true)
         await act(async () => patchSession({hasFilledMetrics: {"s-1": true}}))
-        expect(button("Mark completed")?.disabled).toBe(false)
+        expect(button("Mark completed and next")?.disabled).toBe(false)
 
         handlers.submitAnnotations = async () => undefined
-        await act(async () => button("Mark completed")!.click())
+        await act(async () => button("Mark completed and next")!.click())
         expect(callsOf("submitAnnotations")).toEqual([
             {scenarioId: "s-1", queueId: "queue-1", markComplete: true},
         ])
@@ -158,6 +166,45 @@ describe("the annotation form panel", () => {
         expect(remove).toHaveBeenCalledWith("tone")
         // The click does not fold the section.
         expect(toggle.getAttribute("aria-expanded")).toBe("true")
+    })
+
+    it("shows each evaluator's description, not its slug, and the field count when folded", async () => {
+        patchSession({
+            evaluators: [
+                {slug: "answer-review", name: "Answer review", description: "Check the answer."},
+                {slug: "tone-check", name: "Tone check", description: "Is it kind?"},
+            ],
+            metrics: {
+                "s-1": {
+                    "answer-review": {good: {value: null, type: "boolean"}},
+                    "tone-check": {kind: {value: null, type: "boolean"}},
+                },
+            },
+        })
+        await render()
+        expect(host.textContent).toContain("Check the answer.")
+        expect(host.textContent).toContain("Is it kind?")
+        expect(host.textContent).not.toContain("answer-review")
+        expect(host.textContent).not.toContain("1 field")
+        const toggle = Array.from(host.querySelectorAll("[data-slot=accordion-trigger]")).find(
+            (element) => element.textContent?.includes("Tone check"),
+        ) as HTMLButtonElement
+        await act(async () => toggle.click())
+        expect(toggle.textContent).toContain("Tone check1 field")
+        // The description stays under a folded section.
+        expect(host.textContent).toContain("Is it kind?")
+    })
+
+    it("writes the range error under a number typed outside its range", async () => {
+        patchSession({
+            metrics: {
+                "s-1": {tone: {confidence: {value: 1.4, type: "number", minimum: 0, maximum: 1}}},
+            },
+        })
+        await render()
+        expect(host.querySelector("[role=alert]")?.textContent).toBe(
+            "Enter a number between 0 and 1.",
+        )
     })
 
     it("draws no action without sectionActions", async () => {

@@ -414,6 +414,10 @@ const scenarioInvocationStepKeyAtomFamily = atomFamily(
 // SCENARIO STEPS (Evaluation Results)
 // ============================================================================
 
+/** Query key of one scenario's step results, for a screen that reads them again after a change. */
+export const scenarioStepsQueryKey = (runId: string, scenarioId: string) =>
+    ["scenarioSteps", runId, scenarioId] as const
+
 /**
  * Fetch evaluation results (scenario steps) for a specific scenario.
  *
@@ -423,7 +427,7 @@ const scenarioInvocationStepKeyAtomFamily = atomFamily(
 export const scenarioStepsQueryAtomFamily = atomFamily(
     ({runId, scenarioId}: ScenarioStepsKey) =>
         atomWithQuery(() => ({
-            queryKey: ["scenarioSteps", runId, scenarioId],
+            queryKey: scenarioStepsQueryKey(runId, scenarioId),
             queryFn: async (): Promise<EvaluationResult[]> => {
                 const projectId = getStore().get(projectIdAtom)
                 if (!runId || !scenarioId) return []

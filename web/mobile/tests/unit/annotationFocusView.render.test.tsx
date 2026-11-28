@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 /**
- * The focus view: what it shows for a trace and a test case, the footer's buttons, the keyboard
- * keys, the save messages, and the all-caught-up state. The controllers are the shared fake and
- * the trace overview is a stub, so no request is sent.
+ * The queue's Annotate tab: the three columns, the item list with its groups and progress, the
+ * folded list, the content bar and its More menu, the content drawn by shape, the one primary
+ * button, the all completed line, the read only panel, a run's item with no output, and the
+ * refresh after a save. The controllers are the shared fake, so no request is sent.
  */
 import {act} from "react"
 
+import {evaluationRunMolecule, evaluationRunQueryAtomFamily} from "@agenta/entities/evaluationRun"
 import {Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -14,6 +16,17 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const fixture = vi.hoisted(() => ({
     toast: {success: vi.fn(), error: vi.fn()},
     openTrace: vi.fn(),
+    onSaved: vi.fn(),
+    copy: vi.fn(async () => true),
+    runApp: vi.fn(),
+    canAnnotate: true,
+    /** The window is at least 1,360px wide (the list starts open). */
+    wide: true,
+    /** A phone: narrower than the three columns. */
+    phone: false,
+    /** A coarse pointer (touch). */
+    touch: false,
+    invocationPending: false,
 }))
 
 vi.mock("@agenta/annotation", async (importOriginal) => {
@@ -24,15 +37,89 @@ vi.mock("@agenta/annotation", async (importOriginal) => {
         annotationFormController: fake.annotationFormController,
     }
 })
-vi.mock("@agenta/entities/trace", async () => {
+vi.mock("@agenta/entities/trace", async (importOriginal) => {
     const {atom} = await import("jotai")
-    const loaded = atom({isPending: false, isError: false, data: {}})
-    const span = atom({span_id: "span-root", span_name: "answer_question"})
-    return {traceEntityAtomFamily: () => loaded, traceRootSpanAtomFamily: () => span}
+    const llm = {
+        span_id: "span-llm",
+        span_name: "chat",
+        start_time: "2026-11-26T10:00:00Z",
+        attributes: {
+            ag: {
+                data: {
+                    inputs: {messages: [{role: "user", content: "I want to automate my outreach"}]},
+                },
+            },
+        },
+    }
+    const root = {
+        span_id: "span-root",
+        span_name: "answer_question",
+        start_time: "2026-11-26T10:00:00Z",
+        spans: {"span-llm": llm},
+        attributes: {
+            ag: {
+                data: {
+                    inputs: {title: "Outreach fix", brief: "Find new clients."},
+                    outputs: [
+                        {role: "user", content: "I want to automate my outreach"},
+                        {role: "assistant", content: "I'll look at what your project has."},
+                    ],
+                },
+                metrics: {duration: {cumulative: 61000}},
+            },
+        },
+    }
+    const loaded = atom({
+        isPending: false,
+        isError: false,
+        data: {traces: {"trace-1": {spans: {"span-root": root}}}},
+        refetch: vi.fn(),
+    })
+    const span = atom(root)
+    const failed = atom({isPending: false, isError: true, data: undefined, refetch: vi.fn()})
+    const noSpan = atom(null)
+    const failedSpan = atom({
+        ...root,
+        status_code: "STATUS_CODE_ERROR",
+        events: [
+            {
+                name: "exception",
+                // The unprefixed shape some SDKs store.
+                attributes: {message: "the model provider returned 429"},
+            },
+        ],
+    })
+    return {
+        ...(await importOriginal<typeof import("@agenta/entities/trace")>()),
+        traceEntityAtomFamily: (traceId: string | null) =>
+            traceId === "trace-missing" ? failed : loaded,
+        traceRootSpanAtomFamily: (traceId: string | null) =>
+            traceId === "trace-missing" ? noSpan : traceId === "trace-failed" ? failedSpan : span,
+    }
 })
-vi.mock("@agenta/observability-ui/traceDrawer", () => ({
-    OverviewTabItem: ({activeTrace}: {activeTrace: {span_name: string}}) => (
-        <div>{`overview of ${activeTrace.span_name}`}</div>
+vi.mock("@agenta/entities/evaluationRun", async (importOriginal) => {
+    const {atom} = await import("jotai")
+    // One atom each, as the real families give: a new atom per render would render forever.
+    const run = atom<{data: unknown; isSuccess?: boolean; isError?: boolean}>({
+        data: null,
+        isSuccess: true,
+        isError: false,
+    })
+    const steps = atom<{data: unknown[]; isSuccess: boolean; isError: boolean}>({
+        data: [],
+        isSuccess: true,
+        isError: false,
+    })
+    return {
+        ...(await importOriginal<typeof import("@agenta/entities/evaluationRun")>()),
+        evaluationRunQueryAtomFamily: () => run,
+        evaluationRunMolecule: {selectors: {scenarioSteps: () => steps}},
+    }
+})
+vi.mock("@agenta/entities/shared", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entities/shared")>()),
+    UserAuthorLabel: ({userId, at}: {userId: string; at: string}) => (
+        <span>{`By ${userId}, ${at}`}</span>
     ),
 }))
 vi.mock("@agenta/observability/traceDrawer", async () => {
@@ -40,12 +127,38 @@ vi.mock("@agenta/observability/traceDrawer", async () => {
     return {openTraceDrawerAtom: atom(null, (_get, _set, payload) => fixture.openTrace(payload))}
 })
 vi.mock("@agenta/ui/app-message", () => ({message: fixture.toast}))
-vi.mock("@agenta/ui/hooks", () => ({useMediaQuery: () => true}))
+vi.mock("@agenta/ui/utils", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/ui/utils")>()),
+    copyToClipboard: fixture.copy,
+}))
+vi.mock("@agenta/ui/hooks", () => ({
+    useMediaQuery: (query: string) => (query.includes("1360") ? fixture.wide : !fixture.phone),
+    COARSE_POINTER_QUERY: "(pointer: coarse)",
+    useWindowMatch: (query: string) => query === "(pointer: coarse)" && fixture.touch,
+}))
+vi.mock("@/features/context/useProjectPermission", () => ({
+    useProjectPermission: () => fixture.canAnnotate,
+}))
+vi.mock("@/features/evaluation-run/focus/useRunAnnotationSession", () => ({
+    useRunAnnotationRefresh: () => fixture.onSaved,
+}))
+vi.mock("@/features/evaluation-run/focus/useExpectedColumn", () => ({
+    useExpectedColumn: () => "correct_answer",
+}))
+vi.mock("@/features/annotations/useScenarioInvocation", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/features/annotations/useScenarioInvocation")>()),
+    useScenarioInvocation: (_runId: string, scenario: unknown) => ({
+        pending: Boolean(scenario) && fixture.invocationPending,
+        running: false,
+        failed: false,
+        canRun: true,
+        run: fixture.runApp,
+    }),
+}))
 
 import {FocusView} from "@/features/annotations/FocusView"
 
 import {
-    calls,
     callsOf,
     fakeStore,
     handlers,
@@ -53,7 +166,6 @@ import {
     resetSession,
 } from "../support/annotationSessionFake"
 
-// Radix measures the slider thumb; jsdom has no ResizeObserver.
 const noop = () => undefined
 globalThis.ResizeObserver ??= class {
     observe = noop
@@ -64,17 +176,28 @@ globalThis.ResizeObserver ??= class {
 let host: HTMLDivElement
 let root: Root
 
-const render = async () => {
+const setRun = (run: unknown) =>
+    fakeStore.set(
+        evaluationRunQueryAtomFamily("") as never,
+        {data: run, isSuccess: true, isError: false} as never,
+    )
+const setStepResults = (results: unknown[]) =>
+    fakeStore.set(
+        evaluationRunMolecule.selectors.scenarioSteps({runId: "", scenarioId: ""}) as never,
+        {data: results, isSuccess: true, isError: false} as never,
+    )
+
+const render = async (props: {canEditQueue?: boolean; onOpenConfiguration?: () => void} = {}) => {
     await act(async () =>
         root.render(
             <Provider store={fakeStore}>
-                <FocusView queueId="queue-1" observabilityHref="/w/ws-1/p/proj-1/observability" />
+                <FocusView queueId="queue-1" {...props} />
             </Provider>,
         ),
     )
 }
 const button = (label: string) =>
-    Array.from(host.querySelectorAll("button")).find(
+    Array.from(document.querySelectorAll("button")).find(
         (b) => b.textContent?.startsWith(label) || b.getAttribute("aria-label") === label,
     )
 const press = async (target: EventTarget, init: KeyboardEventInit) => {
@@ -82,13 +205,33 @@ const press = async (target: EventTarget, init: KeyboardEventInit) => {
         target.dispatchEvent(new KeyboardEvent("keydown", {bubbles: true, ...init})),
     )
 }
+const openMenu = async (label: string) => {
+    const trigger = button(label)!
+    await act(async () => {
+        trigger.dispatchEvent(
+            new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+        )
+    })
+}
 
 beforeEach(() => {
     vi.clearAllMocks()
+    fixture.canAnnotate = true
+    fixture.wide = true
+    fixture.phone = false
+    fixture.touch = false
+    fixture.invocationPending = false
     resetSession({
-        traceRefs: {"s-1": {traceId: "trace-1", spanId: "span-root"}},
-        metrics: {"s-1": {tone: {comment: {value: null, type: "string"}}}},
+        traceRefs: {
+            "s-1": {traceId: "trace-1", spanId: "span-root"},
+            "s-2": {traceId: "trace-1", spanId: "span-root"},
+        },
+        scenarioStatuses: {"s-1": "pending", "s-2": "success"},
+        progress: {total: 2, completed: 1, remaining: 1, currentIndex: 0},
+        metrics: {"s-1": {tone: {good: {value: null, type: "boolean"}}}},
     })
+    setRun(null)
+    setStepResults([])
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -98,10 +241,64 @@ afterEach(async () => {
     host.remove()
 })
 
-describe("the focus view", () => {
-    it("A trace queue renders the trace overview of the root span", async () => {
+describe("the queue's Annotate tab", () => {
+    it("draws the list, the content and the panel side by side", async () => {
         await render()
-        expect(host.textContent).toContain("overview of answer_question")
+        const list = host.querySelector("nav")!
+        expect(list.textContent).toContain("1 of 2 completed")
+        expect(list.querySelector("[role=progressbar]")?.getAttribute("aria-valuenow")).toBe("1")
+        expect(list.textContent).toContain("Needs review1")
+        expect(list.textContent).toContain("Completed1")
+        // The row reads the trace's first user message.
+        expect(list.textContent).toContain("I want to automate my outreach")
+        expect(host.querySelector("[aria-current=true]")?.textContent).toContain(
+            "I want to automate my outreach",
+        )
+        expect(host.textContent).toContain("Inputs2 fields")
+        expect(host.textContent).toContain("Outreach fix")
+        expect(host.textContent).toContain("Conversation2 messages")
+        expect(host.textContent).toContain("Annotations")
+        expect(host.querySelector("[role=separator]")).not.toBeNull()
+    })
+
+    it("A trace whose root span failed reads Error: MESSAGE with Open trace", async () => {
+        patchSession({
+            traceRefs: {
+                "s-1": {traceId: "trace-failed", spanId: "x"},
+                "s-2": {traceId: "trace-1", spanId: "span-root"},
+            },
+        })
+        await render()
+        expect(host.textContent).toContain("Error: the model provider returned 429")
+    })
+
+    it("opens an item from the list", async () => {
+        await render()
+        const rows = Array.from(host.querySelectorAll("nav button[type=button]")).filter((b) =>
+            b.textContent?.includes("trace-1"),
+        )
+        await act(async () => (rows[1] as HTMLButtonElement).click())
+        expect(callsOf("navigateToIndex")).toEqual([1])
+    })
+
+    it("folds the list below 1,360px, with Show items and Hide items", async () => {
+        fixture.wide = false
+        await render()
+        expect(host.querySelector("nav")).toBeNull()
+        expect(host.textContent).toContain("Item 1 of 2")
+        await act(async () => button("Show items")!.click())
+        expect(host.querySelector("nav")).not.toBeNull()
+        await act(async () => button("Hide items")!.click())
+        expect(host.querySelector("nav")).toBeNull()
+    })
+
+    it("moves between items from the bar, shows the metrics and opens the trace", async () => {
+        patchSession({hasNext: true, hasPrev: false})
+        await render()
+        expect(button("Previous item")?.disabled).toBe(true)
+        await act(async () => button("Next item")!.click())
+        expect(callsOf("navigateNext")).toHaveLength(1)
+        expect(host.textContent).toContain("61s")
         await act(async () => button("Open trace")!.click())
         expect(fixture.openTrace).toHaveBeenCalledWith({
             traceId: "trace-1",
@@ -109,7 +306,21 @@ describe("the focus view", () => {
         })
     })
 
-    it("A test case queue splits fields into inputs, expected outputs and outputs", async () => {
+    it("More holds Add to test set, with its reason, and Copy trace ID", async () => {
+        patchSession({hasPendingChanges: {"s-1": true}})
+        await render()
+        await openMenu("More")
+        const items = Array.from(document.querySelectorAll("[role=menuitem]"))
+        expect(items.map((item) => item.textContent)).toEqual(["Add to test set", "Copy trace ID"])
+        expect(items[0].getAttribute("data-disabled")).not.toBeNull()
+        expect(document.body.textContent).toContain(
+            "Mark this item completed before adding it to a test set.",
+        )
+        await act(async () => (items[1] as HTMLElement).click())
+        expect(fixture.copy).toHaveBeenCalledWith("trace-1")
+    })
+
+    it("A test case item has no metrics and no Open trace, and copies the test case ID", async () => {
         patchSession({
             queueKind: "testcases",
             traceRefs: {},
@@ -120,156 +331,51 @@ describe("the focus view", () => {
                     isError: false,
                     data: {
                         data: {
-                            output: "Paris",
-                            question: "Capital of France?",
-                            expected_output: "Paris",
-                            testcase_dedup_id: "hidden",
+                            ticket: "We were charged twice",
+                            output: '{"category": "billing", "priority": "high"}',
+                            expected_output: {category: "billing", priority: "medium"},
                         },
                     },
                 },
             },
         })
         await render()
-        const groups = Array.from(host.querySelectorAll("[data-group]")).map((group) => [
-            group.getAttribute("data-group"),
-            Array.from(group.querySelectorAll("h3")).map((h) => h.textContent),
-        ])
-        expect(groups).toEqual([
-            ["inputs", ["question"]],
-            ["expected", ["expected_output"]],
-            ["outputs", ["output"]],
-        ])
-        expect(host.textContent).not.toContain("testcase_dedup_id")
-    })
-
-    it("A test set queue shows the test case, not a missing trace", async () => {
-        patchSession({
-            queueKind: "testsets",
-            traceRefs: {},
-            testcaseRefs: {"s-1": {testcaseId: "tc-1"}},
-            testcases: {
-                "tc-1": {
-                    isPending: false,
-                    isError: false,
-                    data: {data: {country: "France", correct_answer: "Paris"}},
-                },
-            },
-        })
-        await render()
-        expect(host.textContent).not.toContain("Trace reference is not available yet")
-        const fields = Array.from(host.querySelectorAll("[data-group] h3")).map(
-            (h) => h.textContent,
-        )
-        expect(fields).toEqual(["country", "correct_answer"])
         expect(button("Open trace")).toBeUndefined()
+        expect(host.textContent).toContain("JSON, parsed from text")
+        expect(host.textContent).toContain("Raw in the copy menu keeps the original string.")
+        expect(host.textContent).toContain("1 of 2 fields match")
+        await openMenu("More")
+        expect(document.body.textContent).toContain("Copy test case ID")
     })
 
-    it("A query queue renders its item's trace", async () => {
-        patchSession({queueKind: "queries"})
-        await render()
-        expect(host.textContent).toContain("overview of answer_question")
-        expect(button("Open trace")).toBeDefined()
-    })
-
-    it("Next is disabled on the last scenario", async () => {
-        patchSession({hasNext: false, hasPrev: true})
-        await render()
-        expect(button("Next")?.disabled).toBe(true)
-        expect(button("Prev")?.disabled).toBe(false)
-        await act(async () => button("Prev")!.click())
-        expect(callsOf("navigatePrev")).toHaveLength(1)
-    })
-
-    it("Arrow keys move between scenarios outside of inputs only", async () => {
-        await render()
-        await press(document.body, {key: "ArrowRight"})
-        expect(callsOf("navigateNext")).toHaveLength(1)
-
-        const textarea = host.querySelector("textarea")!
-        await press(textarea, {key: "ArrowRight"})
-        expect(callsOf("navigateNext")).toHaveLength(1)
-
-        // No previous item: the left arrow does nothing.
-        await press(document.body, {key: "ArrowLeft"})
-        expect(callsOf("navigatePrev")).toHaveLength(0)
-
-        // True and False use the arrows themselves.
-        await act(async () =>
-            patchSession({
-                metrics: {"s-1": {tone: {friendly: {value: null, type: "boolean"}}}},
-            }),
-        )
-        await press(host.querySelector("[role=radio]")!, {key: "ArrowRight"})
-        expect(callsOf("navigateNext")).toHaveLength(1)
-    })
-
-    it("Ctrl Enter submits from inside a text field", async () => {
+    it("A first completion reads Mark completed and next; a completed item reads Update and its author", async () => {
         patchSession({hasFilledMetrics: {"s-1": true}})
         handlers.submitAnnotations = async () => undefined
         await render()
-        const textarea = host.querySelector("textarea")!
-        await press(textarea, {key: "Enter", ctrlKey: true})
+        await act(async () => button("Mark completed and next")!.click())
         expect(callsOf("submitAnnotations")).toEqual([
             {scenarioId: "s-1", queueId: "queue-1", markComplete: true},
         ])
-    })
-
-    describe("a number out of its range", () => {
-        // The fake controller keeps no values: it records the writes, so the order is the proof.
-        const typeNine = async () => {
-            patchSession({
-                hasFilledMetrics: {"s-1": true},
-                metrics: {
-                    "s-1": {tone: {score: {value: null, type: "integer", minimum: 1, maximum: 5}}},
-                },
-            })
-            handlers.submitAnnotations = async () => undefined
-            await render()
-            const input = host.querySelector("input[role=spinbutton]") as HTMLInputElement
-            input.focus()
-            const setter = Object.getOwnPropertyDescriptor(
-                HTMLInputElement.prototype,
-                "value",
-            )!.set!
-            await act(async () => {
-                setter.call(input, "9")
-                input.dispatchEvent(new Event("input", {bubbles: true}))
-            })
-            return input
-        }
-        const names = () => calls.map(([name]) => name).filter((n) => /updateMetric|submit/.test(n))
-        const lastValue = () => (callsOf("updateMetric").at(-1) as {value: number}).value
-
-        it("Ctrl Enter sends the value clamped to the maximum", async () => {
-            const input = await typeNine()
-            await press(input, {key: "Enter", ctrlKey: true})
-            expect(lastValue()).toBe(5)
-            expect(names().at(-1)).toBe("submitAnnotations")
-        })
-
-        it("The button sends the value clamped to the maximum", async () => {
-            await typeNine()
-            const submit = button("Mark completed")!
-            await act(async () => submit.focus())
-            await act(async () => submit.click())
-            expect(lastValue()).toBe(5)
-            expect(names().at(-1)).toBe("submitAnnotations")
-        })
-    })
-
-    it("A first completion shows Scenario completed and a second save shows Updated feedback", async () => {
-        patchSession({hasFilledMetrics: {"s-1": true}})
-        handlers.submitAnnotations = async () => undefined
-        await render()
-        await act(async () => button("Mark completed")!.click())
         expect(fixture.toast.success).toHaveBeenLastCalledWith("Item marked completed")
+        expect(fixture.onSaved).toHaveBeenCalled()
 
         await act(async () =>
             patchSession({
-                scenarioStatuses: {"s-1": "success", "s-2": "pending"},
+                scenarioStatuses: {"s-1": "success", "s-2": "success"},
                 hasPendingChanges: {"s-1": true},
+                annotations: {
+                    "s-1": [
+                        {created_by_id: "user-a", created_at: "2026-11-20T10:00:00Z"},
+                        {
+                            created_by_id: "user-b",
+                            created_at: "2026-11-21T10:00:00Z",
+                            updated_at: "2026-11-27T10:00:00Z",
+                        },
+                    ],
+                },
             }),
         )
+        expect(host.textContent).toContain("By user-b, 2026-11-27T10:00:00Z")
         await act(async () => button("Update")!.click())
         expect(callsOf("submitAnnotations").at(-1)).toEqual({
             scenarioId: "s-1",
@@ -279,49 +385,171 @@ describe("the focus view", () => {
         expect(fixture.toast.success).toHaveBeenLastCalledWith("Updated feedback")
     })
 
-    it("A failed submit shows Couldn't save the annotations without the API text", async () => {
-        const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    it("On a phone with touch the page scrolls, and no key hints show", async () => {
+        fixture.wide = false
+        fixture.phone = true
+        fixture.touch = true
         patchSession({hasFilledMetrics: {"s-1": true}})
-        handlers.submitAnnotations = async () => {
-            throw new Error("Request failed with status code 403")
-        }
         await render()
-        await act(async () => button("Mark completed")!.click())
-        expect(fixture.toast.error).toHaveBeenCalledWith("Couldn't save the annotations")
-        expect(JSON.stringify(fixture.toast.error.mock.calls)).not.toContain("403")
-        expect(consoleError).toHaveBeenCalled()
-        consoleError.mockRestore()
+        // The content keeps its full height above the panel; it has no scroll box of its own.
+        const inputs = [...host.querySelectorAll("section, [role=region]")].find((node) =>
+            node.textContent?.startsWith("Inputs"),
+        )!
+        expect(inputs.closest(".overflow-y-auto")?.textContent).toContain("Annotations")
+        expect(host.querySelector("kbd")).toBeNull()
+        expect(host.textContent).not.toContain("Keys:")
+        expect(button("Mark completed and next")?.textContent).toBe("Mark completed and next")
     })
 
-    it("Add to Testset explains why it is off while a new annotation is unsaved", async () => {
-        patchSession({hasPendingChanges: {"s-1": true}})
+    it("With no filled field the button is off and says why", async () => {
         await render()
-        expect(button("Add to test set")?.disabled).toBe(true)
-        await act(async () => patchSession({hasPendingChanges: {}}))
-        await act(async () => button("Add to test set")!.click())
-        expect(callsOf("openAddToTestsetModal")).toEqual([{scope: "single", scenarioIds: ["s-1"]}])
+        expect(button("Mark completed and next")?.disabled).toBe(true)
+        expect(host.textContent).toContain("Fill at least one field to complete this item.")
     })
 
-    it("All caught up hides Go to observability for a test case queue", async () => {
+    it("Every item completed shows the line and Add to test set above the content, and the list stays", async () => {
         patchSession({
-            queueKind: "testcases",
+            scenarioStatuses: {"s-1": "success", "s-2": "success"},
             progress: {total: 2, completed: 2, remaining: 0, currentIndex: 0},
         })
         await render()
-        expect(host.textContent).toContain("You're all caught up")
-        expect(host.textContent).toContain("Add more from a test set.")
-        expect(host.textContent).not.toContain("Go to Observability")
-        await act(async () => button("Add to test set")!.click())
+        expect(host.textContent).toContain(
+            "All 2 items are completed. You can still open any item and update it.",
+        )
+        expect(host.querySelector("nav")).not.toBeNull()
+        const addButtons = Array.from(host.querySelectorAll("button")).filter((b) =>
+            b.textContent?.includes("Add to test set"),
+        )
+        await act(async () => addButtons[0].click())
         expect(callsOf("openAddToTestsetModal")).toEqual([{scope: "complete"}])
-
-        await act(async () => patchSession({queueKind: "traces"}))
-        expect(host.textContent).toContain("Go to Observability")
     })
 
-    it("Every item hidden by the switches asks to adjust them", async () => {
-        patchSession({focusScenarioIds: [], currentScenarioId: null})
+    it("A reader without edit_annotations sees the values read only, no button and no keys", async () => {
+        fixture.canAnnotate = false
         await render()
-        expect(host.textContent).toContain("No scenarios available")
-        expect(host.textContent).toContain("Adjust the focus switches to continue annotating.")
+        expect(host.textContent).toContain("You can view this queue. You cannot annotate it.")
+        expect(button("Mark completed and next")).toBeUndefined()
+        expect(host.querySelector("[data-annotation-field]")).toBeNull()
+        await press(document.body, {key: "1"})
+        expect(callsOf("updateMetric")).toHaveLength(0)
+    })
+
+    it("No evaluators offers Open Configuration to a reader who can edit the queue", async () => {
+        patchSession({evaluatorStepRefs: []})
+        const onOpenConfiguration = vi.fn()
+        await render({canEditQueue: true, onOpenConfiguration})
+        expect(host.textContent).toContain("No evaluators configured for this queue")
+        await act(async () => button("Open Configuration")!.click())
+        expect(onOpenConfiguration).toHaveBeenCalled()
+    })
+
+    describe("a run's item", () => {
+        beforeEach(() => {
+            setRun({
+                data: {
+                    steps: [
+                        {key: "input", type: "input", references: {testset: {id: "ts-1"}}},
+                        {key: "app", type: "invocation", origin: "human"},
+                        {key: "judge", type: "annotation", origin: "human"},
+                    ],
+                },
+            })
+            patchSession({
+                queueKind: "testsets",
+                traceRefs: {},
+                testcaseRefs: {"s-1": {testcaseId: "tc-1"}},
+                testcases: {
+                    "tc-1": {
+                        isPending: false,
+                        isError: false,
+                        data: {data: {country: "France", correct_answer: "Paris"}},
+                    },
+                },
+            })
+        })
+
+        it("with no output shows Run in place of the form, and Cmd Enter runs the app", async () => {
+            fixture.invocationPending = true
+            await render()
+            expect(host.textContent).toContain("Generate output to annotate")
+            expect(button("Mark completed and next")).toBeUndefined()
+            await press(document.body, {key: "Enter", metaKey: true})
+            expect(fixture.runApp).toHaveBeenCalledTimes(1)
+        })
+
+        const setResultsState = (state: {isSuccess: boolean; isError: boolean}) => {
+            const refetch = vi.fn()
+            fakeStore.set(
+                evaluationRunMolecule.selectors.scenarioSteps({runId: "", scenarioId: ""}) as never,
+                {data: undefined, ...state, refetch} as never,
+            )
+            return refetch
+        }
+
+        it("while the step results load, offers neither Run nor the form", async () => {
+            fixture.invocationPending = true
+            setResultsState({isSuccess: false, isError: false})
+            await render()
+            expect(host.textContent).not.toContain("Generate output to annotate")
+            expect(button("Mark completed and next")).toBeUndefined()
+            expect(host.querySelectorAll("[role=status]").length).toBeGreaterThan(0)
+            await press(document.body, {key: "Enter", metaKey: true})
+            expect(fixture.runApp).not.toHaveBeenCalled()
+        })
+
+        it("a failed run read is a failed load with Retry, not a plain test case", async () => {
+            const refetch = vi.fn()
+            patchSession({activeRunId: "run-1"})
+            fakeStore.set(
+                evaluationRunQueryAtomFamily("") as never,
+                {data: undefined, isSuccess: false, isError: true, refetch} as never,
+            )
+            await render()
+            expect(host.textContent).toContain("Could not load this item")
+            expect(button("Mark completed and next")).toBeUndefined()
+            await act(async () => button("Retry")!.click())
+            expect(refetch).toHaveBeenCalled()
+        })
+
+        it("a failed trace read of a finished app call offers Retry", async () => {
+            setStepResults([{step_key: "app", status: "success", trace_id: "trace-missing"}])
+            await render()
+            expect(host.textContent).toContain("Failed to load trace data")
+            expect(button("Retry")).toBeDefined()
+        })
+
+        it("when the step results fail, says so and Retry reads them again", async () => {
+            fixture.invocationPending = true
+            const refetch = setResultsState({isSuccess: false, isError: true})
+            await render()
+            expect(host.textContent).not.toContain("Generate output to annotate")
+            expect(host.textContent).toContain("Could not load this item")
+            await act(async () => button("Retry")!.click())
+            expect(refetch).toHaveBeenCalled()
+            await press(document.body, {key: "Enter", metaKey: true})
+            expect(fixture.runApp).not.toHaveBeenCalled()
+        })
+
+        it("with a failed app call reads Error: MESSAGE with Open trace", async () => {
+            setStepResults([
+                {
+                    step_key: "app",
+                    status: "failure",
+                    trace_id: "trace-1",
+                    error: {message: "the model provider returned 429, rate limit reached."},
+                },
+            ])
+            await render()
+            expect(host.textContent).toContain(
+                "Error: the model provider returned 429, rate limit reached.",
+            )
+            const openTrace = Array.from(host.querySelectorAll("[role=alert] button"))[0]
+            await act(async () => (openTrace as HTMLButtonElement).click())
+            expect(fixture.openTrace).toHaveBeenCalledWith({
+                traceId: "trace-1",
+                activeSpanId: "span-root",
+            })
+            expect(host.textContent).toContain("France")
+        })
     })
 })

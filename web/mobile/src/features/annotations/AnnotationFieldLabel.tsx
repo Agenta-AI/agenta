@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {Button} from "@agenta/ui/ui"
 import {X} from "@phosphor-icons/react"
 
@@ -19,23 +21,26 @@ export const AnnotationFieldLabel = ({
     trailing?: ReactNode
     canClear: boolean
     onClear: () => void
-}) => (
-    <div className="flex min-h-7 items-center justify-between gap-2">
-        <label htmlFor={htmlFor} className="min-w-0 truncate text-label text-foreground">
-            {label}
-        </label>
-        <div className="flex shrink-0 items-center gap-1">
-            {trailing}
-            <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Clear value"
-                disabled={!canClear}
-                onClick={onClear}
-            >
-                <X aria-hidden size={14} />
-            </Button>
+}) => {
+    const t = useT(queueScreensCatalog)
+    return (
+        <div className="flex min-h-7 items-center justify-between gap-2">
+            <label htmlFor={htmlFor} className="min-w-0 truncate text-label text-foreground">
+                {label}
+            </label>
+            <div className="flex shrink-0 items-center gap-1">
+                {trailing}
+                <Button
+                    type="button"
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={t("annotation.queueScreens.clearValue")}
+                    disabled={!canClear}
+                    onClick={onClear}
+                >
+                    <X aria-hidden size={14} />
+                </Button>
+            </div>
         </div>
-    </div>
-)
+    )
+}

@@ -10,6 +10,7 @@ import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission} from "../context/useProjectPermission"
@@ -38,6 +39,8 @@ export const QueueSessionScreen = ({
 }) => {
     const t = useT(queueScreensCatalog)
     useBindProjectContext(projectId)
+    // The panel's last author and the All annotations authors name people from the member list.
+    useBindWorkspaceMembers()
     const base = `/w/${workspaceId}/p/${projectId}`
     const {view, setView} = useQueueSessionRoute(queueId)
     const canEdit = useProjectPermission(projectId, "edit_evaluation_queues")

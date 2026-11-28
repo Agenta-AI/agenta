@@ -81,6 +81,10 @@ vi.mock("@/components/ScreenScaffold", () => ({
         </div>
     ),
 }))
+const bindMembers = vi.hoisted(() => vi.fn())
+vi.mock("@/features/members/useBindWorkspaceMembers", () => ({
+    useBindWorkspaceMembers: bindMembers,
+}))
 vi.mock("@/features/nav/AppShell", () => ({
     AppShell: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
 }))
@@ -129,6 +133,11 @@ afterEach(async () => {
 })
 
 describe("the queue session screen", () => {
+    it("Loads the workspace members, so the panel can name the last author", async () => {
+        await render()
+        expect(bindMembers).toHaveBeenCalled()
+    })
+
     it("An unknown view in the URL opens the Annotate tab", async () => {
         fixture.query.view = "everything"
         fixture.query.scenarioId = "s-2"

@@ -21,7 +21,7 @@ vi.mock("@agenta/annotation", async (importOriginal) => {
         annotationFormController: fake.annotationFormController,
     }
 })
-vi.mock("@agenta/entities/trace", async () => {
+vi.mock("@agenta/entities/trace", async (importOriginal) => {
     const {atom} = await import("jotai")
     type Atom<T> = import("jotai").Atom<T>
     const loaded = atom({isPending: false, isError: false, data: {}})
@@ -32,6 +32,7 @@ vi.mock("@agenta/entities/trace", async () => {
     }
     const spans = new Map<string, Atom<Span>>()
     return {
+        ...(await importOriginal<typeof import("@agenta/entities/trace")>()),
         traceEntityAtomFamily: () => loaded,
         extractAgData: (span: Span | null) => span?.attributes.ag.data ?? {},
         traceRootSpanAtomFamily: (traceId: string | null) => {
@@ -57,11 +58,6 @@ vi.mock("@agenta/entities/trace", async () => {
         },
     }
 })
-vi.mock("@agenta/observability-ui/traceDrawer", () => ({
-    OverviewTabItem: ({activeTrace}: {activeTrace: {span_name: string}}) => (
-        <div>{`overview of ${activeTrace.span_name}`}</div>
-    ),
-}))
 vi.mock("@agenta/observability/traceDrawer", async () => {
     const {atom} = await import("jotai")
     return {openTraceDrawerAtom: atom(null, () => undefined)}
@@ -188,6 +184,14 @@ describe("the All Annotations tab", () => {
         expect(rows()[1].textContent).toContain("very polite")
     })
 
+    it("The status dot uses the shared run status colors", async () => {
+        await render()
+        // Row 1 failed: the error tone's dot color, no local color map.
+        const dot = rows()[0].querySelector("span[aria-hidden].size-1\\.5")
+        expect(dot?.className).toContain("bg-destructive")
+        expect(dot?.className).not.toContain("bg-current")
+    })
+
     it("A trace queue shows each trace's last input and its reply", async () => {
         await render()
         const headers = Array.from(host.querySelectorAll("[role=columnheader]")).map(
@@ -273,7 +277,8 @@ describe("the All Annotations tab", () => {
         await act(async () => rows()[0].click())
         expect(document.body.textContent).toContain("Annotate Scenario")
         expect(document.body.textContent).toContain("View Full Trace")
-        expect(document.body.textContent).toContain("overview of run trace-1")
+        // The sheet draws the item's content by shape, as the Annotate tab does.
+        expect(document.body.querySelector("[role=dialog]")?.textContent).toContain("reply trace-1")
     })
 
     it("Completing in the sheet shows Scenario completed", async () => {
@@ -283,7 +288,7 @@ describe("the All Annotations tab", () => {
         await render()
         await act(async () => rows()[0].click())
         const dialog = document.body.querySelector("[role=dialog]")!
-        await act(async () => findButton(dialog, "Mark completed")!.click())
+        await act(async () => findButton(dialog, "Mark completed and next")!.click())
         expect(callsOf("submitAnnotations")).toEqual([
             {scenarioId: "s-1", queueId: "queue-1", markComplete: true},
         ])

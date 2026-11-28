@@ -65,7 +65,7 @@ vi.mock("../../src/state/controllers/annotationSessionController", () => ({
             activeRunId: () => ({}),
             focusAutoNext: () => ({}),
         },
-        set: {markCompleted: vi.fn(), navigateNext: vi.fn()},
+        set: {markCompleted: vi.fn(), navigateNextNeedsReview: vi.fn()},
         cache: {invalidateScenarioAnnotations: vi.fn()},
     },
 }))
@@ -77,6 +77,7 @@ import {
     getOutputsSchema,
     isEmptyValue,
 } from "../../src/state/controllers/annotationFormController"
+
 import type {Annotation} from "@agenta/entities/annotation"
 import type {Workflow} from "@agenta/entities/workflow"
 

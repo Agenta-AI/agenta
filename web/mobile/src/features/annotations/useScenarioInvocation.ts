@@ -5,6 +5,7 @@ import {
     evaluationRunQueryKey,
     runLevelMetricsQueryKey,
     runScenarioMetricsQueryKey,
+    scenarioStepsQueryKey,
 } from "@agenta/entities/evaluationRun"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
@@ -12,15 +13,17 @@ import {useQueryClient} from "@tanstack/react-query"
 import {atom, useAtom, useAtomValue} from "jotai"
 
 import {useProjectPermission} from "@/features/context/useProjectPermission"
-
-import type {ScenarioRow} from "../scenarios/scenarioColumns"
-import {runScenariosQueryKey} from "../scenarios/useRunScenarios"
+import {runScenariosQueryKey} from "@/features/evaluation-run/scenarios/useRunScenarios"
 
 const SUCCESS_STATUSES = new Set(["success", "succeeded", "completed", "done"])
 const IN_FLIGHT_STATUSES = new Set(["running", "in_progress"])
 const FAILED_STATUSES = new Set(["failure", "failed", "error", "errors"])
 
-/** Runs started from this tab, by `runId:scenarioId`; it outlives a move to another scenario. */
+/** True when a stored app call result failed. */
+export const isFailedInvocationStatus = (status: string | null | undefined) =>
+    FAILED_STATUSES.has(status?.toLowerCase() ?? "")
+
+/** Runs started from this screen, by `runId:scenarioId`; it outlives a move to another scenario. */
 const invocationRunsAtom = atom<Record<string, "running" | "failed">>({})
 
 export interface ScenarioInvocationState {
@@ -34,6 +37,12 @@ export interface ScenarioInvocationState {
     run: () => void
 }
 
+/** A scenario and the status of its human invocation step result (none before the first run). */
+export interface InvocationScenario {
+    id: string
+    invocationStatus: string | null | undefined
+}
+
 /**
  * The human invocation step of one scenario: a human run calls its app only when a person asks,
  * and the output is what the annotation links to. Nothing runs on its own: opening a scenario
@@ -41,7 +50,7 @@ export interface ScenarioInvocationState {
  */
 export function useScenarioInvocation(
     runId: string,
-    row: ScenarioRow | null,
+    scenario: InvocationScenario | null,
 ): ScenarioInvocationState {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const canRun = useProjectPermission(projectId, "edit_evaluation_results")
@@ -52,11 +61,13 @@ export function useScenarioInvocation(
     const queryClient = useQueryClient()
     const [runs, setRuns] = useAtom(invocationRunsAtom)
 
-    const scenarioId = row?.scenario.id ?? ""
+    const scenarioId = scenario?.id ?? ""
     const key = `${runId}:${scenarioId}`
-    const status = row?.invocation?.status?.toLowerCase() ?? ""
+    const status = scenario?.invocationStatus?.toLowerCase() ?? ""
     const pending =
-        Boolean(stepKey && row) && !SUCCESS_STATUSES.has(status) && !IN_FLIGHT_STATUSES.has(status)
+        Boolean(stepKey && scenario) &&
+        !SUCCESS_STATUSES.has(status) &&
+        !IN_FLIGHT_STATUSES.has(status)
     const running = runs[key] === "running"
 
     const start = useCallback(() => {
@@ -68,9 +79,11 @@ export function useScenarioInvocation(
             try {
                 const {runScenarioInvocation} = await import("./runScenarioInvocation")
                 const result = await runScenarioInvocation({projectId, runId, scenarioId, stepKey})
-                // The rows are read again before the Run button goes, so the form replaces it.
+                // The rows and the scenario's step results are read again before the Run button
+                // goes, so the form replaces it in the run screens and in the queue.
                 await Promise.all(
                     [
+                        scenarioStepsQueryKey(runId, scenarioId),
                         runScenariosQueryKey(projectId, runId),
                         runLevelMetricsQueryKey(projectId, runId),
                         runScenarioMetricsQueryKey(projectId, runId),
@@ -94,7 +107,7 @@ export function useScenarioInvocation(
     return {
         pending,
         running,
-        failed: runs[key] === "failed" || FAILED_STATUSES.has(status),
+        failed: runs[key] === "failed" || isFailedInvocationStatus(status),
         // A closed run refuses new results: the app would be called for nothing.
         canRun: canRun && !run?.flags?.is_closed,
         run: start,

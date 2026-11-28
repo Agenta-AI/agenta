@@ -4,21 +4,23 @@ import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
-import {ScenarioFieldCard} from "./ScenarioFieldCard"
+import {InputsSection, OutputSection} from "./QueueValueSections"
 import {ScenarioMessage} from "./ScenarioMessage"
 
-/** A test case item: inputs, then expected outputs, then outputs, one card per field. */
+const asFields = (entries: [string, unknown][]) => entries.map(([name, value]) => ({name, value}))
+
+/**
+ * A test case item: its inputs as rows, then its output, compared field by field with the
+ * expected value when the test case has one. A test case with no output shows its expected value
+ * among the rows.
+ */
 export const TestcaseScenarioContent = ({testcaseId}: {testcaseId: string}) => {
     const t = useT(queueScreensCatalog)
     const query = useAtomValue(annotationSessionController.selectors.testcaseData(testcaseId))
 
     if (testcaseId && query.isPending) {
         return (
-            <div
-                className="flex flex-col gap-3 p-4"
-                role="status"
-                aria-label="Loading the test case"
-            >
+            <div className="flex flex-col gap-3" role="status" aria-label="Loading the test case">
                 <SkeletonBlock className="h-16" />
                 <SkeletonBlock className="h-16" />
             </div>
@@ -29,23 +31,21 @@ export const TestcaseScenarioContent = ({testcaseId}: {testcaseId: string}) => {
         return <ScenarioMessage title={t("annotation.queueScreens.testcaseUnavailable")} />
     }
     const {inputs, expectedOutputs, outputs} = categorizeTestcaseFields(testcase.data)
-    const groups = [
-        {key: "inputs", fields: inputs},
-        {key: "expected", fields: expectedOutputs},
-        {key: "outputs", fields: outputs},
-    ].filter((group) => group.fields.length > 0)
-    if (groups.length === 0)
+    if (inputs.length + expectedOutputs.length + outputs.length === 0) {
         return <ScenarioMessage title={t("annotation.queueScreens.testcaseNoData")} />
-
+    }
+    if (outputs.length === 0) {
+        return <InputsSection fields={asFields([...inputs, ...expectedOutputs])} />
+    }
+    const output = outputs.length === 1 ? outputs[0][1] : Object.fromEntries(outputs)
+    const [expected, ...otherExpected] = expectedOutputs
     return (
-        <div className="flex flex-col gap-2 p-3">
-            {groups.map((group) => (
-                <div key={group.key} data-group={group.key} className="flex flex-col gap-2">
-                    {group.fields.map(([name, value]) => (
-                        <ScenarioFieldCard key={name} name={name} value={value} />
-                    ))}
-                </div>
-            ))}
+        <div className="flex flex-col gap-6">
+            <InputsSection fields={asFields([...inputs, ...otherExpected])} />
+            <OutputSection
+                value={output}
+                expected={expected ? {key: expected[0], value: expected[1]} : null}
+            />
         </div>
     )
 }

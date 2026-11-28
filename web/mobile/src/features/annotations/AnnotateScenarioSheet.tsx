@@ -58,8 +58,9 @@ export const AnnotateScenarioSheet = ({
                 </SheetHeader>
                 {scenarioId ? (
                     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:flex-row md:overflow-hidden">
-                        <div className="min-w-0 rounded-lg border border-solid border-border md:flex-1 md:overflow-y-auto">
+                        <div className="min-w-0 rounded-lg border border-solid border-border p-4 md:flex-1 md:overflow-y-auto">
                             <ScenarioContent
+                                scenarioId={scenarioId}
                                 hasScenario
                                 isTraces={isTraces}
                                 traceId={traceRef.traceId}

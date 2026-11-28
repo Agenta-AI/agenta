@@ -221,6 +221,8 @@ function Segmented({
     }
 
     const enabledValues = items.filter((o) => !o.disabled && !disabled).map((o) => o.value)
+    const hasSelected = items.some((o) => o.value === selected)
+    const firstEnabled = enabledValues[0]
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (selected === undefined || enabledValues.length === 0) return
@@ -272,6 +274,9 @@ function Segmented({
             {items.map((opt) => {
                 const isActive = opt.value === selected
                 const isDisabled = disabled || !!opt.disabled
+                // With no option picked, the first enabled one is the Tab stop (the radio group
+                // pattern), so the control stays reachable by keyboard without picking anything.
+                const isTabStop = isActive || (!hasSelected && opt.value === firstEnabled)
                 return (
                     <button
                         key={opt.value}
@@ -284,7 +289,7 @@ function Segmented({
                         aria-checked={isActive}
                         aria-label={opt["aria-label"]}
                         disabled={isDisabled}
-                        tabIndex={isActive && !isDisabled ? 0 : -1}
+                        tabIndex={isTabStop && !isDisabled ? 0 : -1}
                         data-slot="segmented-item"
                         data-state={isActive ? "active" : "inactive"}
                         className={cn(segmentedItemVariants({size, block}), opt.className)}

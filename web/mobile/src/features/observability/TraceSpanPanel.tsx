@@ -1,13 +1,13 @@
 import {useId, useState} from "react"
 
-import {FieldFold, ValueField, ValueViewProvider, type ValueViewMode} from "@agenta/chat/value-view"
+import {FieldFold, ValueField, ValueViewProvider} from "@agenta/chat/value-view"
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {AccordionTreePanel} from "@agenta/observability-ui/traceDrawer"
 import {detectValueShape, getStringOrJson, unwrapWrapperKey} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
-import {Button, CollapseCaret, Segmented, SkeletonBlock, cn} from "@agenta/ui/ui"
+import {Button, CollapseCaret, SkeletonBlock, cn} from "@agenta/ui/ui"
 import {XCircleIcon} from "@phosphor-icons/react"
 
 import {chatProseClassName, markdownIcons} from "@/features/chat/AssistantMarkdown"
@@ -24,11 +24,6 @@ interface TraceSpanPanelProps {
     defaultCollapsed?: boolean
     /** The span has no end time yet: an empty output is still coming. */
     running?: boolean
-    /**
-     * Set when the trace view's span header owns the Formatted / Raw switch. Without it (the
-     * annotation queue) the section has its own switch, and Raw keeps JSON / YAML and search.
-     */
-    mode?: ValueViewMode
     [key: string]: unknown
 }
 
@@ -95,31 +90,20 @@ const SpanSectionPanel = ({
     value,
     defaultCollapsed,
     running,
-    ownSwitch,
 }: {
     section: SpanSection
     value: unknown
     defaultCollapsed: boolean
     running: boolean
-    ownSwitch: boolean
 }) => {
     const t = useT(spanCatalog, valueViewCatalog)
     const [open, setOpen] = useState(!defaultCollapsed)
-    const [mode, setMode] = useState<ValueViewMode>("formatted")
     const regionId = useId()
     const title = t(SECTION_TITLES[section])
     const empty = detectValueShape(value).shape === "empty"
 
     const body =
-        ownSwitch && mode === "raw" && !empty ? (
-            <AccordionTreePanel
-                label={title}
-                value={value as Record<string, unknown> | string | unknown[]}
-                enableFormatSwitcher
-                enableSearch
-                rawOnly
-            />
-        ) : section === "exception" ? (
+        section === "exception" ? (
             <ExceptionBody event={value} />
         ) : section === "outputs" && empty ? (
             running ? (
@@ -156,17 +140,6 @@ const SpanSectionPanel = ({
                     {title}
                 </Button>
                 <span className="flex-1" />
-                {ownSwitch && !empty ? (
-                    <Segmented
-                        size="sm"
-                        value={mode}
-                        onChange={(next) => setMode(next as ValueViewMode)}
-                        options={[
-                            {value: "formatted", label: t("chat.valueView.formatted")},
-                            {value: "raw", label: t("chat.valueView.raw")},
-                        ]}
-                    />
-                ) : null}
                 {empty ? null : (
                     <CopyButton
                         text={getStringOrJson(value)}
@@ -198,7 +171,6 @@ export const TraceSpanPanel = ({
     viewModePreset = "default",
     defaultCollapsed = false,
     running = false,
-    mode,
 }: TraceSpanPanelProps) => {
     if (section) {
         return (
@@ -208,7 +180,6 @@ export const TraceSpanPanel = ({
                     value={spanDataOverride}
                     defaultCollapsed={defaultCollapsed}
                     running={running}
-                    ownSwitch={mode === undefined}
                 />
             </ValueViewProvider>
         )

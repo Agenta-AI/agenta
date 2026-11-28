@@ -1,8 +1,10 @@
 import type {ReactNode} from "react"
 
-import {scenarioStatusLabel, scenarioStatusTone, type StatusTone} from "@agenta/annotation"
+import {scenarioStatusLabel, scenarioStatusTone} from "@agenta/annotation"
 import {Checkbox, SimpleTooltip} from "@agenta/ui/ui"
 import {CheckCircle} from "@phosphor-icons/react"
+
+import {RUN_STATUS_DOT_COLOR} from "@/features/evaluations/list/runStatusDotColor"
 
 import {ScenarioEvaluatorCell} from "./ScenarioEvaluatorCell"
 import {ScenarioItemCell} from "./ScenarioItemCell"
@@ -11,14 +13,6 @@ import {ScenarioRowMenu} from "./ScenarioRowMenu"
 import {ScenarioStatusBadge} from "./ScenarioStatusBadge"
 import {ScenarioTraceIOCell} from "./ScenarioTraceIOCell"
 import type {ScenarioRow} from "./useScenarioRows"
-
-const DOT_COLOR: Record<StatusTone, string> = {
-    default: "text-muted-foreground",
-    processing: "text-info",
-    success: "text-success",
-    warning: "text-warning",
-    error: "text-destructive",
-}
 
 /** Clicks and keys inside this cell belong to its control, not to the row. */
 const OwnClicks = ({children, className}: {children: ReactNode; className?: string}) => (
@@ -71,7 +65,7 @@ export const ScenarioListRow = ({
                 ) : (
                     <span
                         aria-hidden
-                        className={`size-1.5 bg-current ${DOT_COLOR[scenarioStatusTone(row.status)]}`}
+                        className={`size-1.5 ${RUN_STATUS_DOT_COLOR[scenarioStatusTone(row.status)]}`}
                     />
                 )}
                 {row.index + 1}

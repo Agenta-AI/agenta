@@ -6,6 +6,7 @@ import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 
 import {useAnnotationKeyboardShortcuts} from "@/features/annotations/useAnnotationKeyboardShortcuts"
+import {useScenarioInvocation} from "@/features/annotations/useScenarioInvocation"
 import {useSubmitAnnotations} from "@/features/annotations/useSubmitAnnotations"
 import {useProjectPermission} from "@/features/context/useProjectPermission"
 
@@ -19,7 +20,6 @@ import {ScenarioNavigator} from "./ScenarioNavigator"
 import {RunAnnotateEmpty} from "./states/RunAnnotateEmpty"
 import {RunAnnotateSkeleton} from "./states/RunAnnotateSkeleton"
 import {useRunAnnotationSession} from "./useRunAnnotationSession"
-import {useScenarioInvocation} from "./useScenarioInvocation"
 import {useScenarioStepper} from "./useScenarioStepper"
 
 /**
@@ -47,7 +47,10 @@ export const RunAnnotateTab = ({runId, header}: {runId: string; header: RunHeade
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const canAnnotate = useProjectPermission(projectId, "edit_annotations")
     const submission = useSubmitAnnotations(scenarioId, {runId}, onSaved)
-    const invocation = useScenarioInvocation(runId, current ?? null)
+    const invocation = useScenarioInvocation(
+        runId,
+        current ? {id: current.scenario.id, invocationStatus: current.invocation?.status} : null,
+    )
     const runsApp = invocation.pending && invocation.canRun
     const position = current ? rows.indexOf(current) : -1
     useAnnotationKeyboardShortcuts({

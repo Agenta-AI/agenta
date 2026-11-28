@@ -22,6 +22,8 @@ export {
     OUTPUT_KEYS,
     getTraceInputDisplayKeys,
     getTraceInputDisplayValue,
+    groupQueueItems,
+    nextNeedsReviewId,
     createQueueDrawerOpenAtom,
     createQueueDrawerDefaultKindAtom,
     createQueueDrawerSelectionAtom,

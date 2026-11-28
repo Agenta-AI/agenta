@@ -76,5 +76,11 @@ export const QueueSessionBody = ({
         )
     }
     if (view === "list") return <ScenarioListTab queueId={queueId} onViewChange={onViewChange} />
-    return <FocusView queueId={queueId} observabilityHref={`${base}/observability`} />
+    return (
+        <FocusView
+            queueId={queueId}
+            canEditQueue={canEdit}
+            onOpenConfiguration={() => onViewChange("configuration")}
+        />
+    )
 }

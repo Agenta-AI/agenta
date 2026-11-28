@@ -1,12 +1,13 @@
 import type {RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
 import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
 
+import {useScenarioInvocation} from "@/features/annotations/useScenarioInvocation"
+
 import type {ScenarioRow} from "../scenarios/scenarioColumns"
 
 import {RunAnnotateBody} from "./RunAnnotateBody"
 import {ScenarioFocusSkeleton} from "./states/ScenarioFocusSkeleton"
 import {useRunAnnotationSession} from "./useRunAnnotationSession"
-import {useScenarioInvocation} from "./useScenarioInvocation"
 
 /**
  * Annotates one scenario of a human run without leaving the Scenarios tab. A page must load this
@@ -26,7 +27,10 @@ export const RunAnnotateSheet = ({
     onClose: () => void
 }) => {
     const {isOpen, onSaved} = useRunAnnotationSession(runId)
-    const invocation = useScenarioInvocation(runId, row)
+    const invocation = useScenarioInvocation(
+        runId,
+        row ? {id: row.scenario.id, invocationStatus: row.invocation?.status} : null,
+    )
 
     return (
         <Sheet open onOpenChange={(open) => !open && onClose()}>
