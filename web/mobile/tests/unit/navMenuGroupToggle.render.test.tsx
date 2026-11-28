@@ -2,9 +2,19 @@
 import type {SidebarConfig} from "@agenta/navigation"
 import {NavMenu} from "@agenta/navigation-ui"
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
-import {afterEach, describe, expect, it, vi} from "vitest"
+import {afterAll, afterEach, beforeAll, describe, expect, it, vi} from "vitest"
 
-afterEach(cleanup)
+// The drag itself is motion's; these tests check which presses start one.
+const startDrag = vi.hoisted(() => vi.fn())
+vi.mock("motion/react", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("motion/react")>()),
+    useDragControls: () => ({start: startDrag, subscribe: () => () => {}}),
+}))
+
+afterEach(() => {
+    cleanup()
+    startDrag.mockClear()
+})
 
 const children: SidebarConfig[] = [
     {key: "testsets", title: "Test sets", link: "/testsets"},
@@ -96,5 +106,32 @@ describe("the collapsed (icon only) sidebar", () => {
         fireEvent.keyDown(trigger, {key: "Enter"})
         expect(onPopupOpenChange).toHaveBeenCalledWith("evaluation", true)
         expect(onToggleOpenKey).not.toHaveBeenCalled()
+    })
+})
+
+describe("an arrangeable sidebar (pages pinned from More)", () => {
+    // jsdom has no PointerEvent; a MouseEvent with a pointer type is enough for these presses.
+    class TestPointerEvent extends MouseEvent {
+        pointerType: string
+        constructor(type: string, init: PointerEventInit = {}) {
+            super(type, init)
+            this.pointerType = init.pointerType ?? "mouse"
+        }
+    }
+    beforeAll(() => vi.stubGlobal("PointerEvent", TestPointerEvent))
+    afterAll(() => vi.unstubAllGlobals())
+
+    const pressAndMove = (target: Element) => {
+        fireEvent.pointerDown(target, {button: 0, pointerType: "mouse", clientX: 0, clientY: 0})
+        fireEvent.pointerMove(window, {clientX: 0, clientY: 20})
+        fireEvent.pointerUp(window)
+    }
+
+    it("drags a group with no page from its row, and not from the caret of a group with a page", () => {
+        renderMenu({arrange: {hidden: [], onArrange: vi.fn(), onReset: vi.fn()}})
+        pressAndMove(screen.getByText("Evaluation"))
+        expect(startDrag).toHaveBeenCalledTimes(1)
+        pressAndMove(screen.getByRole("button", {name: "Expand Reports"}))
+        expect(startDrag).toHaveBeenCalledTimes(1)
     })
 })

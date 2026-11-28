@@ -49,10 +49,19 @@ const MENU_ROW = cn(
     "border-0 bg-transparent text-left text-foreground no-underline [font-family:inherit] hover:bg-accent focus-ring-inset",
 )
 
-/** Starts a drag after a small mouse move or a touch long-press, so taps click and swipes scroll. */
-const pressToDrag = (press: ReactPointerEvent, begin: (event: PointerEvent) => void) => {
+/**
+ * Starts a drag after a small mouse move or a touch long-press, so taps click and swipes scroll.
+ * A control inside the row keeps its press; the row itself may be a button (a group that opens
+ * on a click), and a click after a drag is suppressed by the list.
+ */
+const pressToDrag = (
+    press: ReactPointerEvent,
+    row: Element,
+    begin: (event: PointerEvent) => void,
+) => {
     if (press.button !== 0) return
-    if ((press.target as HTMLElement).closest("button, input, [role='button']")) return
+    const control = (press.target as HTMLElement).closest("button, input, [role='button']")
+    if (control && control !== row) return
     const touch = press.pointerType !== "mouse"
     const origin = {x: press.clientX, y: press.clientY}
     let armed = false
@@ -140,7 +149,7 @@ const SortableRow = ({
             onPointerDown={(event) => {
                 const header = event.currentTarget.firstElementChild
                 if (!header?.contains(event.target as Node)) return
-                pressToDrag(event, (start) => controls.start(start))
+                pressToDrag(event, header, (start) => controls.start(start))
             }}
             onKeyDown={(event: KeyboardEvent) => {
                 if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return
@@ -207,7 +216,10 @@ const MoreMenu = ({
                                     onClick={group ? (event) => event.preventDefault() : go(item)}
                                     onPointerDown={
                                         onPull
-                                            ? (event) => pressToDrag(event, (e) => onPull(item, e))
+                                            ? (event) =>
+                                                  pressToDrag(event, event.currentTarget, (e) =>
+                                                      onPull(item, e),
+                                                  )
                                             : undefined
                                     }
                                 >
