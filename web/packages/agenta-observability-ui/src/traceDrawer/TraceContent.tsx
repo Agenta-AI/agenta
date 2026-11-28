@@ -27,8 +27,21 @@ const loadingContent = (
  * The span column and the side panel of the trace view. The span column is the span header
  * with the Formatted / Raw switch over the span body: Formatted draws each section by the shape
  * of its value, Raw shows the span as JSON or YAML with search. Side by side, each column
- * scrolls on its own; stacked, the side panel goes under the span body.
+ * scrolls on its own; stacked, the side panel goes under the span body. In the split layout the
+ * side panel sits beside the span only when the column is 740px or wider (400px for the span,
+ * 340px for the panel), else under it.
  */
+/** Under 740px the span and the side panel scroll together, one under the other. */
+const SPLIT_VIEW =
+    "flex h-full min-h-0 w-full flex-col overflow-y-auto @min-[740px]/span-view:flex-row @min-[740px]/span-view:overflow-visible"
+const SPLIT_SPAN =
+    "flex min-w-0 flex-col @min-[740px]/span-view:min-h-0 @min-[740px]/span-view:flex-1"
+const SPLIT_BODY =
+    "min-w-0 @min-[740px]/span-view:min-h-0 @min-[740px]/span-view:flex-1 @min-[740px]/span-view:overflow-y-auto"
+const STACKED_SIDE = "w-full border-0 border-t border-solid border-border-muted"
+const SPLIT_SIDE =
+    "@min-[740px]/span-view:w-[340px] @min-[740px]/span-view:min-w-[340px] @min-[740px]/span-view:shrink-0 @min-[740px]/span-view:overflow-y-auto @min-[740px]/span-view:border-t-0 @min-[740px]/span-view:border-l"
+
 const TraceContent = ({
     activeTrace,
     traceResponse,
@@ -98,34 +111,21 @@ const TraceContent = ({
         )
     })()
 
-    return (
-        <div className={stacked ? "flex w-full flex-col" : "flex h-full min-h-0 w-full"}>
-            <div
-                className={
-                    stacked ? "flex min-w-0 flex-col" : "flex min-h-0 min-w-0 flex-1 flex-col"
-                }
-            >
+    const view = (
+        <div className={stacked ? "flex w-full flex-col" : SPLIT_VIEW}>
+            <div className={stacked ? "flex min-w-0 flex-col" : SPLIT_SPAN}>
                 <TraceTypeHeader
                     activeTrace={activeTrace}
                     error={error}
                     mode={mode}
                     onModeChange={setMode}
                 />
-                <div
-                    className={stacked ? "min-w-0" : "min-h-0 flex-1 overflow-y-auto"}
-                    data-testid="trace-span-body"
-                >
+                <div className={stacked ? "min-w-0" : SPLIT_BODY} data-testid="trace-span-body">
                     {body}
                 </div>
             </div>
             {sidePanelOpen && (activeTrace || isLoading) ? (
-                <aside
-                    className={
-                        stacked
-                            ? "w-full border-0 border-t border-solid border-border-muted"
-                            : "w-[340px] min-w-[340px] shrink-0 overflow-y-auto border-0 border-l border-solid border-border-muted"
-                    }
-                >
+                <aside className={stacked ? STACKED_SIDE : `${STACKED_SIDE} ${SPLIT_SIDE}`}>
                     <TraceSidePanel
                         activeTrace={activeTrace as never}
                         activeTraceId={activeId}
@@ -135,6 +135,8 @@ const TraceContent = ({
             ) : null}
         </div>
     )
+    // The container is the span column, so the side panel follows the room it really has.
+    return stacked ? view : <div className="@container/span-view h-full min-h-0 w-full">{view}</div>
 }
 
 export default TraceContent

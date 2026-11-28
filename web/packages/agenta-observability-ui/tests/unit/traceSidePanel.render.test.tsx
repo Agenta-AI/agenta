@@ -98,6 +98,37 @@ describe("trace side panel", () => {
         )
     })
 
+    it("keeps a slug-only reference that the response list stripped to its key", async () => {
+        // The response schema keeps only the id of a list entry; the span's map still has the slug.
+        const stored = span({
+            references: [{attributes: {key: "evaluator"}}],
+            attributes: {
+                ag: {
+                    metrics: {duration: {cumulative: 7910}},
+                    references: {evaluator: {slug: "user-feedback"}},
+                },
+            },
+        })
+        await render(<TraceSidePanel activeTrace={stored as never} />)
+        expect(host.querySelector('[data-testid="trace-references"]')?.textContent).toContain(
+            "user-feedback",
+        )
+    })
+
+    it("names a linked span with no name and no key by its span id", async () => {
+        // Two OpenTelemetry links to other traces, with no key attribute.
+        harness.links = {
+            links: [
+                {trace_id: "t-2", span_id: "5f2c9a1b7d3e4f60"},
+                {trace_id: "t-3", span_id: "8a0b1c2d3e4f5a6b"},
+            ],
+        }
+        await render(<TraceSidePanel activeTrace={span() as never} />)
+        const section = host.querySelector('[data-testid="trace-linked-spans"]')
+        expect(section?.textContent).toContain("5f2c9a1b7d3e4f60")
+        expect(section?.textContent).toContain("8a0b1c2d3e4f5a6b")
+    })
+
     it("shows the span's own references, not those of its annotations", async () => {
         // The root span of an evaluation's app trace (recorded): the application with its
         // variant and revision, and the test case. Each annotation names its evaluator.

@@ -11,33 +11,46 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const text = (value: unknown): string | null => (typeof value === "string" && value ? value : null)
 
+const versionOf = (value: unknown): string | number | null =>
+    typeof value === "string" || typeof value === "number" ? value : null
+
 /**
  * The references of one span, as stored on the span: the `references` list (each with its key in
- * `attributes.key`), else the `ag.references` map. Only the span itself: the references of its
+ * `attributes.key`) and the `ag.references` map. The response schema keeps only the id of a list
+ * entry, so the map fills a missing slug or version by key (a slug-only reference keeps its
+ * chip), and adds the keys the list lacks. Only the span itself: the references of its
  * annotations (one evaluator each) and of its children are not the span's.
  */
 export function spanReferences(span: TraceSpanNode | null | undefined): TraceReference[] {
     if (!span) return []
-    const stored = (span as {references?: unknown}).references
-    if (Array.isArray(stored) && stored.length > 0) {
-        return stored.filter(isRecord).map((reference) => ({
-            key: isRecord(reference.attributes) ? text(reference.attributes.key) : null,
-            id: text(reference.id),
-            slug: text(reference.slug),
-            version: (reference.version as string | number | null | undefined) ?? null,
-        }))
-    }
     const attributes = (span as {attributes?: unknown}).attributes
     const ag = isRecord(attributes) && isRecord(attributes.ag) ? attributes.ag : null
-    if (!ag || !isRecord(ag.references)) return []
-    return Object.entries(ag.references)
-        .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
+    const map = new Map<string, Record<string, unknown>>(
+        Object.entries(ag && isRecord(ag.references) ? ag.references : {}).filter(
+            (entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]),
+        ),
+    )
+    const stored = (span as {references?: unknown}).references
+    const list = (Array.isArray(stored) ? stored : []).filter(isRecord).map((reference) => {
+        const key = isRecord(reference.attributes) ? text(reference.attributes.key) : null
+        const fromMap = key ? map.get(key) : undefined
+        return {
+            key,
+            id: text(reference.id) ?? text(fromMap?.id),
+            slug: text(reference.slug) ?? text(fromMap?.slug),
+            version: versionOf(reference.version) ?? versionOf(fromMap?.version),
+        }
+    })
+    const listed = new Set(list.map((reference) => reference.key))
+    const onlyInMap = [...map]
+        .filter(([key]) => !listed.has(key))
         .map(([key, reference]) => ({
             key,
             id: text(reference.id),
             slug: text(reference.slug),
-            version: (reference.version as string | number | null | undefined) ?? null,
+            version: versionOf(reference.version),
         }))
+    return [...list, ...onlyInMap]
 }
 
 /**

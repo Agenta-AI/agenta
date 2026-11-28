@@ -24,6 +24,13 @@ const TraceTree = dynamic(() => import("./TraceTree"))
 
 export type TraceDrawerLayout = "split" | "stacked"
 
+/** The tree on top, full width: the stacked layout, and a split drawer under 760px. */
+const STACKED_TREE = "h-[35%] w-full shrink-0 border-0 border-b border-solid border-border-muted"
+/** The tree beside the span in a split drawer of 760px or more. */
+const SPLIT_TREE =
+    "@min-[760px]/trace-drawer:h-auto @min-[760px]/trace-drawer:w-[360px] @min-[760px]/trace-drawer:min-w-[360px] @min-[760px]/trace-drawer:border-b-0 @min-[760px]/trace-drawer:border-r"
+const SPLIT_ROW = "flex h-full flex-col @min-[760px]/trace-drawer:flex-row"
+
 interface TraceDrawerContentProps {
     onClose: () => void
     onToggleWidth: () => void
@@ -160,19 +167,15 @@ const TraceDrawerContent = ({
                     </SimpleTooltip>
                 </div>
             </div>
-            <div className="flex-1 min-h-0">
+            {/* The split layout reads the drawer's own width (it is narrower than the screen): the
+                tree sits beside the span only when both fit, 360px and 400px. */}
+            <div className="@container/trace-drawer flex-1 min-h-0">
                 {isLoading ? <SkeletonBlock className="m-3 max-w-[160px]" /> : null}
                 {/* Three columns side by side, each scrolling on its own: the tree (360px), the
                     span, the side panel. Stacked, the tree takes the top of the panel and the
                     span and side panel the rest, all full width. */}
-                <div className={stacked ? "flex h-full flex-col" : "flex h-full"}>
-                    <div
-                        className={
-                            stacked
-                                ? "h-[35%] w-full shrink-0 border-0 border-b border-solid border-border-muted"
-                                : "w-[360px] min-w-[360px] shrink-0 border-0 border-r border-solid border-border-muted"
-                        }
-                    >
+                <div className={stacked ? "flex h-full flex-col" : SPLIT_ROW}>
+                    <div className={stacked ? STACKED_TREE : `${STACKED_TREE} ${SPLIT_TREE}`}>
                         <TraceTree
                             activeTraceId={activeId}
                             selected={activeId}
@@ -183,7 +186,7 @@ const TraceDrawerContent = ({
                         className={
                             stacked
                                 ? "flex-1 min-h-0 min-w-0 overflow-y-auto"
-                                : "flex-1 min-w-[400px]"
+                                : "flex-1 min-h-0 min-w-0 overflow-y-auto @min-[760px]/trace-drawer:overflow-visible"
                         }
                     >
                         <TraceContent

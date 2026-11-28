@@ -54,11 +54,12 @@ const TraceLinkedSpans = () => {
                         className="cursor-pointer self-start bg-secondary flex gap-1 items-center"
                         onClick={() => handleNavigate(link)}
                         icon={<TreeStructureIcon size={14} />}
-                        // `trace` is not declared on the link type; the read is kept
-                        // (it falls through to `key`) but no longer switches off checking.
+                        // `trace` is not declared on the link type. A link with no name and
+                        // no key (an OpenTelemetry link to another trace) shows its span id.
                         label={
                             (link as {trace?: {span_name?: string}[]})?.trace?.[0]?.span_name ||
-                            link?.key
+                            link?.key ||
+                            link.span_id
                         }
                     />
                 ))}
