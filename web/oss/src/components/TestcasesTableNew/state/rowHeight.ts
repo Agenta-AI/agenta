@@ -10,6 +10,7 @@ import {
  */
 export const TESTCASE_ROW_HEIGHT_CONFIG: RowHeightConfig = {
     ...DEFAULT_ROW_HEIGHT_CONFIG,
+    defaultSize: "small",
     storageKey: "agenta:testcase-table:row-height",
 }
 
