@@ -1195,7 +1195,11 @@ function clientToolReply(
   availableReplies: string[],
 ): string {
   if (verdict.kind === "deny") {
-    return availableReplies.find((r) => r === "reject") ?? "reject";
+    return (
+      availableReplies.find((r) => r === "decline") ??
+      availableReplies.find((r) => r === "reject") ??
+      "reject"
+    );
   }
   return availableReplies.find((r) => r === "once") ?? "once";
 }

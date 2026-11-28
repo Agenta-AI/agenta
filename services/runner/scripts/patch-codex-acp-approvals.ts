@@ -17,6 +17,7 @@ import { join } from "node:path";
 
 import {
   applyCodexAcpApprovalPatch,
+  applyCodexAcpDenyPatch,
   CODEX_ACP_BUNDLE_PATH,
   PATCHED_FULL_ACCESS_APPROVAL,
 } from "../src/engines/sandbox_agent/codex-acp-patch.ts";
@@ -50,7 +51,8 @@ if (bundles.length === 0) {
 }
 
 for (const bundle of bundles) {
-  const outcome = applyCodexAcpApprovalPatch(readFileSync(bundle, "utf8"));
+  const original = readFileSync(bundle, "utf8");
+  const outcome = applyCodexAcpApprovalPatch(original);
   if (outcome.kind === "anchor-missing") {
     console.error(
       `patch-codex-acp-approvals: the agent-full-access approval anchor is missing in ${bundle}. ` +
@@ -59,14 +61,32 @@ for (const bundle of bundles) {
     );
     process.exit(1);
   }
+  let source = outcome.kind === "already-patched" ? original : outcome.source;
   if (outcome.kind === "already-patched") {
     console.log(
       `patch-codex-acp-approvals: already ${PATCHED_FULL_ACCESS_APPROVAL} in ${bundle}`,
     );
-    continue;
+  } else {
+    console.log(
+      `patch-codex-acp-approvals: agent-full-access now sends ${PATCHED_FULL_ACCESS_APPROVAL} approvals in ${bundle}`,
+    );
   }
-  writeFileSync(bundle, outcome.source);
-  console.log(
-    `patch-codex-acp-approvals: agent-full-access now sends ${PATCHED_FULL_ACCESS_APPROVAL} approvals in ${bundle}`,
-  );
+  const deny = applyCodexAcpDenyPatch(source);
+  if (deny.kind === "anchor-missing") {
+    console.error(
+      `patch-codex-acp-approvals: the tool-deny anchor is missing in ${bundle}: ` +
+        `${JSON.stringify(deny.find)}. codex-acp changed its approval handling: re-verify ` +
+        "and update the `deny` block of src/engines/sandbox_agent/codex-acp-patch.json.",
+    );
+    process.exit(1);
+  }
+  if (deny.kind === "already-patched") {
+    console.log(
+      `patch-codex-acp-approvals: tool deny already refusal in ${bundle}`,
+    );
+  } else {
+    source = deny.source;
+    console.log(`patch-codex-acp-approvals: tool deny now refusal in ${bundle}`);
+  }
+  if (source !== original) writeFileSync(bundle, source);
 }
