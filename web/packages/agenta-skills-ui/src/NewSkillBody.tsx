@@ -411,6 +411,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
             dirty: form.dirty,
             valid: form.valid,
             saveLabel: form.label,
+            leaveDescription: t("entityUi.skillNew.leaveDescription"),
             save: form.save,
             // "Choose how" has no action row: a card click goes on (F07 f12).
             ...(step === "choose" ? {actionRow: false as const} : {}),

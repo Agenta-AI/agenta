@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The page's stack guard: a navigation with an open form that has edits closes the views first
- * (leaving never asks, the edits drop), then goes on; Back goes on with replace, a link with push.
+ * The page's stack guard asks before any navigation drops an open form with edits, Back and
+ * Forward included, and on "Keep editing" after Back it returns the browser to the page's entry.
  */
 import {act} from "react"
 
@@ -43,7 +43,7 @@ type PageViewStackGuardApi =
 const Chrome = ({children}: ViewChromeProps) => <div>{children}</div>
 const DirtyBody = () => {
     useViewTitle("Morning check")
-    useViewForm({dirty: true, valid: true, save: async () => true})
+    useViewForm({dirty: true, valid: true, save: async () => true, leaveDescription: "Leave?"})
     return null
 }
 const dirtyView = defineView<Record<string, never>>({
@@ -70,6 +70,9 @@ const start = (url: string, shallow = false) => {
     }
     return aborted
 }
+const button = (text: string) =>
+    [...document.querySelectorAll("button")].find((node) => node.textContent === text)
+
 let host: HTMLDivElement
 let root: Root
 let guardRef: {current: PageViewStackGuardApi | null}
@@ -99,31 +102,44 @@ afterEach(() => {
 })
 
 describe("PageViewStackGuard", () => {
-    it("lets Back go on with replace, with no question, and closes the views", async () => {
+    it("lets Back go on with replace after Discard", async () => {
         window.history.replaceState(null, "", "/m/agents/a?view=configuration&tab=agent")
-        let aborted = false
         await act(async () => {
-            aborted = start("/m/agents/a?view=configuration&tab=agent", true)
+            start("/m/agents/a?view=configuration&tab=agent", true)
         })
-        expect(aborted).toBe(true)
-        expect(document.querySelector("[role='alertdialog']")).toBeNull()
+        await act(async () => button("Discard")!.click())
         expect(router.replace).toHaveBeenCalledWith(
             "/m/agents/a?view=configuration&tab=agent",
             undefined,
             {shallow: true},
         )
         expect(router.push).not.toHaveBeenCalled()
-        expect(stack.depth).toBe(0)
     })
 
-    it("stops a link away from the page, closes the views and goes on with push", async () => {
+    it("stops a link away from the page, asks, and goes on after Discard", async () => {
         let aborted = false
         await act(async () => {
             aborted = start("/m/settings")
         })
         expect(aborted).toBe(true)
+        await act(async () => button("Discard")!.click())
         expect(router.push).toHaveBeenCalledWith("/m/settings", undefined, {shallow: false})
-        expect(stack.depth).toBe(0)
+    })
+
+    it("stops Back too, and on Keep editing puts the page's address back", async () => {
+        // Back has moved the browser already, to a shallow tab entry of this page.
+        window.history.replaceState(null, "", "/m/agents/a?view=configuration&tab=agent")
+        let aborted = false
+        await act(async () => {
+            aborted = start("/m/agents/a?view=configuration&tab=agent", true)
+        })
+        expect(aborted).toBe(true)
+        await act(async () => button("Keep editing")!.click())
+        expect(router.push).toHaveBeenCalledWith(
+            "/agents/a?view=configuration&tab=automations",
+            undefined,
+            {shallow: true},
+        )
     })
 
     it("lets the page's own navigation through after allowNext", async () => {

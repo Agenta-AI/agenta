@@ -174,9 +174,7 @@ describe("archived test sets route", () => {
         document.body.appendChild(host)
         root = createRoot(host)
 
-        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
-        localStorage.setItem("agenta:settings:user-1:beta-developer-mode", JSON.stringify(true))
-        // A fresh store reads the stored switch, as a page load does.
+        // A fresh store reads the stored Developer Mode, as a page load does.
         store = createStore()
         store.set(activeUserIdAtom, "user-1")
         store.set(navSimplifiedOverrideAtom, false)

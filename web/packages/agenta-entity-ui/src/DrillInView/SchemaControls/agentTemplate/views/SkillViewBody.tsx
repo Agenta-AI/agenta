@@ -73,6 +73,7 @@ const AgentOnlySkillBody = ({
         {
             dirty,
             valid: !readOnly && !invalid && !publishing,
+            leaveDescription: t("entityUi.configItems.saveOrDiscardDraft"),
             save: async () => replaceAgentOnlySkill(writer, skillKey, draft),
         },
         t("entityUi.skillView.upload"),

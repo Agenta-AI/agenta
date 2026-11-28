@@ -155,7 +155,7 @@ export const ChangeResultRow = ({
         case "saved":
             mark = (
                 <Mark tone="added">
-                    <Check size={12} weight="bold" />
+                    <Check size={12} />
                 </Mark>
             )
             title = state.version
@@ -190,7 +190,7 @@ export const ChangeResultRow = ({
         case "denied":
             mark = (
                 <Mark tone="plain">
-                    <X size={12} weight="bold" />
+                    <X size={12} />
                 </Mark>
             )
             title = t("chat.changeCardStates.denied")
@@ -199,7 +199,7 @@ export const ChangeResultRow = ({
         case "not_saved":
             mark = (
                 <Mark tone="removed">
-                    <Warning size={12} weight="bold" />
+                    <Warning size={12} />
                 </Mark>
             )
             title = t("chat.changeCardStates.notSaved")
@@ -219,7 +219,7 @@ export const ChangeResultRow = ({
         case "read_only":
             mark = (
                 <Mark tone="plain">
-                    <Lock size={12} weight="bold" />
+                    <Lock size={12} />
                 </Mark>
             )
             title = t("chat.changeCardStates.readOnly")
@@ -330,7 +330,7 @@ const AutoApprovedCallRow = ({
         <ResultRowFrame
             mark={
                 <Mark tone="added">
-                    <Check size={12} weight="bold" />
+                    <Check size={12} />
                 </Mark>
             }
             title={preview.sentence}

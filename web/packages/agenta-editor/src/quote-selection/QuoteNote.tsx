@@ -136,7 +136,7 @@ export const QuoteNote = ({
                                 aria-keyshortcuts="Enter"
                                 onClick={() => onStage(note)}
                             >
-                                <ArrowUp weight="bold" />
+                                <ArrowUp />
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>

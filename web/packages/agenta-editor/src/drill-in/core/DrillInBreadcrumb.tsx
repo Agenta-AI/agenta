@@ -154,7 +154,7 @@ export const DrillInBreadcrumb = memo(
                                         type="button"
                                         className="box-border px-2 py-1 rounded hover:bg-accent transition-colors bg-transparent border-none cursor-pointer text-muted-foreground"
                                     >
-                                        <DotsThree size={16} weight="bold" />
+                                        <DotsThree size={16} />
                                     </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start">

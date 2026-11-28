@@ -77,7 +77,6 @@ const SubmittedAnswers = ({
             >
                 <CaretRight
                     size={11}
-                    weight="bold"
                     className={`shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
                 />
                 <CheckCircle size={13} weight="fill" className="shrink-0 text-success" />

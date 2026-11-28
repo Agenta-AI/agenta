@@ -36,6 +36,7 @@
         "./create-menu": "./src/shell/create-menu/index.ts",
         "./custom-resize-handle.css": "./src/foundation/styles/custom-resize-handle.css",
         "./design/theme": "./src/foundation/design/theme.config.ts",
+        "./design/icons": "./src/foundation/design/icons.ts",
         "./design/contrast": "./src/foundation/design/contrast.ts",
         "./design/rules.json": "./src/foundation/design/rules.json",
         "./design/theme.css": "./src/foundation/design/theme.css",

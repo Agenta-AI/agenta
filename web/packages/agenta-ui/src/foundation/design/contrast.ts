@@ -62,6 +62,9 @@ export const contrastPairs: [foreground: string, background: string, min: number
     ["border-strong", "muted", 3],
     ["border-strong", "secondary", 3],
     ["border-strong", "selected", 3],
+    ["ring", "background", 3],
+    ["ring", "muted", 3],
+    ["ring", "secondary", 3],
     ...["destructive", "success", "warning", "info"].flatMap((s): [string, string, number][] => [
         [s, "background", 4.5],
         [s, "muted", 4.5],

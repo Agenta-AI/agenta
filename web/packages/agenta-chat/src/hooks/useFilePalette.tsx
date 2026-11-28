@@ -99,11 +99,7 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
             key: `${keyPrefix}:${row.path}`,
             // The full path while searching, so the highlight lands where the match is.
             label: searching ? row.path : row.name + (row.isFolder ? "/" : ""),
-            icon: row.isFolder ? (
-                <FolderSimple size={14} weight="regular" />
-            ) : (
-                driveFileIcon(row.path, 14)
-            ),
+            icon: row.isFolder ? <FolderSimple size={14} /> : driveFileIcon(row.path, 14),
             secondary:
                 !searching && keyPrefix === "recent" && parentPath(row.path)
                     ? `${parentPath(row.path)}/`

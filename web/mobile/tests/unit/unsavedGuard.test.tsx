@@ -12,6 +12,7 @@ const {router, handlers} = vi.hoisted(() => {
     const handlers = new Map<string, Set<(...args: unknown[]) => void>>()
     const router = {
         basePath: "/m",
+        asPath: "/w/ws/p/proj/automations/a1",
         push: vi.fn(() => Promise.resolve(true)),
         events: {
             on: (name: string, fn: (...args: unknown[]) => void) => {
@@ -65,5 +66,47 @@ describe("useUnsavedGuard", () => {
 
         onOk?.()
         expect(router.push).toHaveBeenCalledWith("/w/ws/p/proj/apps/app/variants")
+    })
+
+    it("after Back, puts the page's address back while it asks", async () => {
+        const confirm = vi.fn()
+        const Probe = () => {
+            useUnsavedGuard({dirty: true, confirm, title: "t", message: "m"})
+            return null
+        }
+        act(() => {
+            root = createRoot(document.createElement("div"))
+            root.render(createElement(Probe))
+        })
+        // Back has moved the browser to the previous entry before the router hears of it.
+        window.history.replaceState(null, "", "/m/w/ws/p/proj/automations")
+        expect(() =>
+            router.events.emit("routeChangeStart", "/m/w/ws/p/proj/automations", {
+                shallow: false,
+            }),
+        ).toThrow()
+        expect(confirm).toHaveBeenCalledOnce()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(router.push).toHaveBeenCalledWith("/w/ws/p/proj/automations/a1", undefined, {
+            shallow: true,
+        })
+    })
+
+    it("after a link click, leaves the address alone while it asks", async () => {
+        const confirm = vi.fn()
+        const Probe = () => {
+            useUnsavedGuard({dirty: true, confirm, title: "t", message: "m"})
+            return null
+        }
+        act(() => {
+            root = createRoot(document.createElement("div"))
+            root.render(createElement(Probe))
+        })
+        window.history.replaceState(null, "", "/m/w/ws/p/proj/automations/a1")
+        expect(() =>
+            router.events.emit("routeChangeStart", "/m/settings", {shallow: false}),
+        ).toThrow()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(router.push).not.toHaveBeenCalled()
     })
 })

@@ -57,7 +57,7 @@ export const SessionRowMenu = ({
                         `[&_svg:not([class*='size-'])]:size-3` wins over the attribute, so the prop
                         silently rendered 12px. Three dots also read smaller than a glyph that
                         fills its box, so 14 is what matches by eye. */}
-                        <DotsThree aria-hidden className="size-3.5" weight="bold" />
+                        <DotsThree aria-hidden className="size-3.5" />
                     </Button>
                 )}
             </DropdownMenuTrigger>

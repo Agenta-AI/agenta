@@ -2,6 +2,7 @@ import {useState} from "react"
 
 import {useDrillInUI} from "@agenta/editor/drill-in"
 import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import {useViewForm, useViewTitle, type ConfigItemRef, type ViewProps} from "@agenta/ui/view-stack"
 
@@ -33,7 +34,7 @@ const ViewTitle = ({title}: {title: string}) => {
  * list as it is now, so a builder save that changes the list never puts another one here.
  */
 const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) => {
-    const t = useT(subagentViewsCatalog)
+    const t = useT(subagentViewsCatalog, configItemsCatalog)
     const {workflowReference} = useDrillInUI()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const tools = toolsOf(writer.agent)
@@ -53,6 +54,7 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
     useViewForm({
         dirty: entry !== null && draft !== original,
         valid: entry !== null && !writer.readOnly,
+        leaveDescription: t("entityUi.configItems.saveOrDiscardDraft"),
         save: async () => {
             writer.update((agent) => ({
                 ...agent,

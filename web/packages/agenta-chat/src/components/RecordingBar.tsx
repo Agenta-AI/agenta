@@ -142,7 +142,7 @@ const RecordingBar = ({
                         attached to a message in progress rather than sent outright. */}
                         <ComposerSendButton
                             onClick={stop}
-                            icon={willSend ? undefined : <Check size={16} weight="bold" />}
+                            icon={willSend ? undefined : <Check size={16} />}
                             ariaLabel={
                                 willSend
                                     ? t("chat.recordingBar.stopAndSend")

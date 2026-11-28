@@ -32,5 +32,6 @@
     "or": "or",
     "expandEditor": "Expand the editor",
     "shrinkEditor": "Make the editor smaller",
-    "removedState": "This skill is no longer in the agent."
+    "removedState": "This skill is no longer in the agent.",
+    "registryLeaveDescription": "Save your changes to this skill in the skill registry, or discard them?"
 }

@@ -253,7 +253,7 @@ export function InputNumber({
                         disabled && "cursor-not-allowed",
                     )}
                 >
-                    <CaretUp size={8} weight="bold" />
+                    <CaretUp size={8} />
                 </button>
                 <button
                     type="button"
@@ -267,7 +267,7 @@ export function InputNumber({
                         disabled && "cursor-not-allowed",
                     )}
                 >
-                    <CaretDown size={8} weight="bold" />
+                    <CaretDown size={8} />
                 </button>
             </span>
         </span>

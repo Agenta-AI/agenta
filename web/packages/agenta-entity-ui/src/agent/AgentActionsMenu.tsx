@@ -95,7 +95,7 @@ export const AgentActionsMenu = ({
                         className,
                     )}
                 >
-                    <DotsThree size={16} weight="bold" />
+                    <DotsThree size={16} />
                 </button>
             </DropdownMenuTrigger>
             {/* Sized to its longest verb rather than to a number: at a fixed 180 "Open

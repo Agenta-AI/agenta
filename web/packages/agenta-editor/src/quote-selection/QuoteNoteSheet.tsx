@@ -72,7 +72,7 @@ export const QuoteNoteSheet = ({
                 onFocus={(e) => e.currentTarget.setSelectionRange(note.length, note.length)}
                 rows={2}
                 placeholder={t("ui.quoteSelection.askAboutThis")}
-                className="min-h-11 w-full resize-none rounded-lg border border-solid border-border bg-transparent px-3 py-2.5 font-[inherit] text-label leading-6 text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground focus:border-ring"
+                className="min-h-11 w-full resize-none rounded-lg border border-solid border-border bg-transparent px-3 py-2.5 font-[inherit] text-label leading-6 text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground focus-ring-field"
             />
             {onSend ? (
                 <div className="grid grid-cols-2 gap-2">

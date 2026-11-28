@@ -71,10 +71,6 @@ export const SelectMarkCheck = ({checked, shown = false}: {checked: boolean; sho
         )}
     >
         {/* Unchecked, a quiet check icon says "click to select"; checked, it fills. */}
-        <CheckIcon
-            size={16}
-            weight={checked ? "bold" : "regular"}
-            className={checked ? undefined : "text-muted-foreground"}
-        />
+        <CheckIcon size={16} className={checked ? undefined : "text-muted-foreground"} />
     </span>
 )
