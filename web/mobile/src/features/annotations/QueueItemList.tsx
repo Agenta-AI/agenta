@@ -96,11 +96,12 @@ export const QueueItemList = ({onHide, onOpened}: {onHide?: () => void; onOpened
                     const isFolded = folded.has(key)
                     return (
                         <section key={key} className="flex flex-col">
-                            <button
+                            <Button
                                 type="button"
+                                variant="ghost"
                                 aria-expanded={!isFolded}
                                 onClick={() => toggle(key)}
-                                className="focus-ring flex cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-label text-foreground hover:bg-accent"
+                                className="h-auto justify-start gap-1.5 rounded-md px-2 py-1.5 text-left text-label text-foreground aria-expanded:bg-transparent aria-expanded:hover:bg-accent"
                             >
                                 <CollapseCaret open={!isFolded} />
                                 {t(
@@ -111,7 +112,7 @@ export const QueueItemList = ({onHide, onOpened}: {onHide?: () => void; onOpened
                                 <span className="font-normal text-muted-foreground">
                                     {items.length}
                                 </span>
-                            </button>
+                            </Button>
                             {isFolded
                                 ? null
                                 : items.map((id) => (

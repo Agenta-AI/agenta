@@ -14,7 +14,7 @@ import {
     type TraceSpan,
 } from "@agenta/entities/trace"
 import {timeAgo} from "@agenta/shared/utils"
-import {cn} from "@agenta/ui/ui"
+import {Button, cn} from "@agenta/ui/ui"
 import {CheckCircle, Circle, Warning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -103,12 +103,13 @@ export const QueueItemRow = ({
     const age = createdAt ? timeAgo(Date.parse(createdAt)) : ""
 
     return (
-        <button
+        <Button
             ref={ref}
             type="button"
+            variant="ghost"
             aria-current={selected ? "true" : undefined}
             onClick={onOpen}
-            className="focus-ring flex w-full cursor-pointer items-start gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left hover:bg-accent aria-[current=true]:bg-selected"
+            className="h-auto w-full items-start justify-start gap-2 whitespace-normal rounded-md px-2 py-1.5 text-left font-normal aria-[current=true]:bg-selected"
         >
             <StatusIcon status={status} />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -119,6 +120,6 @@ export const QueueItemRow = ({
                     {age ? `${shortId} · ${age}` : shortId}
                 </span>
             </span>
-        </button>
+        </Button>
     )
 }

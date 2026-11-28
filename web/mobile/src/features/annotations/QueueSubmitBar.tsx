@@ -5,6 +5,7 @@ import {UserAuthorLabel} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {useModifierKey} from "@agenta/shared/hooks"
+import {COARSE_POINTER_QUERY, useWindowMatch} from "@agenta/ui/hooks"
 import {Kbd, LoadingButton} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
@@ -37,9 +38,12 @@ const useHelpLine = (
     focused: FocusedField | null,
 ) => {
     const t = useT(queueScreensCatalog)
+    const touch = useWindowMatch(COARSE_POINTER_QUERY)
     if (!submission.isCompleted && !submission.hasFilledMetrics) {
         return t("annotation.queueScreens.fillOneField")
     }
+    // Key help is for a keyboard: on touch (a coarse pointer) only the reason above shows.
+    if (touch) return null
     switch (focused?.kind) {
         case "boolean":
             return t("annotation.queueScreens.keysBoolean")
@@ -67,6 +71,7 @@ export const QueueSubmitBar = ({
     focused: FocusedField | null
 }) => {
     const modifierKey = useModifierKey()
+    const touch = useWindowMatch(COARSE_POINTER_QUERY)
     const author = useLastAuthor(scenarioId)
     const help = useHelpLine(submission, focused)
     return (
@@ -84,9 +89,11 @@ export const QueueSubmitBar = ({
                 onClick={() => void submission.submit()}
             >
                 {submission.label}
-                <Kbd tone="inverse" className="ml-0.5">{`${modifierKey}↵`}</Kbd>
+                {touch ? null : <Kbd tone="inverse" className="ml-0.5">{`${modifierKey}↵`}</Kbd>}
             </LoadingButton>
-            <p className="m-0 text-center text-meta text-muted-foreground">{help}</p>
+            {help ? (
+                <p className="m-0 text-center text-meta text-muted-foreground">{help}</p>
+            ) : null}
         </div>
     )
 }

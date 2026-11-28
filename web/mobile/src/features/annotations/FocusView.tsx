@@ -8,6 +8,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {
     Button,
+    cn,
     LoadingButton,
     Sheet,
     SheetContent,
@@ -144,14 +145,16 @@ export const FocusView = ({
     })
 
     const list = <QueueItemList onHide={columns ? () => setListChoice(false) : undefined} />
+    // Side by side the content scrolls on its own. On a phone the page scrolls: the content keeps
+    // its full height and the panel follows it, so neither is squeezed into a strip.
     const content = (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className={cn("flex flex-col", columns ? "min-h-0 flex-1" : "shrink-0")}>
             <QueueContentBar
                 scenarioId={scenarioId}
                 onShowItems={listOpen && columns ? undefined : () => setListChoice(true)}
                 submission={submission}
             />
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 sm:px-6">
+            <div className={cn("px-4 pb-8 sm:px-6", columns && "min-h-0 flex-1 overflow-y-auto")}>
                 <div className="mx-auto flex max-w-4xl flex-col gap-6 pt-2">
                     {progress.total > 0 && progress.remaining === 0 ? (
                         <AllCompletedLine total={progress.total} />

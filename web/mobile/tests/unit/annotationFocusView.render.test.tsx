@@ -22,6 +22,10 @@ const fixture = vi.hoisted(() => ({
     canAnnotate: true,
     /** The window is at least 1,360px wide (the list starts open). */
     wide: true,
+    /** A phone: narrower than the three columns. */
+    phone: false,
+    /** A coarse pointer (touch). */
+    touch: false,
     invocationPending: false,
 }))
 
@@ -128,7 +132,9 @@ vi.mock("@agenta/ui/utils", async (importOriginal) => ({
     copyToClipboard: fixture.copy,
 }))
 vi.mock("@agenta/ui/hooks", () => ({
-    useMediaQuery: (query: string) => (query.includes("1360") ? fixture.wide : true),
+    useMediaQuery: (query: string) => (query.includes("1360") ? fixture.wide : !fixture.phone),
+    COARSE_POINTER_QUERY: "(pointer: coarse)",
+    useWindowMatch: (query: string) => query === "(pointer: coarse)" && fixture.touch,
 }))
 vi.mock("@/features/context/useProjectPermission", () => ({
     useProjectPermission: () => fixture.canAnnotate,
@@ -212,6 +218,8 @@ beforeEach(() => {
     vi.clearAllMocks()
     fixture.canAnnotate = true
     fixture.wide = true
+    fixture.phone = false
+    fixture.touch = false
     fixture.invocationPending = false
     resetSession({
         traceRefs: {
@@ -375,6 +383,22 @@ describe("the queue's Annotate tab", () => {
             markComplete: false,
         })
         expect(fixture.toast.success).toHaveBeenLastCalledWith("Updated feedback")
+    })
+
+    it("On a phone with touch the page scrolls, and no key hints show", async () => {
+        fixture.wide = false
+        fixture.phone = true
+        fixture.touch = true
+        patchSession({hasFilledMetrics: {"s-1": true}})
+        await render()
+        // The content keeps its full height above the panel; it has no scroll box of its own.
+        const inputs = [...host.querySelectorAll("section, [role=region]")].find((node) =>
+            node.textContent?.startsWith("Inputs"),
+        )!
+        expect(inputs.closest(".overflow-y-auto")?.textContent).toContain("Annotations")
+        expect(host.querySelector("kbd")).toBeNull()
+        expect(host.textContent).not.toContain("Keys:")
+        expect(button("Mark completed and next")?.textContent).toBe("Mark completed and next")
     })
 
     it("With no filled field the button is off and says why", async () => {

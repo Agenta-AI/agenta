@@ -1,6 +1,7 @@
 import {useEffect, useId, useRef, type KeyboardEvent, type ReactNode} from "react"
 
 import {isEmptyValue, type AnnotationMetricField} from "@agenta/annotation"
+import {COARSE_POINTER_QUERY, useWindowMatch} from "@agenta/ui/hooks"
 import {
     Kbd,
     Segmented,
@@ -28,9 +29,13 @@ const NO_CHOICE = ""
 const MAX_CHOICE_BUTTONS = 5
 const NOTE_ROWS = 8
 
-/** An option's text with its number key, shown only while its field has the focus. */
-const KeyedLabel = ({label, keyName}: {label: string; keyName: string | null}) =>
-    keyName ? (
+/**
+ * An option's text with its number key, shown only while its field has the focus, and never on
+ * touch (a coarse pointer), where there is usually no keyboard.
+ */
+const KeyedLabel = ({label, keyName}: {label: string; keyName: string | null}) => {
+    const touch = useWindowMatch(COARSE_POINTER_QUERY)
+    return keyName && !touch ? (
         <span className="inline-flex items-center gap-1.5">
             {label}
             <Kbd className="hidden group-focus-within/field:inline-flex">{keyName}</Kbd>
@@ -38,6 +43,7 @@ const KeyedLabel = ({label, keyName}: {label: string; keyName: string | null}) =
     ) : (
         label
     )
+}
 
 /**
  * The field's frame in the queue: it takes the focus (`focus-ring-field`), shows its keys only
