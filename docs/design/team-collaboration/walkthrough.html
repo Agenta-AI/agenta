@@ -1,0 +1,1084 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'self'">
+  <title>Agenta team collaboration walkthrough</title>
+  <style>
+    :root {
+      --bg: #f2efe7;
+      --surface: #fffdf8;
+      --surface-2: #ebe7dc;
+      --ink: #18211f;
+      --muted: #65706c;
+      --line: #d8d2c4;
+      --data: #2563eb;
+      --data-soft: #dbeafe;
+      --ok: #16845b;
+      --ok-soft: #dff6eb;
+      --warn: #b56705;
+      --warn-soft: #fff0cf;
+      --error: #c23b3b;
+      --error-soft: #fee7e4;
+      --violet: #7451c8;
+      --violet-soft: #ebe5fb;
+      --shadow: 0 20px 55px rgba(42, 38, 29, .11);
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    html[data-theme="dark"] {
+      --bg: #111714;
+      --surface: #19211e;
+      --surface-2: #222c28;
+      --ink: #f2f4ef;
+      --muted: #a3afa9;
+      --line: #34403b;
+      --data: #72a1ff;
+      --data-soft: #1d3157;
+      --ok: #65d2a3;
+      --ok-soft: #183b2d;
+      --warn: #f0b85a;
+      --warn-soft: #45351d;
+      --error: #ff8580;
+      --error-soft: #4c2424;
+      --violet: #b7a0ff;
+      --violet-soft: #352b55;
+      --shadow: 0 25px 70px rgba(0, 0, 0, .35);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 12% 12%, color-mix(in srgb, var(--data) 9%, transparent), transparent 30%),
+        radial-gradient(circle at 88% 90%, color-mix(in srgb, var(--violet) 8%, transparent), transparent 28%),
+        var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+    }
+
+    button { font: inherit; }
+    .shell { min-height: 100vh; display: flex; flex-direction: column; }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto;
+      gap: 24px;
+      align-items: center;
+      padding: 18px 28px 14px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .brand { display: flex; gap: 13px; align-items: center; min-width: 0; }
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 11px;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: linear-gradient(145deg, #1d4ed8, #6d4ac7);
+      box-shadow: 0 9px 24px rgba(37, 99, 235, .24);
+      font-weight: 800;
+      letter-spacing: -.04em;
+    }
+    .brand-copy { min-width: 0; }
+    .brand-copy strong { display: block; font-size: 15px; letter-spacing: -.01em; }
+    .brand-copy span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+    .top-actions { display: flex; gap: 10px; align-items: center; }
+    .chapter-count { color: var(--muted); font-size: 12px; font-family: var(--mono); }
+    .icon-button {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    .icon-button:hover { border-color: var(--data); }
+
+    .chapter-nav {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 8px;
+      padding: 12px 28px;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .chapter-tab {
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 12px;
+      text-align: left;
+      padding: 10px 12px;
+      cursor: pointer;
+      min-width: 150px;
+    }
+    .chapter-tab:hover { background: var(--surface-2); color: var(--ink); }
+    .chapter-tab.active {
+      background: var(--surface);
+      border-color: var(--line);
+      color: var(--ink);
+      box-shadow: 0 8px 22px rgba(35, 31, 24, .06);
+    }
+    .chapter-tab small {
+      display: block;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .chapter-tab strong { font-size: 13px; }
+
+    .workspace {
+      width: min(1500px, 100%);
+      margin: 0 auto;
+      padding: 22px 28px 108px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(330px, .8fr);
+      gap: 18px;
+      flex: 1;
+    }
+
+    .panel {
+      background: color-mix(in srgb, var(--surface) 96%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .stage { min-height: 640px; display: flex; flex-direction: column; }
+    .stage-head { padding: 24px 26px 12px; }
+    .eyebrow {
+      color: var(--data);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 800;
+    }
+    h1 { margin: 8px 0 0; font-size: clamp(27px, 3vw, 43px); line-height: 1.04; letter-spacing: -.045em; }
+
+    .diagram {
+      margin: 10px 26px 0;
+      min-height: 310px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px),
+        color-mix(in srgb, var(--surface-2) 50%, var(--surface));
+      background-size: 32px 32px;
+    }
+
+    .actors {
+      position: absolute;
+      inset: 34px 26px auto;
+      display: grid;
+      grid-template-columns: repeat(var(--actor-count), minmax(0, 1fr));
+      gap: 14px;
+      z-index: 3;
+    }
+    .actor {
+      min-height: 104px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--surface);
+      padding: 14px 13px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: opacity .5s ease, transform .5s ease, border-color .5s ease, background .5s ease;
+    }
+    .actor.dim { opacity: .45; transform: scale(.97); }
+    .actor.data { border-color: var(--data); background: var(--data-soft); }
+    .actor.ok { border-color: var(--ok); background: var(--ok-soft); }
+    .actor.warn { border-color: var(--warn); background: var(--warn-soft); }
+    .actor.error { border-color: var(--error); background: var(--error-soft); }
+    .actor.violet { border-color: var(--violet); background: var(--violet-soft); }
+    .actor-name { font-weight: 760; font-size: 14px; letter-spacing: -.015em; }
+    .actor-sub { color: var(--muted); font-size: 11px; line-height: 1.35; margin-top: 10px; }
+
+    .track {
+      position: absolute;
+      left: 6%;
+      right: 6%;
+      bottom: 68px;
+      height: 48px;
+      border-top: 1px dashed color-mix(in srgb, var(--muted) 52%, transparent);
+    }
+    .track::before, .track::after {
+      position: absolute;
+      top: -19px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .track::before { content: "start"; left: 0; }
+    .track::after { content: "decision"; right: 0; }
+
+    .packet {
+      position: absolute;
+      left: var(--packet-x);
+      top: 11px;
+      width: min(180px, 28%);
+      min-width: 105px;
+      transform: translateX(-50%);
+      border: 1px solid var(--data);
+      background: var(--data);
+      color: white;
+      border-radius: 999px;
+      padding: 8px 12px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 750;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-shadow: 0 7px 22px color-mix(in srgb, var(--data) 30%, transparent);
+      transition: left .7s ease, background .5s ease, border-color .5s ease, width .5s ease;
+    }
+    .packet.ok { background: var(--ok); border-color: var(--ok); }
+    .packet.warn { background: var(--warn); border-color: var(--warn); }
+    .packet.error { background: var(--error); border-color: var(--error); animation: shake .55s ease; }
+    .packet.violet { background: var(--violet); border-color: var(--violet); }
+
+    .turning-point {
+      position: absolute;
+      right: 5.5%;
+      bottom: 50px;
+      width: 4px;
+      height: 84px;
+      border-radius: 5px;
+      background: var(--warn);
+      opacity: 0;
+      transition: opacity .4s ease, background .4s ease;
+    }
+    .turning-point.show { opacity: 1; }
+    .turning-point.error { background: var(--error); }
+    .turning-point::before {
+      content: attr(data-label);
+      position: absolute;
+      right: -3px;
+      top: -25px;
+      transform: translateX(0);
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 4px 7px;
+      font-size: 9px;
+      font-family: var(--mono);
+      white-space: nowrap;
+    }
+
+    .callout {
+      position: absolute;
+      left: 26px;
+      right: 26px;
+      bottom: 12px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .narration { padding: 21px 26px 24px; display: grid; gap: 12px; }
+    .narration p { margin: 0; color: var(--muted); line-height: 1.62; font-size: 15px; max-width: 76ch; }
+    .narration strong { color: var(--ink); }
+    .verdict {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: var(--surface-2);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 10px;
+    }
+
+    .evidence {
+      background: #0d1311;
+      color: #e9efe9;
+      min-height: 640px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, .24);
+    }
+    .evidence-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 20px;
+      border-bottom: 1px solid #28332f;
+    }
+    .evidence-head strong { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+    .evidence-head span { color: #7f928a; font-family: var(--mono); font-size: 9px; }
+    .debug-section { padding: 17px 20px; border-bottom: 1px solid #28332f; }
+    .debug-label { color: #7f928a; font-family: var(--mono); font-size: 9px; letter-spacing: .11em; text-transform: uppercase; margin-bottom: 10px; }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.55;
+      color: #d6e4dc;
+    }
+    .source { color: #7f928a; margin-top: 10px; font-family: var(--mono); font-size: 9px; line-height: 1.45; }
+    .watch { display: grid; gap: 8px; }
+    .watch-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: baseline; font-family: var(--mono); font-size: 10px; }
+    .watch-row span:first-child { color: #92a39b; }
+    .watch-row span:last-child { color: #e8efe9; text-align: right; }
+    .watch-row.ok span:last-child { color: #78dfae; }
+    .watch-row.warn span:last-child { color: #f2c166; }
+    .watch-row.error span:last-child { color: #ff8e88; }
+    .watch-row.data span:last-child { color: #8db4ff; }
+    .console { color: #9aac9f; }
+    .console .ok { color: #78dfae; }
+    .console .warn { color: #f2c166; }
+    .console .error { color: #ff8e88; }
+
+    .controls {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 30;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+      padding: 14px 28px;
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      backdrop-filter: blur(18px);
+      border-top: 1px solid var(--line);
+    }
+    .nav-button {
+      min-width: 105px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 10px 15px;
+      background: var(--surface);
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .nav-button.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+    .nav-button:disabled { opacity: .35; cursor: not-allowed; }
+
+    .step-meta { min-width: 0; text-align: center; }
+    .step-title { font-size: 11px; font-family: var(--mono); color: var(--muted); margin-bottom: 8px; }
+    .dots { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+    .dot {
+      width: 8px;
+      height: 8px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: var(--line);
+      cursor: pointer;
+    }
+    .dot.active { background: var(--data); transform: scale(1.35); }
+    .dot.past { background: color-mix(in srgb, var(--data) 45%, var(--line)); }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(-50%); }
+      25% { transform: translateX(calc(-50% - 7px)); }
+      75% { transform: translateX(calc(-50% + 7px)); }
+    }
+
+    @media (max-width: 1020px) {
+      .workspace { grid-template-columns: 1fr; }
+      .stage, .evidence { min-height: auto; }
+      .evidence { border-radius: 18px; }
+    }
+
+    @media (max-width: 680px) {
+      .topbar { padding: 14px 16px; gap: 10px; }
+      .brand-copy span, .chapter-count { display: none; }
+      .chapter-nav { padding: 10px 16px; grid-template-columns: repeat(5, 158px); }
+      .workspace { padding: 15px 12px 126px; }
+      .stage-head { padding: 19px 18px 10px; }
+      .diagram { margin: 8px 12px 0; min-height: 400px; }
+      .actors { inset: 20px 16px auto; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .actor { min-height: 84px; padding: 10px; }
+      .track { bottom: 62px; }
+      .narration { padding: 18px; }
+      .controls { padding: 11px 12px; gap: 10px; grid-template-columns: auto 1fr auto; }
+      .nav-button { min-width: 74px; padding: 9px 10px; font-size: 12px; }
+      .step-title { font-size: 9px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">A</div>
+        <div class="brand-copy">
+          <strong>Team collaboration, explained</strong>
+          <span>Market research -> product direction -> safe architecture</span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="chapter-count" id="chapterCount"></span>
+        <button class="icon-button" id="themeToggle" type="button" aria-label="Toggle color theme">Dark</button>
+      </div>
+    </header>
+
+    <nav class="chapter-nav" id="chapterNav" aria-label="Walkthrough chapters"></nav>
+
+    <main class="workspace">
+      <section class="panel stage" aria-live="polite">
+        <div class="stage-head">
+          <div class="eyebrow" id="eyebrow"></div>
+          <h1 id="stepHeading"></h1>
+        </div>
+        <div class="diagram" id="diagram">
+          <div class="actors" id="actors"></div>
+          <div class="track">
+            <div class="packet" id="packet"></div>
+          </div>
+          <div class="turning-point" id="turningPoint"></div>
+          <div class="callout" id="callout"></div>
+        </div>
+        <div class="narration">
+          <p id="narration"></p>
+          <span class="verdict" id="verdict"></span>
+        </div>
+      </section>
+
+      <aside class="panel evidence" aria-label="Evidence panel">
+        <div class="evidence-head">
+          <strong>Evidence</strong>
+          <span id="evidenceMode">contract debugger</span>
+        </div>
+        <section class="debug-section">
+          <div class="debug-label">Contract</div>
+          <pre id="contract"></pre>
+          <div class="source" id="source"></div>
+        </section>
+        <section class="debug-section">
+          <div class="debug-label">Watch</div>
+          <div class="watch" id="watch"></div>
+        </section>
+        <section class="debug-section" style="border-bottom:0; flex:1">
+          <div class="debug-label">Decision log</div>
+          <pre class="console" id="console"></pre>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="controls">
+      <button class="nav-button" id="backButton" type="button">Back</button>
+      <div class="step-meta">
+        <div class="step-title" id="stepMeta"></div>
+        <div class="dots" id="dots"></div>
+      </div>
+      <button class="nav-button primary" id="nextButton" type="button">Next</button>
+    </footer>
+  </div>
+
+  <script>
+    const a = (name, sub, state = "neutral") => ({ name, sub, state });
+    const w = (name, value, state = "neutral") => ({ name, value, state });
+    const step = (title, narration, actors, packet, evidence, options = {}) => ({
+      title, narration, actors, packet, evidence,
+      eyebrow: options.eyebrow || "",
+      verdict: options.verdict || "",
+      callout: options.callout || "",
+      gate: options.gate || null
+    });
+
+    const chapters = [
+      {
+        id: "research",
+        short: "Market model",
+        label: "01 Research",
+        description: "How three competitors move work from personal to shared.",
+        steps: [
+          step("One conversation needs an audience", "Across the market, the conversation starts with a clear context. Personal work stays personal. Team work enters a shared space.", [
+            a("Person", "starts a conversation", "data"), a("Personal context", "one person's work", "neutral"), a("Share choice", "explicit transition", "warn"), a("Team context", "known members", "ok")
+          ], { label: "conversation", x: 13, state: "data" }, {
+            contract: "personal work -> explicit share -> team context",
+            source: "research.md:9-17",
+            watch: [w("personal option", "market baseline", "ok"), w("share action", "explicit", "data"), w("team audience", "visible", "ok")],
+            console: ". market pattern found\n. audience changes by context"
+          }, { eyebrow: "Market research", verdict: "Common pattern: personal first, shared by choice", callout: "Follow the blue conversation." }),
+
+          step("Competitor A makes sharing participatory", "Competitor A starts an ordinary Conversation private. A named colleague joins the same history and can reply. Access still respects the Agent and its data Spaces.", [
+            a("Creator", "private Conversation", "data"), a("Share link", "eligible colleague", "warn"), a("Participant", "sees history and replies", "ok"), a("Data Space", "still authorizes access", "violet")
+          ], { label: "live Conversation", x: 66, state: "ok" }, {
+            contract: "private -> share -> participant\nparticipant can read + reply",
+            source: "research.md:81-98",
+            watch: [w("default", "private", "ok"), w("recipient", "Workspace colleague", "data"), w("reply", "allowed", "ok")],
+            console: "+ participant joins\n+ full history visible\n+ reply enabled"
+          }, { eyebrow: "Competitor A", verdict: "Conversation sharing is a live collaboration", callout: "The link does not bypass Space access." }),
+
+          step("Competitor A Pods reverse the default", "Inside a Pod, every member can see and contribute to every Pod Conversation. The same product supports personal conversations and an explicit shared room.", [
+            a("Conversation", "outside Pod: private", "data"), a("Pod boundary", "open or restricted", "warn"), a("Pod members", "all can contribute", "ok"), a("Agent memory", "Pod content indexed", "violet")
+          ], { label: "Pod Conversation", x: 78, state: "ok" }, {
+            contract: "if conversation.in_pod:\n  audience = pod.members\n  contribution = allowed",
+            source: "research.md:90-99",
+            watch: [w("Pod audience", "all members", "ok"), w("contribute", "yes", "ok"), w("Agent context", "indexed", "data")],
+            console: "+ shared context selected\n+ team memory available"
+          }, { eyebrow: "Competitor A", verdict: "Shared context is explicit", callout: "Private and shared work coexist." }),
+
+          step("Competitor B separates links from Projects", "An ordinary chat gets a revocable Workspace link. A shared Project is broader: its members see current and future chats, files, and instructions.", [
+            a("Ordinary chat", "creator context", "data"), a("Workspace link", "read access", "warn"), a("Project", "shared context", "violet"), a("Project members", "all Project content", "ok")
+          ], { label: "chat or Project", x: 61, state: "violet" }, {
+            contract: "chat link: one conversation\nProject: current + future context",
+            source: "research.md:156-182",
+            watch: [w("unshared default", "implicit", "warn"), w("link", "revocable", "ok"), w("Project inheritance", "automatic", "data")],
+            console: ". ordinary chat sharing is narrow\n. Project sharing is durable"
+          }, { eyebrow: "Competitor B", verdict: "One-off sharing and team context are separate" }),
+
+          step("Competitor C has a visible personal/team split", "Every user has a private Personal Space. Moving an Agent or Workflow into a Team gives Team members access under the Team's rules.", [
+            a("Personal Space", "private by default", "data"), a("Move to Team", "explicit action", "warn"), a("Team", "shared resource space", "ok"), a("Organization", "admin boundary", "violet")
+          ], { label: "Agent / Workflow", x: 68, state: "ok" }, {
+            contract: "Organization\n  Personal Spaces\n  Teams",
+            source: "research.md:221-249",
+            watch: [w("personal resource", "restricted", "ok"), w("Team resource", "Team-visible", "data"), w("nested Teams", "not documented", "warn")],
+            console: "+ explicit personal area\n+ explicit shared area"
+          }, { eyebrow: "Competitor C", verdict: "The place of the resource defines its baseline audience" }),
+
+          step("Resource access is not one bit", "Competitors distinguish using an Agent from seeing or changing its internals. Competitor C names Owner, Editor, Viewer, and Use Only. Competitor B separates use and edit grants.", [
+            a("Use", "invoke only", "data"), a("View", "inspect internals", "violet"), a("Edit", "change configuration", "warn"), a("Manage", "sharing and ownership", "ok")
+          ], { label: "resource grant", x: 74, state: "violet" }, {
+            contract: "use != view != edit != manage",
+            source: "research.md:250-269, 190-207",
+            watch: [w("least privilege", "supported", "ok"), w("config exposure", "separate", "data"), w("ownership", "resource-level", "violet")],
+            console: "+ invocation can hide internals\n+ editing stays explicit"
+          }, { eyebrow: "Access model", verdict: "Audience and capability are different questions" }),
+
+          step("Agenta has one visibility mode today", "Workspace members are mirrored into Projects. A member with view_sessions can read every Project session. There is no personal area or session share operation.", [
+            a("Workspace member", "mirrored to Projects", "data"), a("Project role", "view_sessions", "warn"), a("All sessions", "Project-visible", "error"), a("Share control", "absent", "dim")
+          ], { label: "interactive session", x: 88, state: "error" }, {
+            contract: "membership -> Project role -> every session",
+            source: "research.md:18-34, 359-381",
+            watch: [w("private session", "absent", "error"), w("named share", "absent", "error"), w("Project collaboration", "strong", "ok")],
+            console: "! chat-like surface\n! Project-wide visibility\n! audience not shown"
+          }, { eyebrow: "Turning point", verdict: "Agenta's Project is a resource scope, not a selectable team room", gate: { label: "one audience", state: "error" }, callout: "The conversation cannot stop in a personal context." }),
+
+          step("Keep shared operations, add session choice", "The proposal does not privatize everything. Operational traces, evaluations, and triggered sessions stay Project-visible. Interactive sessions gain explicit personal or shared contexts.", [
+            a("Interactive session", "personal or Project", "data"), a("Audience policy", "shown and enforced", "ok"), a("Operational evidence", "Project-visible", "violet"), a("Named share", "later, one session", "warn")
+          ], { label: "explicit audience", x: 91, state: "ok" }, {
+            contract: "interactive: personal | Project\noperational: Project",
+            source: "research.md:34-45; prd.md:56-68",
+            watch: [w("LLMOps model", "preserved", "ok"), w("personal option", "added", "data"), w("default", "validate", "warn")],
+            console: "+ retain shared debugging\n+ add explicit session audience"
+          }, { eyebrow: "Resolution", verdict: "Two contexts, one visible audience", callout: "The default remains a product research decision." })
+        ]
+      },
+
+      {
+        id: "prd",
+        short: "Product path",
+        label: "02 PRD",
+        description: "The progressive product experience and release order.",
+        steps: [
+          step("Workspace membership sets today's audience", "Agenta copies Workspace members into Projects. Project roles then decide which resource types each member can use.", [
+            a("Workspace", "people boundary", "data"), a("Membership mirror", "copies roles", "warn"), a("Project", "resource scope", "violet"), a("Sessions", "all visible by role", "error")
+          ], { label: "member role", x: 71, state: "warn" }, {
+            contract: "Workspace member -> Project member\nProject role -> resource-type access",
+            source: "prd.md:3-18; README.md:17-28",
+            watch: [w("people boundary", "Workspace", "data"), w("resource scope", "Project", "violet"), w("session ACL", "none", "error")],
+            console: ". current model mapped"
+          }, { eyebrow: "Current product", verdict: "The user must infer audience from membership" }),
+
+          step("First, make My sessions useful", "The first customer-visible slice filters manual sessions by creator on the server before pagination. Both tabs remain Project-visible.", [
+            a("All sessions", "Project query", "data"), a("Origin + creator", "server filter", "warn"), a("My sessions", "correct pagination", "ok"), a("Audience label", "Project members", "violet")
+          ], { label: "created by me", x: 67, state: "ok" }, {
+            contract: "filter = manual_origin AND created_by_me\naudience = Project",
+            source: "prd.md:47-54; rfc-1-session-audiences.md:22-37",
+            watch: [w("privacy claim", "none", "ok"), w("pagination", "server-correct", "ok"), w("learning value", "high", "data")],
+            console: "+ useful orientation\n. no authorization change"
+          }, { eyebrow: "Progressive slice", verdict: "Organization before privacy" }),
+
+          step("Then create explicit contexts", "A personal entry point creates Only you. A Project entry point creates Project members. Triggered and operational sessions stay shared.", [
+            a("Personal entry", "Only you", "data"), a("Project entry", "Project members", "violet"), a("Trigger", "Project members", "warn"), a("Audience badge", "always visible", "ok")
+          ], { label: "new session", x: 48, state: "data" }, {
+            contract: "personal entry -> personal\nProject/trigger -> Project",
+            source: "prd.md:56-65",
+            watch: [w("existing sessions", "Project", "ok"), w("new default", "entry-point based", "warn"), w("badge", "required", "data")],
+            console: ". default requires validation\n+ migration preserves behavior"
+          }, { eyebrow: "Audience experience", verdict: "Context determines the starting audience" }),
+
+          step("Only you is a security promise", "A private list filter is not enough. Every direct and indirect route must enforce the same audience before the UI can display Only you.", [
+            a("Session list", "query + count", "data"), a("Direct data", "records + files", "warn"), a("Derived data", "traces + mounts", "error"), a("Only you", "blocked until complete", "dim")
+          ], { label: "privacy claim", x: 87, state: "error" }, {
+            contract: "private == all surfaces enforce access",
+            source: "prd.md:67-68, 92-103",
+            watch: [w("list", "not sufficient", "error"), w("direct IDs", "must enforce", "warn"), w("traces/files/events", "must inherit", "warn")],
+            console: "! do not ship a false lock\n! UI hiding is not authorization"
+          }, { eyebrow: "Turning point", verdict: "Privacy is end-to-end or it is not privacy", gate: { label: "security claim", state: "error" } }),
+
+          step("Share one session as read-only", "After privacy works, the owner can grant one named Workspace member Can view. The recipient cannot continue the session yet.", [
+            a("Owner", "personal session", "data"), a("View grant", "one named member", "warn"), a("Recipient", "read only", "ok"), a("Join", "deferred", "dim")
+          ], { label: "View grant", x: 70, state: "ok" }, {
+            contract: "grant = read one session\njoin = not available",
+            source: "prd.md:70-76, 107-115",
+            watch: [w("named access", "View only", "ok"), w("execution identity", "not needed", "ok"), w("Join", "deferred", "warn")],
+            console: "+ narrow first sharing slice"
+          }, { eyebrow: "Sharing experience", verdict: "Read sharing avoids premature credential design" }),
+
+          step("The sequence contains two shadow stages", "Access records first dual-write as Project audience. Enforcement then runs while behavior remains Project-wide. Personal entry points turn on only after coverage is proven.", [
+            a("Security fixes", "close known gaps", "ok"), a("Access shadow", "all Project", "data"), a("Enforcement", "no behavior change", "violet"), a("Personal sessions", "flagged rollout", "warn")
+          ], { label: "release train", x: 78, state: "violet" }, {
+            contract: "fix -> shadow -> enforce -> enable personal -> share",
+            source: "prd.md:127-141; rfc-1-session-audiences.md:153-164",
+            watch: [w("legacy migration", "preserved", "ok"), w("rollback risk", "contained", "ok"), w("private default", "later", "warn")],
+            console: "+ measure before changing defaults\n+ fail closed after backfill"
+          }, { eyebrow: "Release plan", verdict: "Progress without pretending the backend is private" }),
+
+          step("Success is measured as trust", "Adoption matters, but the release gate is stricter: zero unauthorized reads through lists, direct IDs, traces, files, mounts, and event streams.", [
+            a("Adoption", "My sessions usage", "data"), a("Sharing", "open + revoke rates", "violet"), a("Security tests", "zero leaked reads", "ok"), a("Operations", "no discovery loss", "warn")
+          ], { label: "release evidence", x: 92, state: "ok" }, {
+            contract: "success = useful + no unauthorized reads",
+            source: "prd.md:143-154",
+            watch: [w("My sessions", "measure", "data"), w("unauthorized reads", "0", "ok"), w("operational discovery", "no decline", "ok")],
+            console: "+ product metric\n+ security invariant\n+ migration guard"
+          }, { eyebrow: "PRD summary", verdict: "Organize, secure, then share" })
+        ]
+      },
+
+      {
+        id: "auth",
+        short: "Authorization",
+        label: "03 RFC 0",
+        description: "Repair the security floor before extending access.",
+        steps: [
+          step("Project mutations have no active gate", "Create, rename, make-default, and delete currently lack role checks. The UI exposes matching actions.", [
+            a("Member", "any Project role", "data"), a("Project action", "create / delete", "warn"), a("RBAC gate", "missing", "error"), a("Project", "mutated", "error")
+          ], { label: "delete Project", x: 88, state: "error" }, {
+            contract: "current: authenticated member -> mutate Project",
+            source: "rfc-0-authorization-consistency.md:8-17",
+            watch: [w("backend check", "absent", "error"), w("UI gate", "absent", "error"), w("Viewer action", "possible", "warn")],
+            console: "! security floor missing"
+          }, { eyebrow: "RFC 0", verdict: "Sharing cannot build on inconsistent tenant administration", gate: { label: "missing gate", state: "error" } }),
+
+          step("Add one semantic Project capability", "manage_projects covers the four Project administration actions. Default Owner and Admin receive it. Backend and UI use the same check.", [
+            a("Member", "effective role", "data"), a("manage_projects", "security-floor check", "warn"), a("Owner / Admin", "allowed", "ok"), a("Other roles", "denied", "error")
+          ], { label: "manage_projects", x: 59, state: "ok" }, {
+            contract: "can_mutate_project = manage_projects",
+            source: "rfc-0-authorization-consistency.md:68-76",
+            watch: [w("new capabilities", "1", "data"), w("UI/backend parity", "required", "ok"), w("EE bypass", "not allowed", "ok")],
+            console: "+ one clear gate\n+ destructive actions protected"
+          }, { eyebrow: "Project gate", verdict: "One capability is simpler than four action permissions" }),
+
+          step("Ownership uses one dedicated path", "Generic role assignment cannot grant Owner. Transfer updates Organization, every Workspace, and every Project in one transaction.", [
+            a("Current owner", "becomes Admin", "warn"), a("Transfer operation", "atomic", "data"), a("New owner", "Owner everywhere", "ok"), a("Caches", "invalidated", "violet")
+          ], { label: "ownership transfer", x: 68, state: "ok" }, {
+            contract: "generic role API: owner denied\ntransfer: all scopes + cache",
+            source: "rfc-0-authorization-consistency.md:78-86",
+            watch: [w("self-promotion", "blocked", "ok"), w("old Owner bypass", "removed", "ok"), w("scope count", "all", "data")],
+            console: "+ one ownership source of truth"
+          }, { eyebrow: "Ownership", verdict: "Owner is lifecycle, not a selectable role" }),
+
+          step("Personal API keys act as the creator", "A key has a creator and one Project. It carries no role snapshot. Promotion expands it; removal should end it.", [
+            a("User", "current Project role", "data"), a("Personal API key", "delegated identity", "violet"), a("Endpoint check", "uses current role", "warn"), a("Service account", "not this key", "dim")
+          ], { label: "ApiKey ...", x: 62, state: "violet" }, {
+            contract: "key identity = creator\nkey scope = one Project\npermissions = creator current role",
+            source: "rfc-0-authorization-consistency.md:49-64",
+            watch: [w("role snapshot", "none", "ok"), w("transferable", "no", "ok"), w("offboarding survival", "must be no", "warn")],
+            console: ". personal delegation confirmed\n. service principals deferred"
+          }, { eyebrow: "Credential model", verdict: "Personal keys die with membership" }),
+
+          step("Offboarding becomes one operation", "Removal revokes personal keys, removes memberships, blocks runtime refresh, invalidates caches, and later runs session grant and ownership hooks.", [
+            a("Departing member", "remove request", "data"), a("Offboarding", "one transaction", "warn"), a("Keys + grants", "revoked", "ok"), a("Membership + streams", "closed", "violet")
+          ], { label: "revocation", x: 82, state: "ok" }, {
+            contract: "revoke keys -> hooks -> remove memberships -> invalidate",
+            source: "rfc-0-authorization-consistency.md:87-110",
+            watch: [w("partial removal", "rollback", "ok"), w("re-add resurrection", "prevented", "ok"), w("runtime refresh", "blocked", "data")],
+            console: "+ removal is extensible\n+ old authority cannot return"
+          }, { eyebrow: "Offboarding", verdict: "One orchestrator owns identity removal" }),
+
+          step("Viewer can retrieve decrypted secrets today", "The read-only Viewer description conflicts with view_secret, view_webhooks, and run_service. Vault and webhook reads can return plaintext.", [
+            a("Viewer", "described read-only", "data"), a("view_secret", "broad permission", "warn"), a("Vault response", "plaintext", "error"), a("Runtime use", "mixed concern", "violet")
+          ], { label: "secret value", x: 88, state: "error" }, {
+            contract: "view_secret currently == list + reveal + runtime use",
+            source: "rfc-0-authorization-consistency.md:38-47, 119-135",
+            watch: [w("plaintext reveal", "remove now", "error"), w("runtime use", "separate concern", "warn"), w("billing/execution", "open decision", "data")],
+            console: "! read-only role sees secret material\n! one permission has four meanings"
+          }, { eyebrow: "Turning point", verdict: "Viewing metadata must not reveal credentials", gate: { label: "plaintext", state: "error" } }),
+
+          step("Close response exposure first", "Viewer gets redacted secret responses. Webhook and SSO secrets never return after creation. A larger metadata/use/reveal/edit split can follow separately.", [
+            a("Secret store", "encrypted value", "violet"), a("Metadata read", "redacted", "ok"), a("Runtime use", "server-side only", "warn"), a("Reveal", "privileged follow-up", "dim")
+          ], { label: "configured: true", x: 72, state: "ok" }, {
+            contract: "normal read -> redacted metadata\nSSO/webhook -> never reveal after create",
+            source: "rfc-0-authorization-consistency.md:111-129",
+            watch: [w("Viewer plaintext", "0", "ok"), w("critical path", "small", "ok"), w("full secret RBAC", "deferred", "warn")],
+            console: "+ immediate exposure closed\n. broader migration stays separate"
+          }, { eyebrow: "Secret safety", verdict: "Fix the leak without rewriting all secret authorization" }),
+
+          step("Security floors ignore entitlement bypass", "Plans may control role customization, but they cannot bypass destructive tenant actions, Organization security, or session instance access.", [
+            a("Plan entitlement", "feature availability", "violet"), a("Security floor", "always evaluated", "warn"), a("Authorization", "explicit decision", "ok"), a("Session RFCs", "safe foundation", "data")
+          ], { label: "allow / deny", x: 89, state: "ok" }, {
+            contract: "entitlement != authorization bypass",
+            source: "rfc-0-authorization-consistency.md:137-143",
+            watch: [w("manage_projects", "always checked", "ok"), w("offboarding", "always checked", "ok"), w("session access", "always checked", "ok")],
+            console: "+ security floor established"
+          }, { eyebrow: "RFC 0 summary", verdict: "Repair identity, ownership, revocation, and secret boundaries" })
+        ]
+      },
+
+      {
+        id: "audiences",
+        short: "Session audience",
+        label: "04 RFC 1",
+        description: "Create one access anchor and enforce it everywhere.",
+        steps: [
+          step("Creator is attribution, not ownership", "created_by_id records who first caused the row. It can be null, a trigger creator, or an API-key creator. It cannot safely control authority.", [
+            a("User or trigger", "starts work", "data"), a("created_by_id", "historical actor", "violet"), a("owner_user_id", "current authority", "warn"), a("Audience", "stored policy", "ok")
+          ], { label: "creator metadata", x: 46, state: "violet" }, {
+            contract: "created_by_id = history\nowner_user_id = authority",
+            source: "rfc-1-session-audiences.md:3-20, 58-65",
+            watch: [w("heartbeat creator", "currently missing", "error"), w("trigger creator", "configuration owner", "warn"), w("transfer-ready", "separate owner", "ok")],
+            console: ". do not convert audit metadata into ACL"
+          }, { eyebrow: "RFC 1", verdict: "Ownership needs a dedicated field" }),
+
+          step("My sessions is one correct query", "The server filters manual origin and creator before count and pagination. The frontend shows Project members, not a lock.", [
+            a("Query", "Project sessions", "data"), a("Origin + creator", "SQL predicate", "warn"), a("Pagination", "after filter", "ok"), a("My sessions", "Project-visible", "violet")
+          ], { label: "manual + mine", x: 79, state: "ok" }, {
+            contract: "WHERE origin = manual\n  AND created_by_id = current_user",
+            source: "rfc-1-session-audiences.md:22-37",
+            watch: [w("client-only filter", "no", "ok"), w("security change", "none", "ok"), w("user evidence", "available", "data")],
+            console: "+ first safe product slice"
+          }, { eyebrow: "Progressive UI", verdict: "Useful now, honest about current access" }),
+
+          step("One access row survives the runtime", "session_access holds owner, personal or Project audience, frozen custody, and a revision. It remains after stream state is deleted.", [
+            a("Session ID", "stable identity", "data"), a("session_access", "policy anchor", "ok"), a("Runtime stream", "may be deleted", "warn"), a("Records + traces", "may remain", "violet")
+          ], { label: "access revision 1", x: 48, state: "ok" }, {
+            contract: "session_access { owner, audience, custody, revision }",
+            source: "rfc-1-session-audiences.md:39-65",
+            watch: [w("audience states", "2", "data"), w("custody", "active | frozen", "violet"), w("generic ACL", "not built", "ok")],
+            console: "+ one session-specific authority"
+          }, { eyebrow: "Data model", verdict: "Small storage, durable authorization" }),
+
+          step("Create access before any session data", "The server reserves the session ID and creates the access row before command, heartbeat, trigger, or import writes derived data.", [
+            a("Server ID", "reserved", "data"), a("Unique access row", "created first", "ok"), a("Runtime write", "allowed after anchor", "warn"), a("Conflict", "reject, never adopt", "error")
+          ], { label: "project + session", x: 58, state: "ok" }, {
+            contract: "reserve ID -> create access -> write runtime data",
+            source: "rfc-1-session-audiences.md:67-77",
+            watch: [w("first-touch race", "blocked", "ok"), w("missing owner adoption", "never", "ok"), w("unique key", "project_id + session_id", "data")],
+            console: "+ no session data without authority anchor"
+          }, { eyebrow: "Atomic creation", verdict: "Access cannot be added after sensitive data already exists" }),
+
+          step("Backfill while behavior stays Project-wide", "Dual-write starts first. The migration then discovers session IDs across streams, records, turns, interactions, files, mounts, and traces.", [
+            a("Dual-write", "new sessions", "ok"), a("Backfill union", "all derived domains", "data"), a("Compatibility", "temporary Project fallback", "warn"), a("Fail closed", "after measured cutoff", "violet")
+          ], { label: "legacy session IDs", x: 70, state: "data" }, {
+            contract: "dual-write -> union backfill -> measure -> remove fallback",
+            source: "rfc-1-session-audiences.md:74-77, 156-164",
+            watch: [w("behavior change", "none", "ok"), w("missing relationships", "measured", "data"), w("final fallback", "removed", "warn")],
+            console: "+ migrate without hiding existing work"
+          }, { eyebrow: "Migration", verdict: "Shadow authorization before enabling privacy" }),
+
+          step("Every object proves its provenance", "A file or trace is not Project-visible merely because session_id is missing. Ingest explicitly classifies it as Project data or links it to a session.", [
+            a("Derived object", "trace / file / event", "data"), a("Provenance", "Project or session", "warn"), a("Session resolver", "access lookup", "violet"), a("Response", "allow or deny", "ok")
+          ], { label: "trusted relationship", x: 73, state: "violet" }, {
+            contract: "missing provenance != Project\nunclassified -> quarantine or deny",
+            source: "rfc-1-session-audiences.md:99-118",
+            watch: [w("implicit Project fallback", "forbidden", "ok"), w("signed URL", "authorize before mint", "warn"), w("child span", "inherits root mapping", "data")],
+            console: "+ explicit data origin\n- missing link as authorization"
+          }, { eyebrow: "Turning point", verdict: "Missing provenance must fail closed", gate: { label: "prove origin", state: "warn" } }),
+
+          step("One predicate guards every read", "The caller needs active Project membership, view_sessions, active custody, and a valid owner, Project, or grant relationship.", [
+            a("Membership", "active Project member", "data"), a("Capability", "view_sessions", "violet"), a("Audience", "owner / Project / grant", "warn"), a("Content", "allowed", "ok")
+          ], { label: "can_view", x: 91, state: "ok" }, {
+            contract: "member AND view_sessions AND active custody\nAND (owner OR Project OR grant)",
+            source: "rfc-1-session-audiences.md:79-96",
+            watch: [w("entitlement bypass", "no", "ok"), w("frozen session", "deny", "ok"), w("admin content", "not automatic", "warn")],
+            console: "+ one effective-access equation"
+          }, { eyebrow: "Authorization", verdict: "Tenant eligibility and session access both apply" }),
+
+          step("Only then enable personal sessions", "Access revisions close event streams. Ownerless personal sessions freeze. The Only you label appears only after the compatibility fallback is gone.", [
+            a("Audience change", "revision increments", "data"), a("Streams", "close or reauthorize", "warn"), a("Frozen custody", "deny normal access", "violet"), a("Only you", "valid claim", "ok")
+          ], { label: "Only you", x: 92, state: "ok" }, {
+            contract: "fallback removed -> fail closed -> personal enabled",
+            source: "rfc-1-session-audiences.md:120-149, 156-164",
+            watch: [w("legacy fallback", "off", "ok"), w("private leaks", "0", "ok"), w("owner departure", "freeze", "data")],
+            console: "+ privacy claim is now enforceable"
+          }, { eyebrow: "RFC 1 summary", verdict: "One access anchor, explicit provenance, complete enforcement" })
+        ]
+      },
+
+      {
+        id: "sharing",
+        short: "Read sharing",
+        label: "05 RFC 2",
+        description: "Share one session without adding execution or generic ACLs.",
+        steps: [
+          step("Sharing starts after privacy works", "RFC 2 does not make the UI hide data. It depends on RFC 1's complete server enforcement and adds named read access only.", [
+            a("Private session", "RFC 1 enforced", "ok"), a("Owner", "opens share panel", "data"), a("Named member", "eligible recipient", "violet"), a("Join", "not in this release", "dim")
+          ], { label: "share intent", x: 36, state: "data" }, {
+            contract: "dependency = RFC 0 + RFC 1 enforcement\nfirst grant = View",
+            source: "rfc-2-session-sharing.md:3-18",
+            watch: [w("privacy foundation", "required", "ok"), w("grant role", "View only", "data"), w("execution design", "not needed", "ok")],
+            console: "+ narrow sharing scope"
+          }, { eyebrow: "RFC 2", verdict: "Read first, execution later" }),
+
+          step("One row grants one person one session", "session_grants stores a named Workspace member. There is no role column because the first release supports only View.", [
+            a("Session owner", "active custody", "data"), a("session_grants", "one user row", "ok"), a("Recipient", "Project member", "violet"), a("Other sessions", "unchanged", "dim")
+          ], { label: "View grant", x: 64, state: "ok" }, {
+            contract: "unique active grant per session + user",
+            source: "rfc-2-session-sharing.md:20-36",
+            watch: [w("generic ACL", "not built", "ok"), w("Project member rows", "not materialized", "ok"), w("grant role field", "none yet", "data")],
+            console: "+ smallest useful grant model"
+          }, { eyebrow: "Data model", verdict: "Session-specific now, reusable service later" }),
+
+          step("A grant is not membership", "The recipient still needs active Project membership and view_sessions. The grant selects the instance; it does not create tenant authority.", [
+            a("Project membership", "required", "data"), a("view_sessions", "required", "violet"), a("Named grant", "one instance", "warn"), a("Session content", "allowed", "ok")
+          ], { label: "can_view", x: 91, state: "ok" }, {
+            contract: "member AND view_sessions AND active custody\nAND (owner OR Project OR grant)",
+            source: "rfc-2-session-sharing.md:38-48",
+            watch: [w("tenant bypass", "no", "ok"), w("resource-type bypass", "no", "ok"), w("instance selection", "grant", "data")],
+            console: "+ least privilege at session scope"
+          }, { eyebrow: "Effective access", verdict: "Two gates: tenant eligibility and session relationship" }),
+
+          step("The UI states the audience plainly", "The header shows Only you, Specific people, or Project members. People with access lists authorization, not live presence.", [
+            a("Only you", "personal, no grants", "data"), a("Specific people", "personal + grants", "violet"), a("Project members", "Project audience", "ok"), a("People list", "not presence", "warn")
+          ], { label: "audience badge", x: 76, state: "violet" }, {
+            contract: "label = audience + active grant count",
+            source: "rfc-2-session-sharing.md:85-96",
+            watch: [w("disabled Join UI", "absent", "ok"), w("participant claim", "not made", "ok"), w("effective audience", "always visible", "data")],
+            console: "+ user can answer: who sees this?"
+          }, { eyebrow: "Share panel", verdict: "Visible audience, no presence theater" }),
+
+          step("Audience changes remove hidden grants", "Switching to Project revokes named grants. Switching back to personal also revokes them. Old access cannot silently reappear.", [
+            a("Current state", "personal + grants", "data"), a("Audience change", "transaction", "warn"), a("Grant cleanup", "revoke all", "error"), a("New state", "Project or personal", "ok")
+          ], { label: "revision compare", x: 82, state: "warn" }, {
+            contract: "change audience + revoke grants + increment revision\nall in one transaction",
+            source: "rfc-2-session-sharing.md:49-64",
+            watch: [w("hidden grant return", "prevented", "ok"), w("stale panel", "409 conflict", "warn"), w("atomic", "yes", "ok")],
+            console: "+ compare-and-swap\n- stale write restores access"
+          }, { eyebrow: "Turning point", verdict: "Access reduction must be atomic", gate: { label: "revision", state: "warn" } }),
+
+          step("Policy blocks expansion, never revoke", "Workspace policy can stop new named or Project sharing. It does not silently revoke existing access, and it never prevents an access-reducing action.", [
+            a("Workspace policy", "prospective control", "violet"), a("New share", "may be denied", "error"), a("Existing access", "unchanged", "warn"), a("Revoke", "always allowed", "ok")
+          ], { label: "policy check", x: 58, state: "violet" }, {
+            contract: "policy controls expansion\nrevoke always allowed",
+            source: "rfc-2-session-sharing.md:66-83",
+            watch: [w("named sharing", "configurable", "data"), w("Project transition", "configurable", "data"), w("policy audit", "required", "ok")],
+            console: "+ safe administrative control\n+ no revoke deadlock"
+          }, { eyebrow: "Sharing policy", verdict: "Disable future expansion without surprising current users" }),
+
+          step("Offboarding cannot restore old authority", "Removal revokes grants, freezes personal sessions, clears Project-session ownership, increments revisions, and closes streams. Re-adding the user restores nothing.", [
+            a("Departing user", "owner or grantee", "data"), a("Offboarding hooks", "atomic", "warn"), a("Authority", "cleared", "ok"), a("Re-add", "no resurrection", "violet")
+          ], { label: "remove authority", x: 80, state: "ok" }, {
+            contract: "revoke grants + freeze personal + clear Project owner",
+            source: "rfc-2-session-sharing.md:98-103",
+            watch: [w("audience widening", "never", "ok"), w("re-add restore", "no", "ok"), w("orphan recovery", "deferred", "warn")],
+            console: "+ safe owner departure"
+          }, { eyebrow: "Lifecycle", verdict: "Identity removal is also resource-authority removal" }),
+
+          step("Revoke stops the future, not the past", "New reads, streams, downloads, exports, and signed URLs fail. Content already downloaded cannot be recalled. Audit records contain policy metadata, not session content.", [
+            a("Revoke", "revision increments", "data"), a("Future access", "denied", "ok"), a("Existing copy", "cannot recall", "warn"), a("Audit outbox", "non-content event", "violet")
+          ], { label: "future access denied", x: 91, state: "ok" }, {
+            contract: "revoke -> deny new access\naudit -> actor + IDs + old/new policy",
+            source: "rfc-2-session-sharing.md:105-137",
+            watch: [w("new reads", "blocked", "ok"), w("downloaded copies", "remain", "warn"), w("audit transcript", "never", "ok")],
+            console: "+ honest revocation contract\n+ durable non-content audit"
+          }, { eyebrow: "RFC 2 summary", verdict: "Named View, atomic revoke, no execution ambiguity" })
+        ]
+      }
+    ];
+
+    let chapterIndex = 0;
+    let stepIndex = 0;
+
+    const els = {
+      chapterNav: document.getElementById("chapterNav"),
+      chapterCount: document.getElementById("chapterCount"),
+      eyebrow: document.getElementById("eyebrow"),
+      heading: document.getElementById("stepHeading"),
+      actors: document.getElementById("actors"),
+      packet: document.getElementById("packet"),
+      turningPoint: document.getElementById("turningPoint"),
+      callout: document.getElementById("callout"),
+      narration: document.getElementById("narration"),
+      verdict: document.getElementById("verdict"),
+      contract: document.getElementById("contract"),
+      source: document.getElementById("source"),
+      watch: document.getElementById("watch"),
+      console: document.getElementById("console"),
+      stepMeta: document.getElementById("stepMeta"),
+      dots: document.getElementById("dots"),
+      back: document.getElementById("backButton"),
+      next: document.getElementById("nextButton"),
+      theme: document.getElementById("themeToggle")
+    };
+
+    function renderChapterNav() {
+      els.chapterNav.innerHTML = "";
+      chapters.forEach((chapter, index) => {
+        const button = document.createElement("button");
+        button.className = `chapter-tab${index === chapterIndex ? " active" : ""}`;
+        button.type = "button";
+        button.innerHTML = `<small>${chapter.label}</small><strong>${chapter.short}</strong>`;
+        button.title = chapter.description;
+        button.addEventListener("click", () => {
+          chapterIndex = index;
+          stepIndex = 0;
+          render();
+        });
+        els.chapterNav.appendChild(button);
+      });
+    }
+
+    function renderActors(items) {
+      els.actors.innerHTML = "";
+      els.actors.style.setProperty("--actor-count", Math.min(items.length, 4));
+      items.forEach(item => {
+        const node = document.createElement("div");
+        node.className = `actor ${item.state}`;
+        node.innerHTML = `<div class="actor-name">${item.name}</div><div class="actor-sub">${item.sub}</div>`;
+        els.actors.appendChild(node);
+      });
+    }
+
+    function renderWatch(rows) {
+      els.watch.innerHTML = "";
+      rows.forEach(row => {
+        const node = document.createElement("div");
+        node.className = `watch-row ${row.state}`;
+        node.innerHTML = `<span>${row.name}</span><span>${row.value}</span>`;
+        els.watch.appendChild(node);
+      });
+    }
+
+    function renderDots(chapter) {
+      els.dots.innerHTML = "";
+      chapter.steps.forEach((_, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `dot${index === stepIndex ? " active" : index < stepIndex ? " past" : ""}`;
+        button.setAttribute("aria-label", `Go to step ${index + 1}`);
+        button.addEventListener("click", () => {
+          stepIndex = index;
+          render();
+        });
+        els.dots.appendChild(button);
+      });
+    }
+
+    function render() {
+      const chapter = chapters[chapterIndex];
+      const current = chapter.steps[stepIndex];
+      renderChapterNav();
+      renderActors(current.actors);
+      renderWatch(current.evidence.watch);
+      renderDots(chapter);
+
+      els.chapterCount.textContent = `${chapterIndex + 1} / ${chapters.length} chapters`;
+      els.eyebrow.textContent = current.eyebrow || chapter.label;
+      els.heading.textContent = current.title;
+      els.narration.innerHTML = current.narration;
+      els.verdict.textContent = current.verdict || chapter.description;
+      els.callout.textContent = current.callout || "";
+      els.contract.textContent = current.evidence.contract;
+      els.source.textContent = current.evidence.source;
+      els.console.textContent = current.evidence.console;
+
+      els.packet.textContent = current.packet.label;
+      els.packet.className = `packet ${current.packet.state || "data"}`;
+      els.packet.parentElement.style.setProperty("--packet-x", `${current.packet.x}%`);
+
+      if (current.gate) {
+        els.turningPoint.className = `turning-point show ${current.gate.state || ""}`;
+        els.turningPoint.dataset.label = current.gate.label;
+      } else {
+        els.turningPoint.className = "turning-point";
+        els.turningPoint.dataset.label = "";
+      }
+
+      const atStart = chapterIndex === 0 && stepIndex === 0;
+      const atEnd = chapterIndex === chapters.length - 1 && stepIndex === chapter.steps.length - 1;
+      els.back.disabled = atStart;
+      els.next.textContent = atEnd ? "Restart" : stepIndex === chapter.steps.length - 1 ? "Next chapter" : "Next";
+      els.stepMeta.textContent = `${chapter.label} | Step ${stepIndex + 1} of ${chapter.steps.length}`;
+
+      history.replaceState(null, "", `#${chapter.id}/${stepIndex + 1}`);
+      document.title = `${current.title} | Agenta collaboration`;
+    }
+
+    function goNext() {
+      const chapter = chapters[chapterIndex];
+      if (stepIndex < chapter.steps.length - 1) {
+        stepIndex += 1;
+      } else if (chapterIndex < chapters.length - 1) {
+        chapterIndex += 1;
+        stepIndex = 0;
+      } else {
+        chapterIndex = 0;
+        stepIndex = 0;
+      }
+      render();
+    }
+
+    function goBack() {
+      if (stepIndex > 0) {
+        stepIndex -= 1;
+      } else if (chapterIndex > 0) {
+        chapterIndex -= 1;
+        stepIndex = chapters[chapterIndex].steps.length - 1;
+      }
+      render();
+    }
+
+    function setTheme(theme) {
+      document.documentElement.dataset.theme = theme;
+      els.theme.textContent = theme === "dark" ? "Light" : "Dark";
+      try { localStorage.setItem("collaboration-walkthrough-theme", theme); } catch (_) {}
+    }
+
+    els.next.addEventListener("click", goNext);
+    els.back.addEventListener("click", goBack);
+    els.theme.addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
+    document.addEventListener("keydown", event => {
+      if (event.key === "ArrowRight") goNext();
+      if (event.key === "ArrowLeft") goBack();
+    });
+
+    const hashMatch = location.hash.match(/^#([^/]+)\/(\d+)$/);
+    if (hashMatch) {
+      const found = chapters.findIndex(chapter => chapter.id === hashMatch[1]);
+      if (found >= 0) {
+        chapterIndex = found;
+        stepIndex = Math.max(0, Math.min(chapters[found].steps.length - 1, Number(hashMatch[2]) - 1));
+      }
+    }
+
+    let initialTheme = "light";
+    try {
+      initialTheme = localStorage.getItem("collaboration-walkthrough-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    } catch (_) {}
+    setTheme(initialTheme);
+    render();
+  </script>
+</body>
+</html>
