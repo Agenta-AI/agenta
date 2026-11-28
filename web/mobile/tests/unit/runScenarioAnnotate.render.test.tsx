@@ -697,6 +697,33 @@ describe("Annotate panel in the test case drawer", () => {
         expect(buttonNamed("Edit fields").hasAttribute("disabled")).toBe(true)
     })
 
+    it("A second Save to test set starts from the version the first one made", async () => {
+        await mount()
+        await press("Annotate")
+        await press("Edit fields")
+        await typeInto(
+            dialog().querySelector('textarea[aria-label="country"]') as HTMLTextAreaElement,
+            "Paris",
+        )
+        await press("Save to test set")
+        await press("Next")
+        const target = router.replace.mock.calls.at(-1)?.[0] as {query: Record<string, string>}
+        router.query = target.query
+        await act(async () => root.render(build()))
+        await settle()
+        expect(dialog().textContent).toContain("Test case #2")
+        await press("Edit fields")
+        await typeInto(
+            dialog().querySelector('textarea[aria-label="country"]') as HTMLTextAreaElement,
+            "Tokyo",
+        )
+        await press("Save to test set")
+        const commits = posts.filter(({url}) => url.endsWith("/testsets/revisions/commit"))
+        expect(
+            commits.map(({body}) => (body.testset_revision as {revision_id: string}).revision_id),
+        ).toEqual(["tsr-7", "tsr-8"])
+    })
+
     it("Use as reference writes the output to the expected column, with Undo", async () => {
         expected.key = "reference_output"
         await mount()

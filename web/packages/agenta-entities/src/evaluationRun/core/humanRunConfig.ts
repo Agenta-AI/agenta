@@ -158,8 +158,9 @@ export function humanAnnotationMappings(
 }
 
 /**
- * The evaluator slug of an annotation step, as the annotation session reads it: the evaluator's
- * (or its variant's) slug, else the last part of the step key (`${invocationKey}.${slug}`).
+ * The evaluator slug of an annotation step: the evaluator's (or its variant's) slug, else the last
+ * part of the step key (`${invocationKey}.${slug}`). The annotation session's own reading
+ * (`annotationSessionController`) gives the same slug for the steps a run has.
  */
 export function annotationStepSlug(step: {
     key?: string | null

@@ -145,6 +145,8 @@ export const ScenarioFocusAnnotateReviews = ({
                         note: draft?.note ?? "",
                     })
                 const focused = judge.id === focusJudge
+                // A result with no trace and span has nothing a review can link to.
+                const locked = readOnly || !judge.traceId || !judge.spanId
                 return (
                     <div
                         key={judge.id}
@@ -162,7 +164,7 @@ export const ScenarioFocusAnnotateReviews = ({
                             {judge.failed ? (
                                 <Badge variant="destructive">{t("chat.valueView.fail")}</Badge>
                             ) : null}
-                            <div inert={readOnly}>
+                            <div inert={locked}>
                                 <Segmented
                                     size="sm"
                                     aria-label={judge.name}
@@ -185,7 +187,7 @@ export const ScenarioFocusAnnotateReviews = ({
                             <JudgeCorrection
                                 judge={judge}
                                 draft={draft}
-                                readOnly={readOnly}
+                                readOnly={locked}
                                 onChange={(next) => onDraft(judge.id, next)}
                             />
                         ) : null}

@@ -51,8 +51,12 @@ export interface JudgeReview {
 /** The first part of every judge review query key: a save reads them all again. */
 export const JUDGE_REVIEWS_QUERY_KEY = ["evaluationRun", "judgeReviews"] as const
 
-/** Judge results per request: one annotation query filters on this many inbound links. */
-const LINKS_PER_QUERY = 50
+/**
+ * Judge results per request, and the page each request asks for (the API's largest): 10 results
+ * hold up to 100 reviewers each before a page is full.
+ */
+const LINKS_PER_QUERY = 10
+const REVIEWS_PER_QUERY = 1000
 
 /**
  * The saved reviews of judge results: the annotations whose inbound `invocation` link names one
@@ -66,6 +70,7 @@ export async function fetchJudgeReviews(
         Array.from({length: Math.ceil(results.length / LINKS_PER_QUERY)}, (_, page) =>
             queryAnnotations({
                 projectId,
+                windowing: {limit: REVIEWS_PER_QUERY},
                 annotation: {
                     links: results
                         .slice(page * LINKS_PER_QUERY, (page + 1) * LINKS_PER_QUERY)
@@ -156,7 +161,8 @@ export function useJudgeReviews(judges: readonly ScenarioJudge[]) {
         }
         return {byJudge: all, own: mine}
     }, [query.data, judges, userId])
-    return {byJudge, own}
+    // Until the saved reviews are known, a save could not tell an update from a new review.
+    return {byJudge, own, ready: results.length === 0 || query.isSuccess}
 }
 
 /** What the user set for one judge in the panel, not saved yet. */

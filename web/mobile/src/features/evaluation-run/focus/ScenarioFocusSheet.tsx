@@ -21,7 +21,7 @@ import dynamic from "next/dynamic"
 import {chatProseClassName, markdownIcons} from "@/features/chat/AssistantMarkdown"
 import {useProjectPermission} from "@/features/context/useProjectPermission"
 
-import type {ScenarioRow} from "../scenarios/scenarioColumns"
+import {isFailedStatus, type ScenarioRow} from "../scenarios/scenarioColumns"
 import {ScenariosLoadMoreError} from "../scenarios/states/ScenariosLoadMoreError"
 import {ScenariosRefreshError} from "../scenarios/states/ScenariosRefreshError"
 import {ScenarioValuesError} from "../scenarios/states/ScenarioValuesError"
@@ -242,17 +242,14 @@ export const ScenarioFocusSheet = ({
         )?.group
         return {...ref, name: group ? (labels[group.key] ?? group.label) : ref.testsetId}
     }, [references, current?.testsetId, header.kind, scenarios.columnGroups, labels])
-    const output = useMemo(
-        () =>
-            current
-                ? outputValue(
-                      scenarios.columnGroups
-                          .filter(({group}) => group.kind === "application")
-                          .flatMap(({group}) => current.cells[group.key] ?? []),
-                  )
-                : undefined,
-        [current, scenarios.columnGroups],
-    )
+    // The app output, for "Use as reference"; none while the app has not answered.
+    const output = useMemo(() => {
+        if (!current || isFailedStatus(current.invocation?.status)) return undefined
+        const cells = scenarios.columnGroups
+            .filter(({group}) => group.kind === "application")
+            .flatMap(({group}) => current.cells[group.key] ?? [])
+        return cells.some((cell) => cell.value !== undefined) ? outputValue(cells) : undefined
+    }, [current, scenarios.columnGroups])
     const draft = useTestcaseDraft({
         scenarioId: current?.scenario.id ?? "",
         testcaseId: current?.testcaseId ?? null,
@@ -295,7 +292,9 @@ export const ScenarioFocusSheet = ({
                         "flex min-h-0 min-w-0 flex-1 flex-col",
                         // A phone has no room for both: the panel takes the drawer's place.
                         // While "Edit fields" is on, the inputs stay, with the panel under them.
-                        panel && current && !draft.editing && "max-lg:hidden",
+                        panel &&
+                            current &&
+                            (draft.editing ? "max-lg:min-h-[60dvh]" : "max-lg:hidden"),
                     )}
                 >
                     <SheetDescription className="sr-only">{`${noun} of ${header.name}`}</SheetDescription>
@@ -382,6 +381,7 @@ export const ScenarioFocusSheet = ({
                         row={current}
                         judges={judges}
                         ownReviews={judgeReviews.own}
+                        reviewsReady={judgeReviews.ready}
                         focusJudge={panel.focusJudge}
                         testset={testset}
                         draft={draft}

@@ -47,10 +47,11 @@ export function useTestcaseDraft({
     testset: {testsetId: string; revisionId: string | null} | null
     /** The column an evaluator compares the output with; null hides "Use as reference". */
     expectedKey: string | null
-    /** The app output of the test case. */
+    /** The app output of the test case; undefined while it has none (no "Use as reference"). */
     output: unknown
 }) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
+    const referenceKey = output === undefined ? null : expectedKey
     const testcase = useAtomValue(
         useMemo(() => testcaseMolecule.query(testcaseId ?? ""), [testcaseId]),
     )
@@ -72,7 +73,7 @@ export function useTestcaseDraft({
                 .map(([key]) => key),
         [draft?.edits, base],
     )
-    const reference = Boolean(draft?.reference && expectedKey)
+    const reference = Boolean(draft?.reference && referenceKey)
     const dirty = editedFields.length > 0 || reference
 
     const update = useCallback(
@@ -90,9 +91,9 @@ export function useTestcaseDraft({
 
     const values = useMemo(() => {
         const next = {...(base ?? {}), ...(draft?.edits ?? {})}
-        if (reference && expectedKey) next[expectedKey] = output
+        if (reference && referenceKey) next[referenceKey] = output
         return next
-    }, [base, draft?.edits, reference, expectedKey, output])
+    }, [base, draft?.edits, reference, referenceKey, output])
 
     const save = async () => {
         if (!testset || !testcaseId || !base || saving || savedHere) return
@@ -124,11 +125,11 @@ export function useTestcaseDraft({
     }
 
     return {
-        /** The test case is loaded and can be edited (not after it was saved here). */
-        ready: Boolean(base && testcaseId && testset && !savedHere),
+        /** The test case is loaded and can be edited (not while saving, nor after it was saved here). */
+        ready: Boolean(base && testcaseId && testset && !savedHere && !saving),
         editing: Boolean(draft?.editing),
         /** The column "Use as reference" writes to; null hides it. */
-        expectedKey,
+        expectedKey: referenceKey,
         values,
         editedFields,
         reference,
