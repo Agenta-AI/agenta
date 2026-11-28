@@ -394,7 +394,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     run_id=run.id,
                 )
 
-            run_references = edit_run_references(run)
+            run_kwargs = {}
+            if run.data is not None:
+                run_kwargs["references"] = edit_run_references(run)
 
             run.flags = edit_run_flags(
                 run,
@@ -406,8 +408,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 dto=run,
                 updated_at=datetime.now(timezone.utc),
                 updated_by_id=user_id,
-                #
-                references=run_references,
+                **run_kwargs,
             )
 
             # `status` is a VARCHAR but `edit_dbe_from_dto` dumps without `mode="json"`.
@@ -479,7 +480,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 if run is None:
                     continue
 
-                run_references = edit_run_references(run)
+                run_kwargs = {}
+                if run.data is not None:
+                    run_kwargs["references"] = edit_run_references(run)
 
                 run.flags = edit_run_flags(
                     run,
@@ -491,8 +494,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     dto=run,
                     updated_at=datetime.now(timezone.utc),
                     updated_by_id=user_id,
-                    #
-                    references=run_references,
+                    **run_kwargs,
                 )
 
                 if run.data:
