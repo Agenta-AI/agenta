@@ -1,204 +1,85 @@
-import {useMemo} from "react"
-
-import {useT, type CatalogKey} from "@agenta/i18n"
+import {useT} from "@agenta/i18n"
 import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
+import type {TraceSpanNode} from "@agenta/observability"
 import {useEvaluatorNavigation} from "@agenta/observability/traceDrawer"
-import {linksAndReferencesAtom, traceDrawerProjectURLAtom} from "@agenta/observability/traceDrawer"
-import {projectIdAtom} from "@agenta/shared/state"
-import {useAtomValue} from "jotai"
 
-import {getTraceDrawerReferences} from "./referenceSlots"
+import {mergeReferenceChips, type TraceReference} from "../references/mergeReferenceChips"
+import {ReferenceChipList} from "../references/ReferenceChipList"
 
-const titleClass = "text-label"
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value)
 
-// The side panel hugs the right edge of the screen, so hovercards open leftward.
-const HOVERCARD_PLACEMENT = "bottomRight" as const
+const text = (value: unknown): string | null => (typeof value === "string" && value ? value : null)
 
-const LABEL_KEYS: Record<string, CatalogKey<typeof drawerCatalog>> = {
-    evaluator: "observabilityUi.traceDrawer.refEvaluators",
-    application: "observabilityUi.traceDrawer.refApplications",
-    application_variant: "observabilityUi.traceDrawer.refVariants",
-    workflow: "observabilityUi.traceDrawer.refApplications",
-    workflow_variant: "observabilityUi.traceDrawer.refVariants",
-    environment: "observabilityUi.traceDrawer.refEnvironments",
-    testset: "observabilityUi.traceDrawer.refTestSets",
-}
+const versionOf = (value: unknown): string | number | null =>
+    typeof value === "string" || typeof value === "number" ? value : null
 
-interface ReferenceEntry extends Record<string, unknown> {
-    key?: string
-    id?: string
-    slug?: string
-}
-
-const TraceReferences = () => {
-    const t = useT(drawerCatalog)
-    const {
-        ApplicationReferenceLabel,
-        EnvironmentReferenceLabel,
-        EvaluatorReferenceLabel,
-        TestsetTag,
-        VariantReferenceLabel,
-    } = getTraceDrawerReferences()
-
-    const linksAndReferences = useAtomValue(linksAndReferencesAtom)
-    const projectURL = useAtomValue(traceDrawerProjectURLAtom)
-    const projectId = useAtomValue(projectIdAtom)
-    const {buildEvaluatorTarget} = useEvaluatorNavigation()
-
-    // The store hands these back as unknown-valued bags; this component reads them as
-    // identified references, so name that shape once instead of casting at every read.
-    const references = (linksAndReferences?.references ?? []) as ReferenceEntry[]
-
-    const applicationReference = useMemo(
-        () =>
-            references.find((ref) => ref?.key === "application") ??
-            references.find((ref) => ref?.key === "workflow"),
-        [references],
+/**
+ * The references of one span, as stored on the span: the `references` list (each with its key in
+ * `attributes.key`) and the `ag.references` map. The response schema keeps only the id of a list
+ * entry, so the map fills a missing slug or version by key (a slug-only reference keeps its
+ * chip), and adds the keys the list lacks. Only the span itself: the references of its
+ * annotations (one evaluator each) and of its children are not the span's.
+ */
+export function spanReferences(span: TraceSpanNode | null | undefined): TraceReference[] {
+    if (!span) return []
+    const attributes = (span as {attributes?: unknown}).attributes
+    const ag = isRecord(attributes) && isRecord(attributes.ag) ? attributes.ag : null
+    const map = new Map<string, Record<string, unknown>>(
+        Object.entries(ag && isRecord(ag.references) ? ag.references : {}).filter(
+            (entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]),
+        ),
     )
-
-    // Find testset_revision reference to get the specific revision ID for testset navigation
-    // Evaluations store both testset (with testset ID) and testset_revision (with revision ID)
-    const testsetRevisionReference = useMemo(
-        () => references.find((ref) => ref?.key === "testset_revision"),
-        [references],
-    )
-
-    // Find application_revision reference to get the revision ID for variant lookup.
-    // Traces store both application_variant (with variant ID) and application_revision (with revision ID).
-    // The workflowMolecule resolves by revision ID, so we need the revision reference.
-    const applicationRevisionReference = useMemo(
-        () =>
-            references.find((ref) => ref?.key === "application_revision") ??
-            references.find((ref) => ref?.key === "workflow_revision"),
-        [references],
-    )
-
-    const groupedReferences = useMemo(() => {
-        // Only kinds this panel can show, so a trace with none of them gets the empty state.
-        const validReferences = references?.filter(
-            (reference) =>
-                (reference?.id || reference?.slug) && LABEL_KEYS[reference?.key || "other"],
-        )
-
-        return validReferences?.reduce<Record<string, ReferenceEntry[]>>((acc, reference) => {
-            const key = LABEL_KEYS[reference?.key || "other"]
-            if (!acc[key]) acc[key] = []
-            acc[key].push(reference)
-            return acc
-        }, {})
-    }, [references])
-
-    const renderReferenceTag = ({key, id, slug}: {key: string; id?: string; slug?: string}) => {
-        switch (key) {
-            case "application":
-            case "workflow":
-                return (
-                    <ApplicationReferenceLabel
-                        applicationId={id ?? null}
-                        projectId={projectId}
-                        projectURL={projectURL}
-                        label={slug}
-                        openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
-                    />
-                )
-            case "testset":
-                return (
-                    <TestsetTag
-                        testsetId={id as string}
-                        revisionId={testsetRevisionReference?.id}
-                        projectId={projectId}
-                        projectURL={projectURL}
-                        openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
-                    />
-                )
-            case "evaluator":
-                return (
-                    <EvaluatorReferenceLabel
-                        evaluatorId={id}
-                        evaluatorSlug={slug}
-                        projectId={projectId}
-                        href={buildEvaluatorTarget({id, slug})?.href ?? undefined}
-                        label={slug}
-                        openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
-                    />
-                )
-            case "environment":
-                return (
-                    <EnvironmentReferenceLabel
-                        environmentId={id}
-                        environmentSlug={slug}
-                        applicationId={applicationReference?.id}
-                        projectId={projectId}
-                        projectURL={projectURL}
-                        label={slug}
-                        openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
-                    />
-                )
-            case "application_variant":
-            case "workflow_variant": {
-                const applicationId = applicationReference?.id || applicationReference?.slug
-                // Use the revision ID from application_revision reference for molecule lookup.
-                // The variant reference stores a variant ID, but the molecule resolves by revision ID.
-                const revisionId = applicationRevisionReference?.id || id
-                const href =
-                    projectURL && applicationId && revisionId
-                        ? `${projectURL}/apps/${encodeURIComponent(
-                              applicationId,
-                          )}/variants?revisionId=${encodeURIComponent(revisionId)}`
-                        : null
-
-                return (
-                    <VariantReferenceLabel
-                        revisionId={revisionId}
-                        projectId={projectId}
-                        showVersionPill
-                        href={href || undefined}
-                        fallbackLabel={slug}
-                        openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
-                    />
-                )
-            }
-            default:
-                return null
+    const stored = (span as {references?: unknown}).references
+    const list = (Array.isArray(stored) ? stored : []).filter(isRecord).map((reference) => {
+        const key = isRecord(reference.attributes) ? text(reference.attributes.key) : null
+        const fromMap = key ? map.get(key) : undefined
+        return {
+            key,
+            id: text(reference.id) ?? text(fromMap?.id),
+            slug: text(reference.slug) ?? text(fromMap?.slug),
+            version: versionOf(reference.version) ?? versionOf(fromMap?.version),
         }
-    }
+    })
+    const listed = new Set(list.map((reference) => reference.key))
+    const onlyInMap = [...map]
+        .filter(([key]) => !listed.has(key))
+        .map(([key, reference]) => ({
+            key,
+            id: text(reference.id),
+            slug: text(reference.slug),
+            version: versionOf(reference.version),
+        }))
+    return [...list, ...onlyInMap]
+}
 
-    if (!Object.keys(groupedReferences ?? {}).length) {
-        return (
-            <span className="text-muted-foreground">
-                {t("observabilityUi.traceDrawer.noReferences")}
-            </span>
-        )
-    }
+/**
+ * The References section of the side panel: one chip per entity the span references
+ * (`ReferenceChipList`). An evaluator chip links to the evaluator page the drawer knows. No
+ * section without references.
+ */
+const TraceReferences = ({span}: {span: TraceSpanNode | null | undefined}) => {
+    const t = useT(drawerCatalog)
+    const {buildEvaluatorTarget} = useEvaluatorNavigation()
+    const references = spanReferences(span)
+
+    if (mergeReferenceChips(references).length === 0) return null
 
     return (
-        <div className="flex flex-col gap-3 items-start w-full">
-            {Object.entries(groupedReferences || {}).map(([labelKey, refs]) => {
-                return (
-                    <div key={labelKey} className="flex flex-col gap-1.5 items-start w-full">
-                        <span className={titleClass}>
-                            {t(labelKey as CatalogKey<typeof drawerCatalog>)}
-                        </span>
-                        <div className="flex flex-col gap-1">
-                            {refs?.map((ref, index) => {
-                                const tag = renderReferenceTag({
-                                    key: ref.key as string,
-                                    id: ref?.id,
-                                    slug: ref?.slug,
-                                })
-                                if (!tag) return null
-                                return <span key={`${ref.key}-${ref?.id || index}`}>{tag}</span>
-                            })}
-                        </div>
-                    </div>
-                )
-            })}
-        </div>
+        <section className="flex flex-col gap-2" data-testid="trace-references">
+            <h3 className="m-0 text-label">{t("observabilityUi.traceDrawer.references")}</h3>
+            <ReferenceChipList
+                references={references}
+                hrefOf={(chip) =>
+                    chip.kind === "evaluator"
+                        ? buildEvaluatorTarget({
+                              id: chip.entity?.id ?? undefined,
+                              slug: chip.entity?.slug ?? undefined,
+                          })?.href
+                        : undefined
+                }
+            />
+        </section>
     )
 }
 

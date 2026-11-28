@@ -15,19 +15,26 @@ import {
 } from "@agenta/observability"
 import type {TraceSpanNode} from "@agenta/observability"
 import {prepareTraceOverviewPanels} from "@agenta/observability/traceDrawer"
-import {getStringOrJson} from "@agenta/shared/utils"
+import {detectValueShape, getStringOrJson} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
 
 import AccordionTreePanel from "./AccordionTreePanel"
 import {getTraceDrawerReferences} from "./referenceSlots"
 import ResultTag from "./ResultTag"
+import {isSpanRunning} from "./spanRunning"
 
 const OverviewTabItem = ({
     activeTrace,
     prettyJsonStickyOffset = 0,
+    mode,
 }: {
     activeTrace: TraceSpanNode
     prettyJsonStickyOffset?: number
+    /**
+     * Set when a span header above owns the Formatted / Raw switch. Without it (the annotation
+     * queue) each section keeps a switch of its own.
+     */
+    mode?: "formatted"
 }) => {
     const t = useT(spanCatalog)
     const {TraceSpanDrillInView: TraceSpanDrillInViewSlot} = getTraceDrawerReferences()
@@ -87,6 +94,10 @@ const OverviewTabItem = ({
     const spanEntityId =
         activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeTrace?.key
     const isEmbeddingSpan = activeTrace?.span_type === "embedding"
+    const running = isSpanRunning(activeTrace)
+    // An empty output still gets its section ("No output", or the running skeleton). An output
+    // whose messages all repeat the input has no section, as before.
+    const outputIsEmpty = detectValueShape(outputs).shape === "empty"
 
     // Keep each side in one panel while switching message-like data to the readable view.
     const panels = useMemo(
@@ -125,8 +136,10 @@ const OverviewTabItem = ({
                         <TraceSpanDrillInViewSlot
                             spanId={spanEntityId}
                             title={t("observabilityUi.traceSpan.panelInputs")}
+                            section="inputs"
                             editable={false}
                             rootScope="span"
+                            mode={mode}
                             spanDataOverride={panels.inputs.value}
                             viewModePreset={panels.inputs.hasMessages ? "message" : "default"}
                             prettyJsonStickyOffset={prettyJsonStickyOffset}
@@ -148,8 +161,10 @@ const OverviewTabItem = ({
                         <TraceSpanDrillInViewSlot
                             spanId={spanEntityId}
                             title={t("observabilityUi.traceSpan.panelParameters")}
+                            section="parameters"
                             editable={false}
                             rootScope="span"
+                            mode={mode}
                             spanDataOverride={parameters}
                             defaultCollapsed
                             prettyJsonStickyOffset={prettyJsonStickyOffset}
@@ -165,24 +180,27 @@ const OverviewTabItem = ({
                 </div>
             ) : null}
 
-            {panels.outputs ? (
+            {panels.outputs || (outputIsEmpty && spanEntityId) ? (
                 <div className="flex flex-col gap-2">
                     {spanEntityId ? (
                         <TraceSpanDrillInViewSlot
                             spanId={spanEntityId}
                             title={t("observabilityUi.traceSpan.panelOutputs")}
+                            section="outputs"
+                            running={running}
                             editable={false}
                             rootScope="span"
-                            spanDataOverride={panels.outputs.value}
-                            viewModePreset={panels.outputs.hasMessages ? "message" : "default"}
+                            mode={mode}
+                            spanDataOverride={panels.outputs?.value ?? null}
+                            viewModePreset={panels.outputs?.hasMessages ? "message" : "default"}
                             prettyJsonStickyOffset={prettyJsonStickyOffset}
                         />
                     ) : (
                         <AccordionTreePanel
                             label={t("observabilityUi.traceSpan.panelOutputs")}
-                            value={panels.outputs.value as never}
+                            value={panels.outputs?.value as never}
                             enableFormatSwitcher
-                            viewModePreset={panels.outputs.hasMessages ? "message" : "default"}
+                            viewModePreset={panels.outputs?.hasMessages ? "message" : "default"}
                         />
                     )}
                 </div>
@@ -196,9 +214,12 @@ const OverviewTabItem = ({
                                 <TraceSpanDrillInViewSlot
                                     spanId={spanEntityId}
                                     title={t("observabilityUi.traceSpan.panelInternals")}
+                                    section="internals"
                                     editable={false}
                                     rootScope="span"
+                                    mode={mode}
                                     spanDataOverride={internals}
+                                    defaultCollapsed
                                     prettyJsonStickyOffset={prettyJsonStickyOffset}
                                 />
                             ) : (
@@ -219,8 +240,10 @@ const OverviewTabItem = ({
                         <TraceSpanDrillInViewSlot
                             spanId={spanEntityId}
                             title={t("observabilityUi.traceSpan.exception")}
+                            section="exception"
                             editable={false}
                             rootScope="span"
+                            mode={mode}
                             spanDataOverride={exception}
                             prettyJsonStickyOffset={prettyJsonStickyOffset}
                         />

@@ -1,14 +1,21 @@
 // @vitest-environment jsdom
-// The drawer draws span data through two host slots; unfilled on `/m`, every tab was empty.
+// The drawer draws span data through host slots; unfilled on `/m`, the span body was empty.
 import {act} from "react"
 
 import type {TraceSpanNode} from "@agenta/observability"
-import {OverviewTabItem, TraceDetails, TraceTypeHeader} from "@agenta/observability-ui/traceDrawer"
+import {
+    OverviewTabItem,
+    SpanMetricsGrid,
+    TraceTypeHeader,
+} from "@agenta/observability-ui/traceDrawer"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
+// The span panel is a lazy chunk that holds the value renderers. Loading the module with the
+// file means the test waits for the panel to render, not for the module to be compiled.
+import "@/features/observability/TraceSpanPanel"
 
 // GlobalDrawers binds the drawer's router seams; the tests never navigate.
 vi.mock("next/router", () => ({
@@ -78,40 +85,46 @@ afterEach(() => {
     appHost.remove()
 })
 
-describe("trace drawer tabs on /m", () => {
-    it("shows the span's inputs and outputs on the Overview tab", async () => {
-        await mount(<OverviewTabItem activeTrace={span} />)
+describe("trace view span body on /m", () => {
+    it("shows the span's input and output by shape", async () => {
+        await mount(<OverviewTabItem activeTrace={span} mode="formatted" />)
 
-        // The panels arrive with the drill-in slot, and their Pretty JSON body with its own
-        // slot; both load on demand.
+        // The sections arrive with the drill-in slot, which loads on demand.
         await vi.waitFor(() => expect(host.textContent).toContain("What is the capital of Peru?"))
         const text = host.textContent ?? ""
-        expect(text).toContain("What is the capital of Peru?")
-        expect(text).toContain("outputs")
+        expect(text).toContain("Input")
+        expect(text).toContain("Output")
         expect(text).toContain("Lima is the capital of Peru.")
+        // Parameters are folded: the title shows, the value does not.
+        expect(text).toContain("Parameters")
+        expect(text).not.toContain("0.2")
     })
 
-    it("shows the span's tokens and cost in the trace info", async () => {
-        await mount(<TraceDetails activeTrace={span} />)
+    it("shows the span's tokens and cost in the metrics grid", async () => {
+        await mount(<SpanMetricsGrid span={span} />)
 
         const text = host.textContent ?? ""
-        expect(text).toContain("Tokens & Cost")
+        expect(text).toContain("Tokens")
         expect(text).toContain("1.2K")
         expect(text).toContain("$0.0421")
     })
 
-    // `/m` leaves the playground action unbound, so the span header must not offer it.
-    it("shows no Playground button in the span header", async () => {
+    it("shows the span name, its type and the Formatted / Raw switch in the span header", async () => {
         await mount(
             <TraceTypeHeader
                 activeTrace={span}
                 error={undefined}
-                traces={[span]}
-                setSelectedTraceId={() => undefined}
+                mode="formatted"
+                onModeChange={() => undefined}
             />,
         )
 
-        expect(host.textContent ?? "").toContain("# span-1")
+        const text = host.textContent ?? ""
+        expect(text).toContain("chat")
+        expect(text).toContain("llm")
+        expect(text).toContain("Formatted")
+        expect(text).toContain("Raw")
+        // `/m` leaves the playground action unbound; the header never had room for it.
         const buttons = Array.from(host.querySelectorAll("button"))
         expect(buttons.some((b) => b.textContent?.includes("Playground"))).toBe(false)
     })

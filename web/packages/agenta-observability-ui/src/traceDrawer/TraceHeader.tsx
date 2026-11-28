@@ -32,7 +32,6 @@ import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {getTraceDrawerReferences} from "./referenceSlots"
 import type {NavSource, NavState, TraceHeaderProps} from "./traceHeaderTypes"
 
 const TraceHeader = ({
@@ -469,13 +468,9 @@ const TraceHeader = ({
     const displayTrace = propActiveTrace || drawerTraces?.[0]
     const displayTraceId = getTraceIdFromNode(displayTrace) || ""
 
-    const {AddToQueuePopover} = getTraceDrawerReferences()
-
     return (
         <>
-            {/* flex-wrap: on a phone-width panel the queue button drops to a second line
-                instead of pushing the row past the edge. It is a no-op wherever the row fits. */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                     {backTarget && (
                         <SimpleTooltip title={t("common.back")}>
@@ -531,15 +526,6 @@ const TraceHeader = ({
                         />
                     </TooltipWithCopyAction>
                 </div>
-                <AddToQueuePopover
-                    itemType="traces"
-                    itemIds={activeTraceKey ? [activeTraceKey] : []}
-                    disabled={!activeTraceKey}
-                >
-                    <Button variant="outline" size="sm" disabled={!activeTraceKey}>
-                        {t("observabilityUi.traceDrawer.addAnnotationQueue")}
-                    </Button>
-                </AddToQueuePopover>
             </div>
         </>
     )

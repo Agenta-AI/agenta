@@ -3,6 +3,8 @@ import type {ComponentType, ReactNode} from "react"
 import type {SimpleQueue} from "@agenta/entities/simpleQueue"
 import dynamic from "next/dynamic"
 
+import type {AnnotationResultRowProps} from "./annotationResults"
+
 /**
  * Host slots for the reference labels the trace drawer renders.
  *
@@ -19,6 +21,8 @@ export interface ReferenceLabelProps {
     openExternally?: boolean
     hovercardPlacement?: string
     label?: ReactNode
+    /** The test case of a test set reference: the chip then names and opens that test case. */
+    testcaseId?: string | null
     [key: string]: unknown
 }
 
@@ -77,6 +81,12 @@ export interface TraceDrawerPickerSlots {
      * then never requests the antd chunk.
      */
     AddToQueuePopover: ComponentType<AddToQueuePopoverSlotProps>
+    /**
+     * One evaluator's annotation of the span, in the side panel's Annotations section. The
+     * evaluator result row lives above this package (`@agenta/chat`), so the host hands it in.
+     * Null (the default): the section shows the annotation list of `TraceAnnotations`.
+     */
+    AnnotationResultRow: ComponentType<AnnotationResultRowProps> | null
 }
 
 export type TraceDrawerSlots = TraceDrawerReferenceSlots & TraceDrawerPickerSlots
@@ -100,6 +110,7 @@ const slots: TraceDrawerSlots = {
     AddToTestsetButton: NoSlot,
     AnnotateDrawerButton: NoSlot,
     AddToQueuePopover: DefaultAddToQueuePopover,
+    AnnotationResultRow: null,
     ApplicationReferenceLabel: PlainReference,
     EnvironmentReferenceLabel: PlainReference,
     EvaluatorReferenceLabel: PlainReference,

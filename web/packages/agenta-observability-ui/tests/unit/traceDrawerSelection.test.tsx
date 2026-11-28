@@ -61,6 +61,7 @@ vi.mock("@agenta/observability/traceDrawer", async () => {
         setTraceDrawerActiveSpanAtom: setActiveSpanAtom,
         setTraceDrawerTraceAtom: atom(null, () => undefined),
         traceDrawerActiveSpanIdAtom: activeSpanIdAtom,
+        traceSidePanelOpenAtom: atom(true),
     }
 })
 

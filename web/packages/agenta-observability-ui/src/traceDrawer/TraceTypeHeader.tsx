@@ -1,313 +1,68 @@
-import {type ReactNode, useCallback, useMemo, useState} from "react"
-
-import {extractAgData} from "@agenta/entities/trace"
-import {richText, useT} from "@agenta/i18n"
-import commonCatalog from "@agenta/i18n/catalogs/common"
+import {useT} from "@agenta/i18n"
+import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
-import type {TraceSpanNode} from "@agenta/observability"
-import {closeTraceDrawerAtom} from "@agenta/observability/traceDrawer"
-import {
-    getTraceDrawerPlaygroundActions,
-    traceDrawerBaseAppURLAtom,
-    traceDrawerNavigate,
-} from "@agenta/observability/traceDrawer"
-import {getTraceIdFromNode} from "@agenta/observability/traceDrawer"
-import {Tag} from "@agenta/ui/components/presentational"
-import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {Button, LoadingButton, SimpleTooltip} from "@agenta/ui/ui"
-import {Trash} from "@phosphor-icons/react"
-import {Play, SidebarSimple} from "@phosphor-icons/react"
-import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {CopyButton} from "@agenta/ui/components/presentational"
+import {Badge, Segmented, SimpleTooltip, cn} from "@agenta/ui/ui"
 
-import {deleteTraceModalAtom} from "../delete/store/atom"
-
-import {getTraceDrawerReferences} from "./referenceSlots"
-import {TraceTypeHeaderProps} from "./traceTypeHeaderTypes"
+import {isSpanRunning} from "./spanRunning"
+import type {TraceTypeHeaderProps} from "./traceTypeHeaderTypes"
 
 /**
- * Span types whose inputs match the app's root input schema — the unit the
- * playground can replay. Covers the three SDK-`SERVER` types (`agent`,
- * `chain`, `workflow`; see `parse_span_kind` at
- * `sdk/agenta/sdk/engines/tracing/conventions.py:31`) plus `task`, which is
- * the default `type` for `@ag.instrument()` and therefore the root span of
- * every workflow decorated without an explicit `type=`.
- *
- * Span-type enum source: `sdk/agenta/sdk/models/tracing.py:29`
- * (re-exported by `api/oss/src/core/tracing/dtos.py:25`).
+ * The span header above the span body: the span name (red when it failed), its type, a status
+ * badge when it failed or still runs, copy span id, and the Formatted / Raw switch.
  */
-const INVOCATION_SPAN_TYPES = new Set(["workflow", "task", "agent", "chain"])
-
-/** True when a span tree contains an `agent`-type span (i.e. it's an agent run). */
-const hasAgentSpan = (node: TraceSpanNode): boolean =>
-    node.span_type === "agent" || (node.children ?? []).some((c) => hasAgentSpan(c))
-
-const TraceTypeHeader = ({
-    activeTrace,
-    error,
-    traces,
-    setSelectedTraceId,
-    setIsAnnotationsSectionOpen,
-    isAnnotationsSectionOpen,
-}: TraceTypeHeaderProps) => {
-    const t = useT(spanCatalog, commonCatalog, drawerCatalog)
-    const {AddToTestsetButton, AnnotateDrawerButton} = getTraceDrawerReferences()
-    const {openTraceInPlayground, openWorkflowRevisionDrawer, hasAppReference, buildPlaygroundUrl} =
-        getTraceDrawerPlaygroundActions()
-    const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
-    const closeTraceDrawer = useSetAtom(closeTraceDrawerAtom)
-    const baseAppURL = useAtomValue(traceDrawerBaseAppURLAtom)
-    // Resolving slug-only application references to UUIDs requires a backend
-    // round trip (POST /workflows/revisions/retrieve). Show a spinner on the
-    // Playground button so the user sees the click registered while we wait.
-    const [isOpening, setIsOpening] = useState(false)
-    const spanIds = useMemo(() => {
-        if (!activeTrace?.span_id) return []
-        return [activeTrace.span_id]
-    }, [activeTrace?.span_id])
-
-    const openInPlaygroundState = useMemo<{enabled: boolean; reason?: ReactNode}>(() => {
-        if (!activeTrace) {
-            return {enabled: false, reason: t("observabilityUi.traceSpan.noSpanSelected")}
-        }
-        const spanType = activeTrace.span_type
-        if (!spanType) {
-            return {
-                enabled: false,
-                reason: (
-                    <>
-                        {richText(t("observabilityUi.traceSpan.typeNotSet"), {
-                            code: (text) => <code>{text}</code>,
-                            link: (text) => (
-                                <a
-                                    href="https://agenta.ai/docs/observability/trace-with-opentelemetry/semantic-conventions#agtype"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    {text}
-                                </a>
-                            ),
-                        })}
-                    </>
-                ),
-            }
-        }
-
-        // OSS TraceSpanNode is the same backend span shape as the entities-package type
-        // these helpers expect; align at the boundary, no data is converted.
-        const agData = extractAgData(activeTrace as unknown as Parameters<typeof extractAgData>[0])
-        const hasExtractableData = Boolean(agData?.inputs || agData?.parameters)
-        const hasApp = hasAppReference?.(
-            activeTrace as unknown as Parameters<typeof hasAppReference>[0],
-        )
-        const isInvocation = INVOCATION_SPAN_TYPES.has(spanType)
-
-        // Invocation spans (workflow, task, agent, chain) represent the unit
-        // that matches the app's root input schema — open them whenever we
-        // have an app reference or any captured data to seed the testcase.
-        if (isInvocation && (hasApp || hasExtractableData)) return {enabled: true}
-
-        // Chat spans open ephemerally when we can reconstruct the prompt.
-        if (spanType === "chat" && hasExtractableData) return {enabled: true}
-
-        if (!hasApp && !hasExtractableData) {
-            return {
-                enabled: false,
-                reason: t("observabilityUi.traceSpan.noWorkflowOrInputs"),
-            }
-        }
-        if (!hasApp) {
-            return {
-                enabled: false,
-                reason: t("observabilityUi.traceSpan.needsWorkflowRef", {spanType}),
-            }
-        }
-        if (!hasExtractableData) {
-            return {
-                enabled: false,
-                reason: t("observabilityUi.traceSpan.noParamsOrInputs"),
-            }
-        }
-        return {
-            enabled: false,
-            reason: t("observabilityUi.traceSpan.cannotReplay", {spanType}),
-        }
-    }, [activeTrace, t])
-
-    const canOpenInPlayground = openInPlaygroundState.enabled
-
-    const handleOpenInPlayground = useCallback(async () => {
-        if (!activeTrace) return
-        setIsOpening(true)
-        try {
-            // For an agent run, only the root invocation span carries the chat shape (messages
-            // + agent config + session_id). Child spans (`invoke_agent`, `turn`, …) carry a bare
-            // `{prompt}` and would open as a non-agent completion. So replay the whole agent run
-            // from its root regardless of which span was clicked.
-            const traceRoot = traces?.find((t) => t.trace_id === activeTrace.trace_id)
-            const spanToOpen =
-                traceRoot && traceRoot.span_id !== activeTrace.span_id && hasAgentSpan(traceRoot)
-                    ? traceRoot
-                    : activeTrace
-            const result = await openTraceInPlayground?.(spanToOpen)
-            // Need at least an entityId (revision or ephemeral) to open.
-            if (!result || !result.entityId) return
-
-            if (result.appId) {
-                // Span with an app reference → navigate to app playground.
-                // Close the trace drawer since we're leaving observability entirely.
-                closeTraceDrawer()
-                const appPlaygroundBase = `${baseAppURL}/${result.appId}/playground`
-                const playgroundUrl =
-                    result.type === "revision"
-                        ? // Specific revision — pin it in the URL.
-                          `${appPlaygroundBase}?revisions=${result.entityId}`
-                        : // Ephemeral entity scoped to an app (legacy evaluator path).
-                          (buildPlaygroundUrl?.([result.entityId], appPlaygroundBase) ??
-                          appPlaygroundBase)
-                void traceDrawerNavigate(playgroundUrl)
-                return
-            }
-
-            // No app reference → open the playground in the workflow revision drawer
-            // overlaid on top of the trace drawer (which stays open behind so the
-            // user can still see the span they came from).
-            //
-            // We use "variant" context so the drawer renders DrawerAppPlayground
-            // (mode="app") with the ephemeral entity as the workflow under test —
-            // matching what the project-scoped /playground page did before this
-            // change. Even for evaluator spans, we want to replay the evaluator
-            // itself, NOT enter the evaluator-grading-an-app configuration flow
-            // that "evaluator-create" routes into.
-            //
-            // `expanded: true` opens the drawer in test mode (full playground
-            // with execution panel) instead of the collapsed config+metadata
-            // view — span replay is fundamentally a "run it and see" interaction.
-            //
-            // `stacked: true` forces the drawer to render with a mask + focus
-            // lock so the trace drawer behind can't steal focus from the prompt
-            // editor. Without this, the editor is unfocusable in either expanded
-            // or collapsed mode because the trace drawer's focus trap pulls
-            // focus back on every click.
-            openWorkflowRevisionDrawer?.({
-                entityId: result.entityId,
-                context: "variant",
-                expanded: true,
-                stacked: true,
-            })
-        } finally {
-            setIsOpening(false)
-        }
-    }, [
-        activeTrace,
-        traces,
-        openTraceInPlayground,
-        baseAppURL,
-        buildPlaygroundUrl,
-        openWorkflowRevisionDrawer,
-        closeTraceDrawer,
-    ])
-
-    const displayTrace = activeTrace || traces?.[0]
+const TraceTypeHeader = ({activeTrace, error, mode, onModeChange}: TraceTypeHeaderProps) => {
+    const t = useT(spanCatalog, drawerCatalog, valueViewCatalog)
+    const failed = activeTrace?.status_code === "STATUS_CODE_ERROR"
+    const running = isSpanRunning(activeTrace)
+    const name = activeTrace?.span_name || (error ? t("observabilityUi.traceSpan.error") : "")
 
     return (
-        // min-h-10 matches the tree's search row beside it; on a phone-width panel the actions
-        // wrap under the span name instead of squeezing it to nothing.
-        <div className="box-border min-h-10 px-4 py-1 flex shrink-0 flex-wrap items-center justify-between gap-2 border-0 border-b border-solid border-border-muted">
-            <SimpleTooltip
-                side="top"
-                title={
-                    activeTrace?.span_name || (error ? t("observabilityUi.traceSpan.error") : "")
-                }
-            >
-                <span className={clsx("truncate text-nowrap flex-1 min-w-32 text-label")}>
-                    {activeTrace?.span_name || (error ? t("observabilityUi.traceSpan.error") : "")}
-                </span>
-            </SimpleTooltip>
-
-            <div className="flex min-w-0 flex-wrap gap-2">
-                <TooltipWithCopyAction
-                    copyText={activeTrace?.span_id || ""}
-                    title={t("observabilityUi.traceSpan.copySpanId")}
-                    tooltipProps={{placement: "bottom", arrow: true}}
-                >
-                    <Tag
-                        className="font-mono truncate bg-secondary"
-                        label={`# ${activeTrace?.span_id || "—"}`}
-                    />
-                </TooltipWithCopyAction>
-                {/* Like the slotted actions, the button exists only when the host binds the
-                    playground action. `/m` binds it only while its playground view is on. */}
-                {openTraceInPlayground && (
-                    <SimpleTooltip
-                        title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
-                        side="bottom"
+        // On a phone-width panel the switch wraps under the span name instead of squeezing it.
+        <div className="box-border flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-0 border-b border-solid border-border-muted px-4 py-1.5">
+            <div className="flex min-w-32 flex-1 items-center gap-2">
+                <SimpleTooltip side="top" title={name}>
+                    <span
+                        className={cn("min-w-0 truncate text-title", failed && "text-destructive")}
                     >
-                        <LoadingButton
-                            variant="outline"
-                            size="sm"
-                            loading={isOpening}
-                            disabled={!canOpenInPlayground || isOpening}
-                            onClick={handleOpenInPlayground}
-                        >
-                            <Play size={14} />
-                            {t("observabilityUi.traceSpan.playground")}
-                        </LoadingButton>
-                    </SimpleTooltip>
-                )}
-                <AddToTestsetButton
-                    label={t("observabilityUi.traceSpan.addToTestset")}
-                    size="small"
-                    spanIds={spanIds}
-                    disabled={!activeTrace?.span_id}
-                />
-                <AnnotateDrawerButton
-                    label={t("observabilityUi.traceSpan.annotate")}
-                    size="small"
-                    data={activeTrace?.annotations || []}
-                    traceSpanIds={{
-                        traceId: activeTrace?.trace_id,
-                        spanId: activeTrace?.span_id,
-                    }}
-                    queryKey="trace-drawer-annotations"
-                    data-tour="annotate-button"
-                />
-
-                <SimpleTooltip title={t("common.delete")}>
-                    <Button
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label={t("common.delete")}
-                        onClick={() =>
-                            setDeleteModalState({
-                                isOpen: true,
-                                traceIds: [getTraceIdFromNode(displayTrace) || ""],
-                                onClose: () => {
-                                    if (setSelectedTraceId) setSelectedTraceId("")
-                                },
-                            })
-                        }
-                        disabled={!displayTrace}
-                    >
-                        <Trash size={14} />
-                    </Button>
+                        {name}
+                    </span>
                 </SimpleTooltip>
-                {setIsAnnotationsSectionOpen && (
-                    <SimpleTooltip title={t("observabilityUi.traceDrawer.tabAnnotations")}>
-                        <Button
-                            variant={isAnnotationsSectionOpen ? "outline" : "default"}
-                            size="icon-sm"
-                            className="shrink-0"
-                            aria-label={t("observabilityUi.traceDrawer.tabAnnotations")}
-                            aria-pressed={isAnnotationsSectionOpen}
-                            onClick={() => setIsAnnotationsSectionOpen((prev) => !prev)}
-                        >
-                            <SidebarSimple size={14} />
-                        </Button>
-                    </SimpleTooltip>
-                )}
+                {activeTrace?.span_type ? (
+                    <Badge className="shrink-0 font-mono">{activeTrace.span_type}</Badge>
+                ) : null}
+                {running ? (
+                    <Badge variant="info" className="shrink-0">
+                        {t("chat.valueView.running")}
+                    </Badge>
+                ) : failed ? (
+                    <Badge variant="destructive" className="shrink-0">
+                        {t("observabilityUi.traceDrawer.statusError")}
+                    </Badge>
+                ) : null}
+                {activeTrace?.span_id ? (
+                    <CopyButton
+                        text={activeTrace.span_id}
+                        icon
+                        buttonText=""
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("observabilityUi.traceSpan.copySpanId")}
+                    />
+                ) : null}
             </div>
+            {activeTrace && onModeChange ? (
+                <Segmented
+                    size="sm"
+                    value={mode ?? "formatted"}
+                    onChange={(next) => onModeChange(next as "formatted" | "raw")}
+                    options={[
+                        {value: "formatted", label: t("chat.valueView.formatted")},
+                        {value: "raw", label: t("chat.valueView.raw")},
+                    ]}
+                />
+            ) : null}
         </div>
     )
 }

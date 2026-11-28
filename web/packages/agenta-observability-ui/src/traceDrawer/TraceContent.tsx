@@ -1,265 +1,146 @@
-import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {traceSidePanelOpenAtom} from "@agenta/observability/traceDrawer"
 import {getRawTraceSpanData} from "@agenta/observability/traceDrawer"
 import {TraceContentProps} from "@agenta/observability/traceDrawer"
-import {SkeletonBlock, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
-import clsx from "clsx"
-import {useAtom} from "jotai"
+import {SkeletonBlock} from "@agenta/ui/ui"
+import {useAtomValue} from "jotai"
 
 import AccordionTreePanel from "./AccordionTreePanel"
-import AnnotationTabItem from "./AnnotationTabItem"
-import LinkedSpansTabItem from "./LinkedSpansTabItem"
 import OverviewTabItem from "./OverviewTabItem"
-import {getTraceDrawerReferences} from "./referenceSlots"
 import type {TraceDrawerLayout} from "./TraceDrawerContent"
 import TraceSidePanel from "./TraceSidePanel"
 import TraceTypeHeader from "./TraceTypeHeader"
+import type {SpanBodyMode} from "./traceTypeHeaderTypes"
 
 const loadingContent = (
-    <div className="px-4 py-6">
-        <div className="flex flex-col gap-2">
-            {[0, 1, 2, 3, 4, 5].map((row) => (
-                <SkeletonBlock key={row} className="max-w-[160px]" />
-            ))}
-        </div>
+    <div className="flex flex-col gap-2 px-4 py-6">
+        {[0, 1, 2, 3, 4, 5].map((row) => (
+            <SkeletonBlock key={row} className="max-w-[160px]" />
+        ))}
     </div>
 )
 
+/**
+ * The span column and the side panel of the trace view. The span column is the span header
+ * with the Formatted / Raw switch over the span body: Formatted draws each section by the shape
+ * of its value, Raw shows the span as JSON or YAML with search. Side by side, each column
+ * scrolls on its own; stacked, the side panel goes under the span body. In the split layout the
+ * side panel sits beside the span only when the column is 740px or wider (400px for the span,
+ * 340px for the panel), else under it.
+ */
+/** Under 740px the span and the side panel scroll together, one under the other. */
+const SPLIT_VIEW =
+    "flex h-full min-h-0 w-full flex-col overflow-y-auto @min-[740px]/span-view:flex-row @min-[740px]/span-view:overflow-visible"
+const SPLIT_SPAN =
+    "flex min-w-0 flex-col @min-[740px]/span-view:min-h-0 @min-[740px]/span-view:flex-1"
+const SPLIT_BODY =
+    "min-w-0 @min-[740px]/span-view:min-h-0 @min-[740px]/span-view:flex-1 @min-[740px]/span-view:overflow-y-auto"
+const STACKED_SIDE = "w-full border-0 border-t border-solid border-border-muted"
+const SPLIT_SIDE =
+    "@min-[740px]/span-view:w-[340px] @min-[740px]/span-view:min-w-[340px] @min-[740px]/span-view:shrink-0 @min-[740px]/span-view:overflow-y-auto @min-[740px]/span-view:border-t-0 @min-[740px]/span-view:border-l"
+
 const TraceContent = ({
-    activeTrace: active,
+    activeTrace,
     traceResponse,
     error,
-    traces,
     isLoading,
-    setSelectedTraceId,
     activeId,
     layout = "split",
 }: TraceContentProps & {layout?: TraceDrawerLayout}) => {
     const t = useT(drawerCatalog)
     const stacked = layout === "stacked"
-    const {TraceSpanDrillInView: TraceSpanDrillInViewSlot} = getTraceDrawerReferences()
-    const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
-    const activeTrace = active
-    const spanEntityId = activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeId
-    const [tab, setTab] = useState("overview")
-    const tabsWrapperRef = useRef<HTMLDivElement>(null)
-    const [tabNavHeight, setTabNavHeight] = useState(0)
+    const sidePanelOpen = useAtomValue(traceSidePanelOpenAtom)
+    // Kept while the user moves between spans.
+    const [mode, setMode] = useState<SpanBodyMode>("formatted")
 
-    // Measure the actual rendered tab nav bar height so sticky JSON headers
-    // can be offset correctly below it (avoids hardcoded magic numbers).
-    useEffect(() => {
-        const el = tabsWrapperRef.current
-        if (!el) return
-        const nav = el.querySelector<HTMLElement>("[data-trace-tabs-band]")
-        if (!nav) return
-        const observer = new ResizeObserver(() => {
-            setTabNavHeight(nav.getBoundingClientRect().height)
-        })
-        observer.observe(nav)
-        // Capture initial height immediately
-        setTabNavHeight(nav.getBoundingClientRect().height)
-        return () => observer.disconnect()
-    }, [])
+    const body = (() => {
+        if (isLoading && !activeTrace) return loadingContent
 
-    const items: {key?: string; label?: ReactNode; children?: ReactNode}[] = useMemo(() => {
-        if (isLoading && !activeTrace) {
-            return [
-                {
-                    key: "loading",
-                    label: t("observabilityUi.traceDrawer.tabOverview"),
-                    children: loadingContent,
-                },
-            ]
-        }
-
-        // When activeTrace is missing (e.g., failed generation), show just Raw Data/Error
+        // No span: the trace is not found, or the generation failed and only the error is left.
         if (!activeTrace) {
-            const errorPayload = error
             const response = (traceResponse as {response?: unknown} | undefined)?.response
-            if (!errorPayload && !response) {
-                return [
-                    {
-                        key: "raw_data",
-                        label: t("observabilityUi.traceDrawer.tabOverview"),
-                        children: (
-                            <div className="flex flex-col items-center gap-1 px-4 py-12 text-center">
-                                <span className="text-label">
-                                    {t("observabilityUi.traceDrawer.traceNotFound")}
-                                </span>
-                                <span className="text-meta text-muted-foreground">
-                                    {t("observabilityUi.traceDrawer.traceNotFoundHint")}
-                                </span>
-                            </div>
-                        ),
-                    },
-                ]
+            if (!error && !response) {
+                return (
+                    <div className="flex flex-col items-center gap-1 px-4 py-12 text-center">
+                        <span className="text-label">
+                            {t("observabilityUi.traceDrawer.traceNotFound")}
+                        </span>
+                        <span className="text-meta text-muted-foreground">
+                            {t("observabilityUi.traceDrawer.traceNotFoundHint")}
+                        </span>
+                    </div>
+                )
             }
-            const rawPayload =
-                (traceResponse as {response?: unknown} | undefined)?.response ??
-                (errorPayload ? {error: errorPayload} : {})
-            return [
-                {
-                    key: "raw_data",
-                    label: t("observabilityUi.traceDrawer.tabRawData"),
-                    children: (
-                        <AccordionTreePanel
-                            label={
-                                errorPayload
-                                    ? t("observabilityUi.traceDrawer.rawDataError")
-                                    : t("observabilityUi.traceDrawer.tabRawData")
-                            }
-                            value={rawPayload as never}
-                            enableFormatSwitcher
-                            fullEditorHeight
-                            enableSearch
-                        />
-                    ),
-                },
-            ]
-        }
-
-        const rawActiveTrace = getRawTraceSpanData(activeTrace)
-
-        return [
-            {
-                key: "overview",
-                label: t("observabilityUi.traceDrawer.tabOverview"),
-                children: (
-                    <OverviewTabItem
-                        activeTrace={activeTrace}
-                        prettyJsonStickyOffset={tabNavHeight}
+            return (
+                <div className="p-4">
+                    <AccordionTreePanel
+                        label={
+                            error
+                                ? t("observabilityUi.traceDrawer.rawDataError")
+                                : t("observabilityUi.traceDrawer.tabRawData")
+                        }
+                        value={(response ?? (error ? {error} : {})) as never}
+                        enableFormatSwitcher
+                        fullEditorHeight
+                        enableSearch
                     />
-                ),
-            },
-            {
-                key: "raw_data",
-                label: t("observabilityUi.traceDrawer.tabRawData"),
-                children: (
-                    <>
-                        {spanEntityId ? (
-                            <TraceSpanDrillInViewSlot
-                                spanId={spanEntityId}
-                                spanDataOverride={rawActiveTrace}
-                                title={t("observabilityUi.traceDrawer.tabRawData")}
-                                editable={false}
-                                rootScope="span"
-                                allowSpanCollapse={false}
-                                prettyJsonStickyOffset={tabNavHeight}
-                            />
-                        ) : (
-                            <AccordionTreePanel
-                                label={t("observabilityUi.traceDrawer.tabRawData")}
-                                value={rawActiveTrace}
-                                enableFormatSwitcher
-                                fullEditorHeight
-                                enableSearch
-                            />
-                        )}
-                    </>
-                ),
-            },
-            {
-                key: "linked-span",
-                label: t("observabilityUi.traceDrawer.tabLinkedSpans"),
-                children: <LinkedSpansTabItem isActive={tab === "linked-span"} />,
-            },
-            {
-                key: "annotations",
-                label: t("observabilityUi.traceDrawer.tabAnnotations"),
-                children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
-            },
-        ]
-    }, [activeTrace, isLoading, traceResponse, error, tab, spanEntityId, tabNavHeight, t])
-
-    // Ensure active tab exists in items; if not, switch to first tab
-    const itemKeys = useMemo(
-        () => (items || []).map((it: {key?: string}) => String(it?.key)),
-        [items],
-    )
-    useEffect(() => {
-        if (!itemKeys.includes(tab) && itemKeys.length > 0) {
-            setTab(itemKeys[0])
+                </div>
+            )
         }
-    }, [itemKeys.join("|"), tab])
 
-    return (
-        <div
-            className={clsx(
-                "flex w-full h-full flex-1",
-                "[&_.ant-tag]:m-0 [&_.ant-tag]:flex [&_.ant-tag]:items-center [&_.ant-tag]:gap-2",
-            )}
-        >
-            <div className="flex-1 flex flex-col overflow-auto">
+        if (mode === "raw") {
+            return (
+                <div className="p-4">
+                    <AccordionTreePanel
+                        label={t("observabilityUi.traceDrawer.tabRawData")}
+                        value={getRawTraceSpanData(activeTrace) as never}
+                        enableFormatSwitcher
+                        enableSearch
+                        rawOnly
+                    />
+                </div>
+            )
+        }
+        return (
+            <div className="p-4">
+                <OverviewTabItem activeTrace={activeTrace} mode="formatted" />
+            </div>
+        )
+    })()
+
+    const view = (
+        <div className={stacked ? "flex w-full flex-col" : SPLIT_VIEW}>
+            <div className={stacked ? "flex min-w-0 flex-col" : SPLIT_SPAN}>
                 <TraceTypeHeader
                     activeTrace={activeTrace}
                     error={error}
-                    setSelectedTraceId={setSelectedTraceId}
-                    setIsAnnotationsSectionOpen={setIsAnnotationsSectionOpen}
-                    isAnnotationsSectionOpen={isAnnotationsSectionOpen}
-                    traces={traces}
+                    mode={mode}
+                    onModeChange={setMode}
                 />
-
-                {/* antd Splitter gave a draggable 400/280 split; the side panel is a fixed
-                    280px column here — dragging was never wired to anything persisted. Stacked, the
-                    side panel goes under the tabs, so nothing is wider than the panel. */}
-                <div className={stacked ? "flex flex-col" : "flex flex-1 min-h-0"}>
-                    <div className={stacked ? "w-full min-w-0" : "w-full flex-1 min-w-[400px]"}>
-                        <div ref={tabsWrapperRef} className="flex-1">
-                            <Tabs
-                                value={tab}
-                                onValueChange={setTab}
-                                className="flex flex-col h-full"
-                            >
-                                {/* Opaque band: scrolled content must not show through the tabs. */}
-                                <div
-                                    data-trace-tabs-band
-                                    className="sticky top-0 z-30 mb-2 bg-background px-4"
-                                >
-                                    <TabsList>
-                                        {(items || []).map(
-                                            (item: {key?: string; label?: ReactNode}) => (
-                                                <TabsTrigger
-                                                    key={item.key}
-                                                    value={String(item.key)}
-                                                >
-                                                    {item.label}
-                                                </TabsTrigger>
-                                            ),
-                                        )}
-                                    </TabsList>
-                                </div>
-                                {(items || []).map((item: {key?: string; children?: ReactNode}) => (
-                                    <TabsContent
-                                        key={item.key}
-                                        value={String(item.key)}
-                                        className="p-3 flex-1 h-full"
-                                    >
-                                        {item.children}
-                                    </TabsContent>
-                                ))}
-                            </Tabs>
-                        </div>
-                    </div>
-                    {isAnnotationsSectionOpen && (activeTrace || isLoading) && (
-                        <div
-                            className={
-                                stacked
-                                    ? "w-full border-0 border-t border-solid border-border-muted"
-                                    : "w-[280px] min-w-[280px] shrink-0 border-0 border-l border-solid border-border-muted"
-                            }
-                        >
-                            <TraceSidePanel
-                                activeTrace={activeTrace as never}
-                                activeTraceId={activeId}
-                                isLoading={isLoading}
-                            />
-                        </div>
-                    )}
+                <div className={stacked ? "min-w-0" : SPLIT_BODY} data-testid="trace-span-body">
+                    {body}
                 </div>
             </div>
+            {sidePanelOpen && (activeTrace || isLoading) ? (
+                <aside className={stacked ? STACKED_SIDE : `${STACKED_SIDE} ${SPLIT_SIDE}`}>
+                    <TraceSidePanel
+                        activeTrace={activeTrace as never}
+                        activeTraceId={activeId}
+                        isLoading={isLoading}
+                    />
+                </aside>
+            ) : null}
+        </div>
+    )
+    // The container is the span column, so the side panel follows the room it really has. One
+    // wrapper in both layouts: a change of layout only changes classes, so the span body (the Raw
+    // search, the format, the scroll) is not mounted again.
+    return (
+        <div className={stacked ? "w-full" : "@container/span-view h-full min-h-0 w-full"}>
+            {view}
         </div>
     )
 }

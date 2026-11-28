@@ -1,10 +1,12 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {richText, useT} from "@agenta/i18n"
+import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {filterKeySpans, filterTree} from "@agenta/observability"
 import type {TraceSpanNode} from "@agenta/observability"
 import {useTraceDrawer} from "@agenta/observability/traceDrawer"
+import {formatLatency} from "@agenta/shared/utils"
 import {Button, Input, Popover, PopoverContent, PopoverTrigger, SimpleTooltip} from "@agenta/ui/ui"
 import {Info, MagnifyingGlass, SlidersHorizontal} from "@phosphor-icons/react"
 import {useLocalStorage} from "usehooks-ts"
@@ -12,21 +14,51 @@ import {useLocalStorage} from "usehooks-ts"
 import {TraceRow} from "../trace/TraceRow"
 
 import CustomTreeComponent from "./CustomTreeComponent"
+import {countTurns, groupTurns, type TraceTurnRow} from "./groupTurns"
+import {toolSpanLabel} from "./toolSpanLabel"
 import TraceTreeSettings from "./TraceTreeSettings"
-import type {TraceTreeSettingsState} from "./traceTreeSettingsTypes"
+import {TRACE_TREE_DEFAULT_SETTINGS, type TraceTreeSettingsState} from "./traceTreeSettingsTypes"
 import type {TraceTreeProps} from "./traceTreeTypes"
+
+const TURN_KEY_PREFIX = "turn:"
+
+/** A row of the "Group turns" view: one turn, its spans under it. */
+interface TurnNode {
+    span_id: string
+    turn: TraceTurnRow
+    children: TraceSpanNode[]
+}
+
+type TreeNode = TraceSpanNode | TurnNode
+
+const isTurnNode = (node: TreeNode): node is TurnNode => "turn" in node
+
+const TurnRow = ({turn, showLatency}: {turn: TraceTurnRow; showLatency: boolean}) => {
+    const t = useT(valueViewCatalog)
+    const label = turn.message ?? t("chat.valueView.turnLabel", {n: turn.index})
+    return (
+        <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 font-mono text-meta text-muted-foreground tabular-nums">
+                {turn.index}
+            </span>
+            <SimpleTooltip title={label}>
+                <span className="min-w-0 flex-1 truncate text-label font-medium">{label}</span>
+            </SimpleTooltip>
+            {showLatency && turn.durationMs !== null ? (
+                <span className="shrink-0 font-mono text-meta text-muted-foreground tabular-nums">
+                    {formatLatency(turn.durationMs / 1000)}
+                </span>
+            ) : null}
+        </div>
+    )
+}
 
 const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: TraceTreeProps) => {
     const [searchValue, setSearchValue] = useState("")
 
     const [traceTreeSettings, setTraceTreeSettings] = useLocalStorage<TraceTreeSettingsState>(
         "traceTreeSettings",
-        {
-            latency: true,
-            cost: true,
-            tokens: true,
-            visibility: "key",
-        },
+        TRACE_TREE_DEFAULT_SETTINGS,
     )
 
     const t = useT(drawerCatalog)
@@ -63,7 +95,8 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
     // Tree after the text search filter (the original behaviour).
     const searchedTree = useMemo(() => {
         if (!searchValue.trim()) return treeRoot
-        const result = filterTree(treeRoot as TraceSpanNode, searchValue)
+        // A tool row shows its step ("Run the tests"), so the search finds that text too.
+        const result = filterTree(treeRoot as TraceSpanNode, searchValue, toolSpanLabel)
         return result || {...treeRoot, children: []}
     }, [searchValue, treeRoot])
 
@@ -79,10 +112,32 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
         }
     }, [searchedTree, traceTreeSettings.visibility])
 
+    // The switch counts the turns of the whole trace, so a search does not disable it.
+    const turnCount = useMemo(() => countTurns(treeRoot as TraceSpanNode | undefined), [treeRoot])
+
+    // "Group turns": the root's children become one row per turn, each holding its spans.
+    const treeData = useMemo<TreeNode | undefined>(() => {
+        if (!traceTreeSettings.groupTurns || !displayTree) return displayTree as TraceSpanNode
+        const turns = groupTurns(displayTree as TraceSpanNode, treeRoot as TraceSpanNode)
+        if (!turns) return displayTree as TraceSpanNode
+        const turnNodes: TurnNode[] = turns.map((turn) => ({
+            span_id: `${TURN_KEY_PREFIX}${turn.index}`,
+            turn,
+            children: turn.spans,
+        }))
+        return {
+            ...(displayTree as TraceSpanNode),
+            children: turnNodes as unknown as TraceSpanNode[],
+        }
+    }, [displayTree, treeRoot, traceTreeSettings.groupTurns])
+
     const renderTraceLabel = useCallback(
-        (node: TraceSpanNode) => (
-            <TraceRow span={node} metrics={traceTreeSettings} className="text-label font-normal" />
-        ),
+        (node: TreeNode) =>
+            isTurnNode(node) ? (
+                <TurnRow turn={node.turn} showLatency={traceTreeSettings.latency} />
+            ) : (
+                <TraceRow span={node} metrics={traceTreeSettings} oneLine />
+            ),
         [traceTreeSettings],
     )
 
@@ -126,20 +181,23 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                             settings={traceTreeSettings}
                             setSettings={setTraceTreeSettings}
                             showVisibility
+                            turnCount={turnCount}
                         />
                     </PopoverContent>
                 </Popover>
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto">
-                <CustomTreeComponent
-                    data={displayTree as TraceSpanNode}
+                <CustomTreeComponent<TreeNode>
+                    data={treeData as TreeNode}
                     getKey={(node) => node.span_id}
-                    getChildren={(node) => node.children as TraceSpanNode[] | undefined}
+                    getChildren={(node) => node.children as TreeNode[] | undefined}
                     renderLabel={renderTraceLabel}
                     selectedKey={selected}
-                    onSelect={(key) => setSelected(key)}
+                    // A turn row opens the span that holds its message.
+                    onSelect={(key, node) => setSelected(isTurnNode(node) ? node.turn.spanId : key)}
                     defaultExpanded
+                    compact
                 />
 
                 {hiddenCount > 0 && (

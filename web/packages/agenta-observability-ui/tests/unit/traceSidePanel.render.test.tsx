@@ -1,0 +1,289 @@
+/** @vitest-environment jsdom */
+// The side panel: the metrics grid, then References, Linked spans and Annotations, each hidden
+// when it has nothing to show.
+import {act} from "react"
+
+import type {TraceSpanNode} from "@agenta/observability"
+import {createStore, Provider} from "jotai"
+import {createRoot, type Root} from "react-dom/client"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
+
+const harness = vi.hoisted(() => ({
+    links: {} as {links?: unknown[]; references?: unknown[]},
+}))
+
+vi.mock("@agenta/observability/traceDrawer", async (importOriginal) => {
+    const {atom} = await import("jotai")
+    return {
+        ...(await importOriginal<typeof import("@agenta/observability/traceDrawer")>()),
+        linksAndReferencesAtom: atom(() => harness.links),
+        useTraceDrawer: () => ({getTraceById: () => undefined}),
+        useEvaluatorNavigation: () => ({buildEvaluatorTarget: () => null}),
+    }
+})
+
+vi.mock("@agenta/entities/workflow", async (importOriginal) => {
+    const {atom} = await import("jotai")
+    return {
+        ...(await importOriginal<typeof import("@agenta/entities/workflow")>()),
+        evaluatorsListDataAtom: atom(() => []),
+    }
+})
+
+import {configureTraceDrawerReferences} from "../../src/traceDrawer/referenceSlots"
+import SpanMetricsGrid from "../../src/traceDrawer/SpanMetricsGrid"
+import TraceSidePanel from "../../src/traceDrawer/TraceSidePanel"
+
+const span = (overrides: Record<string, unknown> = {}) =>
+    ({
+        trace_id: "t-1",
+        span_id: "s-1",
+        span_name: "chat",
+        span_type: "chat",
+        status_code: "STATUS_CODE_UNSET",
+        start_time: "2026-11-27T08:02:15Z",
+        end_time: "2026-11-27T08:02:23Z",
+        attributes: {ag: {metrics: {duration: {cumulative: 7910}}}},
+        ...overrides,
+    }) as unknown as TraceSpanNode
+
+let host: HTMLDivElement
+let root: Root
+
+const render = async (node: React.ReactNode) => {
+    await act(async () => {
+        root.render(<Provider store={createStore()}>{node}</Provider>)
+    })
+}
+
+beforeEach(() => {
+    harness.links = {}
+    configureTraceDrawerReferences({AnnotationResultRow: null})
+    host = document.createElement("div")
+    document.body.append(host)
+    root = createRoot(host)
+})
+
+afterEach(() => {
+    act(() => root.unmount())
+    host.remove()
+})
+
+describe("trace side panel", () => {
+    it("hides References, Linked spans and Annotations when the span has none", async () => {
+        await render(<TraceSidePanel activeTrace={span() as never} />)
+        expect(host.querySelector('[data-testid="span-metrics-grid"]')).not.toBeNull()
+        expect(host.querySelector('[data-testid="trace-references"]')).toBeNull()
+        expect(host.querySelector('[data-testid="trace-linked-spans"]')).toBeNull()
+        expect(host.querySelector('[data-testid="trace-annotations"]')).toBeNull()
+        expect(host.textContent).not.toContain("No linked spans")
+        expect(host.textContent).not.toContain("No references")
+    })
+
+    it("shows one chip row per entity and the linked spans when there are some", async () => {
+        harness.links = {links: [{trace_id: "t-2", span_id: "s-9", key: "invocation"}]}
+        const references = [
+            {id: "ev-1", slug: "faithfulness-judge", attributes: {key: "evaluator"}},
+            {id: "evr-1", version: 3, attributes: {key: "evaluator_revision"}},
+            {id: "ts-1", slug: "support-faq", attributes: {key: "testset"}},
+            {id: "tc-123456789", attributes: {key: "testcase"}},
+        ]
+        await render(<TraceSidePanel activeTrace={span({references}) as never} />)
+        // One chip per entity: the evaluator (with its revision) and the test case.
+        const section = host.querySelector('[data-testid="trace-references"]')
+        expect(section?.textContent).toBe("Referencesfaithfulness-judgesupport-faq")
+        expect(host.querySelector('[data-testid="trace-linked-spans"]')?.textContent).toContain(
+            "invocation",
+        )
+    })
+
+    it("keeps a slug-only reference that the response list stripped to its key", async () => {
+        // The response schema keeps only the id of a list entry; the span's map still has the slug.
+        const stored = span({
+            references: [{attributes: {key: "evaluator"}}],
+            attributes: {
+                ag: {
+                    metrics: {duration: {cumulative: 7910}},
+                    references: {evaluator: {slug: "user-feedback"}},
+                },
+            },
+        })
+        await render(<TraceSidePanel activeTrace={stored as never} />)
+        expect(host.querySelector('[data-testid="trace-references"]')?.textContent).toContain(
+            "user-feedback",
+        )
+    })
+
+    it("names a linked span with no name and no key by its span id", async () => {
+        // Two OpenTelemetry links to other traces, with no key attribute.
+        harness.links = {
+            links: [
+                {trace_id: "t-2", span_id: "5f2c9a1b7d3e4f60"},
+                {trace_id: "t-3", span_id: "8a0b1c2d3e4f5a6b"},
+            ],
+        }
+        await render(<TraceSidePanel activeTrace={span() as never} />)
+        const section = host.querySelector('[data-testid="trace-linked-spans"]')
+        expect(section?.textContent).toContain("5f2c9a1b7d3e4f60")
+        expect(section?.textContent).toContain("8a0b1c2d3e4f5a6b")
+    })
+
+    it("shows the span's own references, not those of its annotations", async () => {
+        // The root span of an evaluation's app trace (recorded): the application with its
+        // variant and revision, and the test case. Each annotation names its evaluator.
+        const root = span({
+            references: [
+                {id: "app-1", slug: "bench-builder", attributes: {key: "application"}},
+                {id: "variant-1", attributes: {key: "application_variant"}},
+                {id: "revision-1", attributes: {key: "application_revision"}},
+                {id: "tc-da65bedc", attributes: {key: "testcase"}},
+            ],
+            annotations: [
+                {
+                    references: {evaluator: {slug: "bench-ask-before-outside-effects"}},
+                    origin: "custom",
+                    data: {outputs: {metrics: {success: true}}},
+                },
+            ],
+        })
+        await render(<TraceSidePanel activeTrace={root as never} />)
+        const section = host.querySelector('[data-testid="trace-references"]')
+        expect(section?.textContent).toContain("bench-builder")
+        expect(section?.textContent).not.toContain("bench-ask-before-outside-effects")
+    })
+
+    it("draws each evaluator's annotation through the AnnotationResultRow slot", async () => {
+        const rows: unknown[] = []
+        configureTraceDrawerReferences({
+            AnnotationResultRow: (props) => {
+                rows.push(props)
+                return <div data-testid="annotation-row">{props.evaluatorName}</div>
+            },
+        })
+        const annotations = [
+            {
+                references: {evaluator: {slug: "tone"}},
+                origin: "human",
+                data: {outputs: {metrics: {polite: false}}},
+                createdById: "user-1",
+                created_at: "2026-11-27T08:00:00Z",
+                updated_at: "2026-11-27T09:00:00Z",
+            },
+            {
+                references: {evaluator: {slug: "faithfulness"}},
+                origin: "auto",
+                data: {outputs: {metrics: {success: true}}},
+            },
+        ]
+        await render(<TraceSidePanel activeTrace={span({annotations}) as never} />)
+        const section = host.querySelector('[data-testid="trace-annotations"]')
+        expect(section?.textContent).toContain("2 evaluators")
+        // The human value is not counted.
+        expect(section?.textContent).toContain("Passed 1 of 1")
+        expect(
+            Array.from(host.querySelectorAll('[data-testid="annotation-row"]')).map(
+                (row) => row.textContent,
+            ),
+        ).toEqual(["tone", "faithfulness"])
+        expect(rows[0]).toEqual({
+            evaluatorName: "tone",
+            origin: "human",
+            author: {userId: "user-1", at: "2026-11-27T09:00:00Z"},
+            // The row gets the summary the header counts, not a second one.
+            summary: expect.objectContaining({assertions: {passed: 0, total: 1}, failed: true}),
+        })
+    })
+
+    it("falls back to the annotation list when the host registers no row", async () => {
+        const annotations = [
+            {
+                references: {evaluator: {slug: "tone"}},
+                origin: "human",
+                data: {outputs: {metrics: {polite: true}}},
+            },
+        ]
+        await render(<TraceSidePanel activeTrace={span({annotations}) as never} />)
+        const section = host.querySelector('[data-testid="trace-annotations"]')
+        expect(section?.textContent).toContain("tone")
+        expect(section?.textContent).toContain("polite")
+    })
+})
+
+describe("span metrics grid", () => {
+    it("shows Running, a running latency and no end for a span with no end time", async () => {
+        await render(<SpanMetricsGrid span={span({end_time: null})} />)
+        const text = host.textContent ?? ""
+        expect(text).toContain("Running")
+        expect(text).toContain("running")
+        expect(text).not.toContain("End")
+    })
+
+    it("shows the status message under Error", async () => {
+        await render(
+            <SpanMetricsGrid
+                span={span({
+                    status_code: "STATUS_CODE_ERROR",
+                    status_message: "Tool call rejected",
+                })}
+            />,
+        )
+        const text = host.textContent ?? ""
+        expect(text).toContain("ErrorTool call rejected")
+    })
+
+    it("draws no cost or tokens cell, and no dash, for a span without them", async () => {
+        await render(<SpanMetricsGrid span={span()} />)
+        const text = host.textContent ?? ""
+        expect(text).not.toContain("Cost")
+        expect(text).not.toContain("Tokens")
+    })
+
+    it("shows the tokens and the cost when present", async () => {
+        await render(
+            <SpanMetricsGrid
+                span={span({
+                    attributes: {
+                        ag: {
+                            metrics: {
+                                duration: {cumulative: 2000},
+                                tokens: {incremental: {total: 1234, prompt: 1000, completion: 234}},
+                                costs: {incremental: {total: 0.0421}},
+                            },
+                        },
+                    },
+                })}
+            />,
+        )
+        const text = host.textContent ?? ""
+        expect(text).toContain("Tokens1.2K")
+        expect(text).toContain("$0.0421")
+    })
+
+    it("shows a cache token breakdown with the shared breakdown list", async () => {
+        await render(
+            <SpanMetricsGrid
+                span={span({
+                    attributes: {
+                        ag: {
+                            metrics: {
+                                duration: {cumulative: 2000},
+                                tokens: {
+                                    incremental: {
+                                        total: 1400,
+                                        prompt: 1200,
+                                        completion: 200,
+                                        cache_read: 1000,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                })}
+            />,
+        )
+        const text = host.textContent ?? ""
+        expect(text).toContain("Cache read")
+        expect(text).toContain("Output")
+    })
+})

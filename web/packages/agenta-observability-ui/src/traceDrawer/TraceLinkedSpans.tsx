@@ -39,36 +39,31 @@ const TraceLinkedSpans = () => {
         return Array.from(unique.values())
     }, [linksAndReferences?.links])
 
-    if (!validLinks.length) {
-        return (
-            <span className="text-muted-foreground">
-                {t("observabilityUi.traceDrawer.noLinkedSpans")}
-            </span>
-        )
-    }
+    // A span with no links has no Linked spans section.
+    if (!validLinks.length) return null
 
     return (
-        <section className="flex flex-col gap-2">
-            {validLinks.length ? (
-                <div className="flex flex-col gap-2">
-                    {validLinks.map((link) => {
-                        return (
-                            <Tag
-                                key={`${link.trace_id}-${link.span_id}-${link.key || ""}`}
-                                className="cursor-pointer self-start bg-secondary flex gap-1 items-center"
-                                onClick={() => handleNavigate(link)}
-                                icon={<TreeStructureIcon size={14} />}
-                                // `trace` is not declared on the link type; the read is kept
-                                // (it falls through to `key`) but no longer switches off checking.
-                                label={
-                                    (link as {trace?: {span_name?: string}[]})?.trace?.[0]
-                                        ?.span_name || link?.key
-                                }
-                            />
-                        )
-                    })}
-                </div>
-            ) : null}
+        <section className="flex flex-col gap-2" data-testid="trace-linked-spans">
+            <h3 className="m-0 text-label">
+                {t("observabilityUi.traceDrawer.linkedSpansSection")}
+            </h3>
+            <div className="flex flex-col gap-2">
+                {validLinks.map((link) => (
+                    <Tag
+                        key={`${link.trace_id}-${link.span_id}-${link.key || ""}`}
+                        className="cursor-pointer self-start bg-secondary flex gap-1 items-center"
+                        onClick={() => handleNavigate(link)}
+                        icon={<TreeStructureIcon size={14} />}
+                        // `trace` is not declared on the link type. A link with no name and
+                        // no key (an OpenTelemetry link to another trace) shows its span id.
+                        label={
+                            (link as {trace?: {span_name?: string}[]})?.trace?.[0]?.span_name ||
+                            link?.key ||
+                            link.span_id
+                        }
+                    />
+                ))}
+            </div>
         </section>
     )
 }

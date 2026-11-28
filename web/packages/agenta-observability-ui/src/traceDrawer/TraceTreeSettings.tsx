@@ -36,6 +36,7 @@ const TraceTreeSettings = ({
     settings,
     setSettings,
     showVisibility = false,
+    turnCount,
 }: TraceTreeSettingsProps) => {
     const t = useT(drawerCatalog)
     const handleSwitchChange = (key: (typeof DISPLAY_TOGGLES)[number]["key"], checked: boolean) => {
@@ -100,6 +101,33 @@ const TraceTreeSettings = ({
                             />
                         </div>
                     ))}
+                </>
+            )}
+
+            {turnCount !== undefined && (
+                <>
+                    <Divider className="my-1" />
+                    <div className="flex flex-col gap-0.5 px-3 py-1.5">
+                        <div className="flex items-center justify-between gap-3">
+                            <span className={clsx(turnCount < 2 && "text-muted-foreground")}>
+                                {t("observabilityUi.traceDrawer.groupTurns")}
+                            </span>
+                            <Switch
+                                size="sm"
+                                aria-label={t("observabilityUi.traceDrawer.groupTurns")}
+                                checked={turnCount >= 2 && Boolean(settings.groupTurns)}
+                                disabled={turnCount < 2}
+                                onCheckedChange={(checked) =>
+                                    setSettings((prev) => ({...prev, groupTurns: checked}))
+                                }
+                            />
+                        </div>
+                        <span className="text-meta text-muted-foreground">
+                            {turnCount < 2
+                                ? t("observabilityUi.traceDrawer.groupTurnsOneTurn")
+                                : t("observabilityUi.traceDrawer.groupTurnsHint")}
+                        </span>
+                    </div>
                 </>
             )}
         </div>

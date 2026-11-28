@@ -4,6 +4,7 @@
  */
 import {act} from "react"
 
+import {summarizeEvaluatorResult} from "@agenta/entities/evaluationRun"
 import {bindTraceDrawerProjectURLAtom} from "@agenta/observability/traceDrawer"
 import {configureTraceDrawerReferences, TraceReferences} from "@agenta/observability-ui/traceDrawer"
 import {createStore, Provider} from "jotai"
@@ -14,18 +15,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const fixture = vi.hoisted(() => ({
     developerMode: true,
     lookupFails: false,
-    references: [] as Record<string, unknown>[],
 }))
-
-// The references a trace carries; the drawer reads them from the open trace.
-vi.mock("@agenta/observability/traceDrawer", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("@agenta/observability/traceDrawer")>()
-    const {atom} = await import("jotai")
-    return {
-        ...actual,
-        linksAndReferencesAtom: atom(() => ({links: [], references: fixture.references})),
-    }
-})
 
 vi.mock("@agenta/shared/state", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/shared/state")>()
@@ -36,7 +26,8 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
         projectIdAtom: atom(() => "proj-1"),
     }
 })
-vi.mock("@agenta/entities/workflow", async () => {
+vi.mock("@agenta/entities/workflow", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@agenta/entities/workflow")>()
     const {atom} = await import("jotai")
     const workflows: Record<string, {name: string; slug: string}> = {
         "app-1": {name: "Capital finder", slug: "capital-finder"},
@@ -47,6 +38,7 @@ vi.mock("@agenta/entities/workflow", async () => {
     // The variant's own name, by revision id (the chips never name a variant from the revision).
     const variantNames: Record<string, string> = {"rev-1": "default"}
     return {
+        ...actual,
         workflowDetailQueryAtomFamily: (id: string | null) =>
             atom(() =>
                 fixture.lookupFails
@@ -54,7 +46,9 @@ vi.mock("@agenta/entities/workflow", async () => {
                     : {isPending: false, isError: false, data: id ? (workflows[id] ?? null) : null},
             ),
         workflowMolecule: {
+            ...actual.workflowMolecule,
             selectors: {
+                ...actual.workflowMolecule.selectors,
                 data: (id: string) => atom(revisions[id] ?? null),
                 query: () => atom({isPending: false, isError: false}),
                 variantLabel: (id: string) => atom(variantNames[id] ?? null),
@@ -67,6 +61,7 @@ vi.mock("@agenta/entities/testset", async () => {
     return {
         testsetQueryAtomFamily: () =>
             atom({isPending: false, isError: false, data: {id: "ts-1", name: "Capitals"}}),
+        // The link opens the latest saved revision when the trace names none.
         testsetMolecule: {
             latestRevision: {
                 request: atom(null, () => undefined),
@@ -77,11 +72,21 @@ vi.mock("@agenta/entities/testset", async () => {
         },
     }
 })
-vi.mock("@agenta/entities/testcase", async () => {
+// A test case knows its test set: the evaluation trace names only the test case.
+vi.mock("@agenta/entities/testcase", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@agenta/entities/testcase")>()
     const {atom} = await import("jotai")
-    return {testcaseMolecule: {query: () => atom({isPending: false, data: null})}}
+    return {
+        ...actual,
+        testcaseMolecule: {
+            ...actual.testcaseMolecule,
+            query: (id: string) =>
+                atom({isPending: false, isError: false, data: id ? {testset_id: "ts-1"} : null}),
+        },
+    }
 })
 
+import {TraceAnnotationResultRow} from "@/features/observability/TraceAnnotationResultRow"
 import {traceDrawerProjectURLSourceAtom} from "@/features/observability/traceDrawerProjectURL"
 import {TraceReferenceLabel} from "@/features/observability/TraceReferenceLabel"
 
@@ -97,7 +102,6 @@ const link = () => host.querySelector("a")
 beforeEach(() => {
     fixture.developerMode = true
     fixture.lookupFails = false
-    fixture.references = []
     window.history.replaceState(null, "", "/m/w/ws-1/p/proj-1/observability")
     store = createStore()
     store.set(bindTraceDrawerProjectURLAtom, traceDrawerProjectURLSourceAtom)
@@ -132,7 +136,7 @@ describe("trace drawer references on /m", () => {
         )
     })
 
-    it("A playground run's trace links its app and its variant revision, as on /w", async () => {
+    it("A playground run's trace shows one application chip for its variant revision", async () => {
         configureTraceDrawerReferences({
             ApplicationReferenceLabel: (props) => (
                 <TraceReferenceLabel kind="ApplicationReferenceLabel" {...props} />
@@ -142,27 +146,26 @@ describe("trace drawer references on /m", () => {
             ),
         })
         // The references a playground run sends with its request.
-        fixture.references = [
-            {key: "application", id: "app-1"},
-            {key: "application_variant", id: "app-1-variant"},
-            {key: "application_revision", id: "rev-1", version: "3"},
+        const references = [
+            {id: "app-1", attributes: {key: "application"}},
+            {id: "app-1-variant", attributes: {key: "application_variant"}},
+            {id: "rev-1", version: "3", attributes: {key: "application_revision"}},
         ]
 
-        await render(<TraceReferences />)
+        await render(<TraceReferences span={{references} as never} />)
 
         const links = [...host.querySelectorAll("a")].map((anchor) => [
             anchor.textContent,
             anchor.getAttribute("href"),
         ])
+        // One chip per entity: the application, its variant and its version are one chip.
         expect(links).toEqual([
-            ["Capital finder", "/w/ws-1/p/proj-1/apps/app-1/overview"],
             [
-                expect.stringContaining("default"),
-                "/w/ws-1/p/proj-1/variants?app=app-1&revisionId=rev-1",
+                expect.stringContaining("Capital finder / default"),
+                "/w/ws-1/p/proj-1/apps/app-1/overview",
             ],
         ])
-        expect(host.textContent).toContain("Applications")
-        expect(host.textContent).toContain("Variants")
+        expect(host.textContent).toContain("v3")
     })
 
     it("A test set shows its name and opens its latest revision", async () => {
@@ -203,5 +206,64 @@ describe("trace drawer references on /m", () => {
         expect(host.textContent).toBe("capital-finder")
         expect(link()).toBeNull()
         expect(store.get(traceDrawerProjectURLSourceAtom)).toBe("")
+    })
+
+    it("An evaluation's app trace shows its application and its test case, from the test case", async () => {
+        configureTraceDrawerReferences({
+            ApplicationReferenceLabel: (props) => (
+                <TraceReferenceLabel kind="ApplicationReferenceLabel" {...props} />
+            ),
+            VariantReferenceLabel: (props) => (
+                <TraceReferenceLabel kind="VariantReferenceLabel" {...props} />
+            ),
+            TestsetTag: (props) => <TraceReferenceLabel kind="TestsetTag" {...props} />,
+        })
+        // The root span references of a recorded evaluation trace (ids shortened).
+        const references = [
+            {id: "app-1", attributes: {key: "application"}},
+            {id: "app-1-variant", attributes: {key: "application_variant"}},
+            {id: "rev-1", attributes: {key: "application_revision"}},
+            {id: "da65bedc-7feb", attributes: {key: "testcase"}},
+        ]
+
+        await render(<TraceReferences span={{references} as never} />)
+
+        const links = [...host.querySelectorAll("a")].map((anchor) => [
+            anchor.textContent,
+            anchor.getAttribute("href"),
+        ])
+        expect(links).toEqual([
+            [expect.stringContaining("Capital finder"), "/w/ws-1/p/proj-1/apps/app-1/overview"],
+            [
+                expect.stringContaining("Capitals / da65be"),
+                "/w/ws-1/p/proj-1/testsets/ts-rev-9?testcase_id=da65bedc-7feb",
+            ],
+        ])
+        expect(host.textContent).not.toContain("—")
+    })
+
+    it("A long evaluator name in the 340 px side panel keeps a title and lets its metrics wrap", async () => {
+        const name = "Bench check: ask-before-outside-effects"
+        await render(
+            <div style={{width: 340}}>
+                <TraceAnnotationResultRow
+                    evaluatorName={name}
+                    origin="custom"
+                    author={{userId: null, at: null}}
+                    summary={summarizeEvaluatorResult(
+                        [
+                            {name: "score", value: 0.95, kind: null},
+                            {name: "passed", value: true, kind: null},
+                        ],
+                        "done",
+                    )}
+                />
+            </div>,
+        )
+        const title = host.querySelector(`[title="${name}"]`)
+        expect(title?.textContent).toBe(name)
+        // The header wraps, so the metrics take a second line in a narrow column.
+        expect(title?.closest(".flex-wrap")).not.toBeNull()
+        expect(host.textContent).toContain("Custom")
     })
 })
