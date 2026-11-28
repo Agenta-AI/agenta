@@ -52,15 +52,21 @@ const isOnlineRun = (run: RunKindInput): boolean => {
 
 /**
  * Derive the kind of a run. Order: online (live flag or the online drawer
- * source), human (an annotation step with origin human), custom (a step with
- * origin or type custom), otherwise auto.
+ * source), human (an annotation step with origin human and no invocation step
+ * with origin auto), custom (a step with origin or type custom), otherwise auto.
  */
 export function deriveEvaluationKind(run: RunKindInput | null | undefined): EvaluationRunKind {
     if (!run) return "auto"
     if (isOnlineRun(run)) return "online"
 
     const steps = Array.isArray(run.data?.steps) ? run.data.steps : []
-    if (steps.some((step) => stepType(step) === "annotation" && stepOrigin(step) === "human")) {
+    // An automatic run stays automatic when a person adds a human evaluator: a run is human only
+    // when no app call of it runs on its own. A queue run has no invocation step and is human; an
+    // SDK run calls its app with origin `custom` and is human too when it has a human evaluator.
+    if (
+        steps.some((step) => stepType(step) === "annotation" && stepOrigin(step) === "human") &&
+        !steps.some((step) => stepType(step) === "invocation" && stepOrigin(step) === "auto")
+    ) {
         return "human"
     }
     if (

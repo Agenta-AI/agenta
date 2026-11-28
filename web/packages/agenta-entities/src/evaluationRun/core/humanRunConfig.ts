@@ -137,18 +137,65 @@ const buildMappings = ({
     })
 
     for (const evaluator of evaluators) {
-        for (const outputKey of evaluator.outputKeys) {
-            mappings.push({
-                column: {kind: "evaluator", name: `${evaluator.slug}.${outputKey}`},
-                step: {
-                    key: `${invocationKey}.${evaluator.slug}`,
-                    path: `data.outputs.${outputKey}`,
-                },
-            })
-        }
+        mappings.push(...humanAnnotationMappings(evaluator, invocationKey))
     }
 
     return mappings
+}
+
+/**
+ * The columns of one human evaluator: one mapping per output key, under its annotation step
+ * (`humanAnnotationStep`). The run's tables show only the values a mapping names.
+ */
+export function humanAnnotationMappings(
+    evaluator: Pick<HumanRunEvaluator, "slug" | "outputKeys">,
+    invocationKey: string,
+): HumanRunMapping[] {
+    return evaluator.outputKeys.map((outputKey) => ({
+        column: {kind: "evaluator", name: `${evaluator.slug}.${outputKey}`},
+        step: {key: `${invocationKey}.${evaluator.slug}`, path: `data.outputs.${outputKey}`},
+    }))
+}
+
+/**
+ * The evaluator slug of an annotation step: the evaluator's (or its variant's) slug, else the last
+ * part of the step key (`${invocationKey}.${slug}`). The annotation session's own reading
+ * (`annotationSessionController`) gives the same slug for the steps a run has.
+ */
+export function annotationStepSlug(step: {
+    key?: string | null
+    references?: Record<string, {slug?: string | null} | null | undefined> | null
+}): string | null {
+    return (
+        step.references?.evaluator?.slug ??
+        step.references?.evaluator_variant?.slug ??
+        step.key?.split(".").filter(Boolean).at(-1) ??
+        null
+    )
+}
+
+/**
+ * The annotation step of one human evaluator: key `${invocationKey}.${slug}`, origin `human`, the
+ * evaluator's references, and the run's input and invocation steps as its inputs. A human run
+ * gets one per evaluator; `POST /simple/evaluations/{id}/steps/add` takes it to add an evaluator
+ * to a run that exists.
+ */
+export function humanAnnotationStep(
+    evaluator: Pick<HumanRunEvaluator, "revisionId" | "workflowId" | "variantId" | "slug">,
+    inputKey: string,
+    invocationKey: string,
+): HumanRunStep {
+    return {
+        key: `${invocationKey}.${evaluator.slug}`,
+        type: "annotation",
+        origin: "human",
+        references: buildReferences([
+            ["evaluator", evaluator.workflowId],
+            ["evaluator_variant", evaluator.variantId],
+            ["evaluator_revision", evaluator.revisionId],
+        ]),
+        inputs: [{key: inputKey}, {key: invocationKey}],
+    }
 }
 
 /**
@@ -192,17 +239,9 @@ export function buildHumanRunConfig(input: BuildHumanRunConfigInput): {runs: [Hu
         ]),
         inputs: [{key: inputKey}],
     }
-    const annotationSteps: HumanRunStep[] = evaluators.map((evaluator) => ({
-        key: `${invocationKey}.${evaluator.slug}`,
-        type: "annotation",
-        origin: "human",
-        references: buildReferences([
-            ["evaluator", evaluator.workflowId],
-            ["evaluator_variant", evaluator.variantId],
-            ["evaluator_revision", evaluator.revisionId],
-        ]),
-        inputs: [{key: inputKey}, {key: invocationKey}],
-    }))
+    const annotationSteps = evaluators.map((evaluator) =>
+        humanAnnotationStep(evaluator, inputKey, invocationKey),
+    )
 
     return {
         runs: [

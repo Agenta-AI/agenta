@@ -23,6 +23,7 @@ export {
     stopOnlineEvaluation,
     type EvaluationRunActionParams,
 } from "./runActions"
+export {addRunSteps, openEvaluationRun} from "./runSteps"
 export {
     createAutoEvaluationRuns,
     createHumanEvaluationRun,

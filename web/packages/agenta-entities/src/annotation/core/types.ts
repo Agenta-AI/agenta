@@ -6,6 +6,10 @@
  * @packageDocumentation
  */
 
+import type {z} from "zod"
+
+import type {annotationMetaSchema} from "./schema"
+
 // ============================================================================
 // QUERY PARAMETERS
 // ============================================================================
@@ -30,6 +34,8 @@ export interface AnnotationQueryFilter {
         testset?: AnnotationQueryReference
         testcase?: AnnotationQueryReference
     }
+    /** Inbound links: annotations that link any of these spans (for example a judge's result). */
+    links?: {trace_id: string; span_id: string}[]
 }
 
 /**
@@ -63,6 +69,12 @@ export interface AnnotationDetailParams {
 // ============================================================================
 
 /**
+ * An annotation's free `meta`, as `annotationMetaSchema` reads it. `verdict` and `note` mark a
+ * person's review of an automatic evaluator's result ("agree" or "disagree", and why).
+ */
+export type AnnotationMetaPayload = z.infer<typeof annotationMetaSchema>
+
+/**
  * Payload for creating a new annotation.
  */
 export interface CreateAnnotationPayload {
@@ -74,6 +86,7 @@ export interface CreateAnnotationPayload {
         evaluator_variant?: {id?: string; slug?: string}
         evaluator_revision?: {id?: string; slug?: string; version?: string | number}
         testset?: {id?: string}
+        testset_revision?: {id?: string}
         testcase?: {id?: string}
     }
     /** Links to invocation traces (keyed by step key) */
@@ -85,7 +98,7 @@ export interface CreateAnnotationPayload {
     /** How the annotation was created */
     origin?: "custom" | "human" | "auto"
     /** Metadata */
-    meta?: {name?: string; description?: string; tags?: string[]}
+    meta?: AnnotationMetaPayload
 }
 
 /**
@@ -94,7 +107,7 @@ export interface CreateAnnotationPayload {
 export interface UpdateAnnotationPayload {
     annotation: {
         data: {outputs?: Record<string, unknown>}
-        meta?: {name?: string; description?: string; tags?: string[]}
+        meta?: AnnotationMetaPayload
         references?: {
             evaluator: {id?: string; slug?: string}
             evaluator_variant?: {id?: string; slug?: string}

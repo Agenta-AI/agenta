@@ -56,6 +56,8 @@ let host: HTMLDivElement
 let root: Root
 let counter = 0
 let state: ScenarioServerState
+/** Answers the requests of the run's reviews, when a test sets it. */
+let reviewAnswer: ((url: string, body: Record<string, unknown>) => unknown) | null = null
 
 const settle = (ms = 1000) =>
     act(async () => {
@@ -75,8 +77,9 @@ async function mount(
         addEventListener: () => undefined,
         removeEventListener: () => undefined,
     })) as unknown as typeof window.matchMedia
-    http.post.mockImplementation(async (url: string, body: Record<string, unknown>) =>
-        answerRequest(runId, state, url, body),
+    http.post.mockImplementation(
+        async (url: string, body: Record<string, unknown>) =>
+            reviewAnswer?.(url, body) ?? answerRequest(runId, state, url, body),
     )
     const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
     store.set(queryClientAtom, client)
@@ -208,6 +211,66 @@ afterEach(() => {
 })
 
 describe("scenarios table", () => {
+    it("A run with saved reviews of its evaluators has a Reviews count column", async () => {
+        reviewAnswer = (url, body) => {
+            if (
+                url.endsWith("/evaluations/results/query") &&
+                !(body.result as {scenario_ids?: unknown}).scenario_ids
+            ) {
+                return {
+                    data: {
+                        count: 2,
+                        results: ["sc-1", "sc-2"].map((id) => ({
+                            id: `r-${id}`,
+                            run_id: "run",
+                            scenario_id: id,
+                            step_key: "ev",
+                            trace_id: `${id}-ev`,
+                            span_id: `${id}-ev-span`,
+                        })),
+                    },
+                }
+            }
+            if (
+                url.endsWith("/simple/traces/query") &&
+                (body.trace as {links?: unknown[]})?.links?.length === 2
+            ) {
+                const review = (traceId: string, verdict: string) => ({
+                    trace_id: `rv-${traceId}-${verdict}`,
+                    span_id: "s",
+                    data: {outputs: {}},
+                    references: {evaluator: {id: "ev-1"}},
+                    links: {invocation: {trace_id: traceId, span_id: "x"}},
+                    meta: {verdict},
+                })
+                return {
+                    data: {
+                        count: 3,
+                        traces: [
+                            review("sc-1-ev", "agree"),
+                            review("sc-1-ev", "disagree"),
+                            review("sc-2-ev", "agree"),
+                        ],
+                    },
+                }
+            }
+            return undefined
+        }
+        await mount({ids: ["sc-1", "sc-2", "sc-3"]})
+        reviewAnswer = null
+        expect(headers()).toContain("Reviews")
+        const reviewsAt = headers()
+            .filter((text) => text !== "")
+            .indexOf("Reviews")
+        expect(reviewsAt).toBeGreaterThan(-1)
+        expect(rows()[0].textContent).toContain("2")
+    })
+
+    it("A run with no saved review has no Reviews column", async () => {
+        await mount({ids: ["sc-1"]})
+        expect(headers()).not.toContain("Reviews")
+    })
+
     it("Each row shows the cost, duration, tokens and errors of its app call", async () => {
         await mount({ids: ["sc-1"]})
         // The invocation metrics close the first header row; the evaluator's metric is below.

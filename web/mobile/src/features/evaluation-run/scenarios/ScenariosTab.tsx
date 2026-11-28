@@ -19,6 +19,7 @@ import {alignComparedRow} from "../compare/scenarios/alignComparedRow"
 import {CompareRowRun} from "../compare/scenarios/CompareRowRun"
 import {useComparedScenarios} from "../compare/scenarios/useComparedScenarios"
 import {rowNounKey} from "../focus/scenarioNoun"
+import {useRunReviews} from "../focus/useRunReviews"
 
 import {ScenarioAnnotateButton} from "./ScenarioAnnotateButton"
 import {ScenarioCard} from "./ScenarioCard"
@@ -115,6 +116,14 @@ export const ScenariosTab = ({
     const {rows, columnGroups} = scenarios
     const setFilter = useSetAtom(scenarioFilterAtomFamily(runId))
     const [view, updateView] = useScenarioView(runId)
+    const {reviews} = useRunReviews(runId)
+    const reviewCounts = useMemo(() => {
+        if (reviews.length === 0) return null
+        const counts = new Map<string, number>()
+        for (const {scenarioId} of reviews)
+            counts.set(scenarioId, (counts.get(scenarioId) ?? 0) + 1)
+        return counts
+    }, [reviews])
     const filter = useScenarioFilter({
         runId,
         schema: scenarios.schema,
@@ -427,6 +436,7 @@ export const ScenariosTab = ({
                         onOpen={openRow}
                         onAnnotate={onAnnotate}
                         onRetry={scenarios.retryValues}
+                        reviewCounts={reviewCounts}
                         onLoadMore={
                             scenarios.hasMore &&
                             !scenarios.isFetchingMore &&

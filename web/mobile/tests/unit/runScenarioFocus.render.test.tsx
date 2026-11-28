@@ -750,7 +750,8 @@ describe("scenario focus drawer", () => {
         expect(section("Evaluators").textContent?.toLowerCase()).not.toContain("aaa")
         const human = section("Human annotations")
         expect(human.textContent?.toLowerCase()).toContain("aaa")
-        expect(human.textContent).toContain("human evaluator")
+        expect(human.textContent).toContain("Not counted in Passed")
+        expect(human.textContent).toContain("Human")
         expect(human.textContent).toContain("True")
     })
 

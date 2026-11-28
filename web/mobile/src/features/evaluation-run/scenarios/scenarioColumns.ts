@@ -75,6 +75,8 @@ export interface ScenarioRowData {
 /** One step of a scenario (the app call, an evaluator, a trace the run read): its trace and cost. */
 export interface ScenarioStep {
     traceId: string | null
+    /** The span of the step's result in that trace: what a review of the result links to. */
+    spanId?: string | null
     /** The stats of the step's own call, by metric key ({@link STEP_METRICS}); null when absent. */
     metrics: Record<string, MetricStats | null>
     /**
@@ -249,6 +251,7 @@ export function buildScenarioRowData(
         if (!steps[key]?.traceId) {
             steps[key] = {
                 traceId,
+                spanId: resultOf(step.key)?.span_id ?? null,
                 metrics: Object.fromEntries(
                     STEP_METRICS.map(({metricKey}) => [
                         metricKey,

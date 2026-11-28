@@ -5,6 +5,7 @@ import type {EvaluationMetric, RunReferences} from "@agenta/entities/evaluationR
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import type {RunReview} from "@/features/evaluation-run/focus/useRunReviews"
 import {RunOverviewView} from "@/features/evaluation-run/overview/RunOverviewView"
 import type {
     OverviewMetric,
@@ -70,8 +71,10 @@ const view = ({
     scenarioMetrics = {status: "unavailable"},
     status = "success",
     kind = "auto",
+    reviews,
 }: {
     metrics: OverviewMetric[]
+    reviews?: RunReview[]
     stepKeys?: string[]
     scenarioMetrics?: ScenarioMetricsState
     status?: string
@@ -91,6 +94,7 @@ const view = ({
             variant: null,
         },
         scenarioMetrics,
+        reviews,
     })
 
 const tile = (id: string) => host.querySelector(`[data-testid="tile-${id}"]`)?.textContent
@@ -147,6 +151,25 @@ describe("run overview tiles", () => {
         expect(tile("passed")).toBe("Passed50%1 of 2 test cases3 of 4 assertions true")
         expect(tile("cost")).toBe("Cost$0.021per case, average")
         expect(tile("errors")).toBe("Errors2total")
+    })
+
+    it("Saved reviews add the Evaluator agreement tile; with none it is not shown", () => {
+        render(view({metrics: INVOCATION}))
+        expect(tile("agreement")).toBeUndefined()
+        const reviews: RunReview[] = [
+            ...Array.from({length: 18}, (_, index) => ({
+                scenarioId: `s${index}`,
+                judge: "short-to-read",
+                verdict: "agree" as const,
+            })),
+            ...Array.from({length: 4}, (_, index) => ({
+                scenarioId: `s${index}`,
+                judge: "low-effort",
+                verdict: "disagree" as const,
+            })),
+        ]
+        render(view({metrics: INVOCATION, reviews}))
+        expect(tile("agreement")).toBe("Evaluator agreement18 of 224 disagreements on low-effort")
     })
 
     it("A run with no binary metric has no Passed tile", () => {

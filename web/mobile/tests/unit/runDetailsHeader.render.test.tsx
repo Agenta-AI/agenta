@@ -337,8 +337,11 @@ describe("adding an evaluator to a run", () => {
 
     it("A human run offers human evaluators", async () => {
         serveRun({
+            // A human run's app step and evaluators have origin human.
             steps: STEPS.map((step) =>
-                step.type === "annotation" ? {...step, origin: "human"} : step,
+                step.type === "annotation" || step.type === "invocation"
+                    ? {...step, origin: "human"}
+                    : step,
             ),
         })
         await mount()

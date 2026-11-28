@@ -41,9 +41,10 @@ const makeRun = (id: string, steps: StepSpec[] = []) => ({
 })
 
 const autoRun = (id: string) => makeRun(id, [{type: "invocation", app: "app-1"}])
+// A human run's app step has origin human (an automatic run with a human evaluator stays auto).
 const humanRun = (id: string) =>
     makeRun(id, [
-        {type: "invocation", app: "app-1"},
+        {type: "invocation", origin: "human", app: "app-1"},
         {type: "annotation", origin: "human", evaluator: "ev-1"},
     ])
 

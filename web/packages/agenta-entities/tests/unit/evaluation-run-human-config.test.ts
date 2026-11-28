@@ -16,6 +16,7 @@ import {
     evaluationRunMolecule,
     evaluatorOutputKeys,
     fetchAllTestcaseIds,
+    humanAnnotationStep,
     type BuildHumanRunConfigInput,
     type HumanRunEvaluator,
 } from "../../src/evaluationRun"
@@ -47,6 +48,33 @@ const input = (overrides: Partial<BuildHumanRunConfigInput> = {}): BuildHumanRun
 })
 
 const specOf = (config: BuildHumanRunConfigInput = input()) => buildHumanRunConfig(config).runs[0]
+
+describe("humanAnnotationStep", () => {
+    it("Builds the human step a run gets for one evaluator", () => {
+        expect(humanAnnotationStep(evaluator(1), "bench-1", "app-1")).toEqual({
+            key: "app-1.quality-1",
+            type: "annotation",
+            origin: "human",
+            references: {
+                evaluator: {id: uuid(201)},
+                evaluator_variant: {id: uuid(301)},
+                evaluator_revision: {id: uuid(101)},
+            },
+            inputs: [{key: "bench-1"}, {key: "app-1"}],
+        })
+    })
+
+    it("Is the step a human run config holds", () => {
+        const config = input()
+        const steps = buildHumanRunConfig(config).runs[0].data.steps
+        const [inputStep, invocationStep] = steps
+        expect(steps.slice(2)).toEqual(
+            config.evaluators.map((item) =>
+                humanAnnotationStep(item, inputStep.key, invocationStep.key),
+            ),
+        )
+    })
+})
 
 describe("buildHumanRunConfig", () => {
     it("Each evaluator gets its own annotation step key from its slug", () => {

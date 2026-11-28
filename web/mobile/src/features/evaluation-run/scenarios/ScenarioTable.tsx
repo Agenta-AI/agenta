@@ -2,6 +2,7 @@ import type {CSSProperties, ReactNode} from "react"
 import {createContext, useCallback, useContext, useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
+import annotateCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocusAnnotate"
 import scenariosCatalog from "@agenta/i18n/catalogs/evaluations.scenarios"
 import {ValueCell} from "@agenta/ui/cell-renderers"
 import {VirtualTable, type ColumnDefs, type VirtualTableProps} from "@agenta/ui/table"
@@ -41,6 +42,8 @@ const HEADER_STYLE: CSSProperties = {padding: 0, backgroundImage: "none", vertic
 /** A hovered row: the hover fill over the opaque ground, so pinned cells stay opaque. */
 const ROW_HOVER = "group-hover/row:bg-[image:linear-gradient(var(--accent),var(--accent))]"
 const DIVIDER = "border-0 border-solid border-border-muted"
+/** The "Reviews" count column: a short number. */
+const REVIEWS_WIDTH = 96
 
 /**
  * What changes while the table is open (widths, sort), read by the headers, and the actions, read
@@ -176,6 +179,7 @@ export const ScenarioTable = ({
     onAnnotate,
     onRetry,
     onLoadMore,
+    reviewCounts = null,
 }: {
     entries: ScenarioEntry[]
     label: ScenarioFieldColumn | null
@@ -200,8 +204,10 @@ export const ScenarioTable = ({
     onRetry: () => void
     /** Loads the next page when the body scrolls near its end; absent when none is left. */
     onLoadMore?: () => void
+    /** Saved reviews of the run's evaluators by scenario id; null when nobody reviewed one. */
+    reviewCounts?: ReadonlyMap<string, number> | null
 }) => {
-    const t = useT(scenariosCatalog)
+    const t = useT(scenariosCatalog, annotateCatalog)
     const {density, rowHeight} = view
     // A saved or dragged label width above the cap is drawn at the cap.
     const widths = useMemo(() => {
@@ -454,6 +460,28 @@ export const ScenarioTable = ({
                 }),
             })
         }
+        if (reviewCounts) {
+            const name = t("evaluations.scenarioFocusAnnotate.reviews")
+            defs.push({
+                key: "reviews",
+                width: REVIEWS_WIDTH,
+                minWidth: 32,
+                title: leadTitle(name),
+                onHeaderCell: () => ({style: HEADER_STYLE, className: `${DIVIDER} border-l`}),
+                onCell: () => ({style: NO_PADDING, className: ROW_HOVER}),
+                render: (_: unknown, entry: ScenarioEntry) => (
+                    <div className={clsx(cellBox(false), "justify-end")}>
+                        {entry.row && entry.slot === 0 ? (
+                            <ValueCell
+                                value={reviewCounts.get(entry.row.scenario.id)}
+                                metricKind="numeric"
+                                density={density}
+                            />
+                        ) : null}
+                    </div>
+                ),
+            })
+        }
         for (const column of metrics) {
             const width = defaultColumnWidth(column, density)
             defs.push(
@@ -482,6 +510,7 @@ export const ScenarioTable = ({
         label,
         lines,
         metrics,
+        reviewCounts,
         traceColumns,
         showWords,
         t,
