@@ -10,7 +10,7 @@ import {
     type TracesResponse,
 } from "@agenta/entities/trace"
 import {useT} from "@agenta/i18n"
-import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {getSpanDisplayOutputs, type TraceSpanNode} from "@agenta/observability"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
@@ -38,7 +38,7 @@ export const traceTurnActivity = (trace: TracesApiResponse | null | undefined) =
  * the tool steps of each turn, read from the trace's child spans).
  */
 export const TraceScenarioContent = ({traceId}: {traceId: string}) => {
-    const t = useT(queueScreensCatalog)
+    const t = useT(commonCatalog)
     const traceQuery = useAtomValue(traceEntityAtomFamily(traceId))
     const rootSpan = useAtomValue(traceRootSpanAtomFamily(traceId))
     const turns = useMemo(() => traceTurnActivity(traceQuery.data), [traceQuery.data])
@@ -58,7 +58,7 @@ export const TraceScenarioContent = ({traceId}: {traceId: string}) => {
             <LoadError
                 title="Failed to load trace data"
                 description={null}
-                retryLabel={t("annotation.queueScreens.retry")}
+                retryLabel={t("common.retry")}
                 onRetry={() => void traceQuery.refetch()}
             />
         )

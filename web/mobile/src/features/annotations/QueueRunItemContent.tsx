@@ -9,8 +9,10 @@ import {
 import {traceEntityAtomFamily, traceRootSpanAtomFamily} from "@agenta/entities/trace"
 import {useT} from "@agenta/i18n"
 import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {getSpanDisplayOutputs, type TraceSpanNode} from "@agenta/observability"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -19,18 +21,25 @@ import {useExpectedColumn} from "@/features/evaluation-run/focus/useExpectedColu
 import {InputsSection, OutputSection} from "./QueueValueSections"
 import {ScenarioMessage} from "./ScenarioMessage"
 import {traceTurnActivity} from "./TraceScenarioContent"
-import {useScenarioInvocation, type ScenarioInvocationState} from "./useScenarioInvocation"
-
-const FAILED = new Set(["failure", "failed", "error", "errors"])
+import {
+    isFailedInvocationStatus,
+    useScenarioInvocation,
+    type ScenarioInvocationState,
+} from "./useScenarioInvocation"
 
 const errorText = (result: EvaluationResult | undefined): string | null => {
-    if (!result || !FAILED.has(result.status?.toLowerCase() ?? "")) return null
+    if (!result || !isFailedInvocationStatus(result.status)) return null
     const text = result.error?.message
     return typeof text === "string" && text ? text : (result.status ?? null)
 }
 
 export interface QueueRunItem {
     runId: string
+    /** The scenario's step results have loaded; until then nothing can tell output from none. */
+    ready: boolean
+    /** The step results failed to load. */
+    loadFailed: boolean
+    retry: () => void
     /** The result of the scenario's app call (the run's invocation step). */
     invocationResult: EvaluationResult | undefined
     invocation: ScenarioInvocationState
@@ -51,20 +60,34 @@ export const useQueueRunItem = (scenarioId: string): QueueRunItem | null => {
                 step.type === "input" &&
                 Object.keys(step.references ?? {}).some((key) => key.startsWith("testset")),
         )
-    const results = useAtomValue(
+    const resultsQuery = useAtomValue(
         evaluationRunMolecule.selectors.scenarioSteps({
             runId: isRunItem ? runId : "",
             scenarioId,
         }),
-    ).data
-    const invocationResult = results?.find((result) => result.step_key === invocationStep?.key)
+    )
+    const ready = resultsQuery.isSuccess
+    const invocationResult = resultsQuery.data?.find(
+        (result) => result.step_key === invocationStep?.key,
+    )
+    // An unknown result is not a missing output: Run waits for the results, or it could call
+    // the app again over an output that exists.
     const invocation = useScenarioInvocation(
         runId,
-        isRunItem && scenarioId
+        isRunItem && scenarioId && ready
             ? {id: scenarioId, invocationStatus: invocationResult?.status}
             : null,
     )
-    return isRunItem ? {runId, invocationResult, invocation} : null
+    return isRunItem
+        ? {
+              runId,
+              ready,
+              loadFailed: resultsQuery.isError,
+              retry: () => void resultsQuery.refetch(),
+              invocationResult,
+              invocation,
+          }
+        : null
 }
 
 /**
@@ -79,6 +102,7 @@ export const QueueRunItemContent = ({
     runItem: QueueRunItem
 }) => {
     const t = useT(queueScreensCatalog)
+    const tCommon = useT(commonCatalog)
     const {testcaseId} = useAtomValue(
         annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
     )
@@ -120,7 +144,16 @@ export const QueueRunItemContent = ({
             ) : (
                 <ScenarioMessage title={t("annotation.queueScreens.testcaseUnavailable")} />
             )}
-            {error ? (
+            {runItem.loadFailed ? (
+                <LoadError
+                    title="Failed to load trace data"
+                    description={null}
+                    retryLabel={tCommon("common.retry")}
+                    onRetry={runItem.retry}
+                />
+            ) : !runItem.ready ? (
+                <SkeletonBlock className="h-24" />
+            ) : error ? (
                 <OutputSection value={null} error={error} onOpenTrace={openTrace} />
             ) : rootSpan ? (
                 <OutputSection

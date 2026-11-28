@@ -45,7 +45,6 @@
     "numberRange": "Introduzca un número entre {{min}} y {{max}}.",
     "readOnly": "Puede ver esta cola. No puede anotarla.",
     "openConfiguration": "Abrir configuración",
-    "retry": "Reintentar",
     "clearValue": "Borrar valor",
     "copyRaw": "Sin formato",
     "copyParsed": "Copiar como JSON"

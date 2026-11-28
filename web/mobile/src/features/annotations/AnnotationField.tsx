@@ -14,7 +14,7 @@ import {
 
 import {AnnotationFieldLabel} from "./AnnotationFieldLabel"
 import {AnnotationMultiSelect} from "./AnnotationMultiSelect"
-import {AnnotationNumberField} from "./AnnotationNumberField"
+import {AnnotationNumberField, numberStep} from "./AnnotationNumberField"
 import {readStoredSize, writeStoredSize} from "./queueViewStorage"
 import {focusNextField, optionIndexForKey, type FieldKeyKind} from "./useFieldFocus"
 
@@ -201,7 +201,7 @@ export const AnnotationField = ({
             <FieldFrame
                 fieldKeys={fieldKeys}
                 kind={ranged ? "slider" : "other"}
-                step={isInteger ? 1 : 0.1}
+                step={numberStep(isInteger)}
                 frameRef={frameRef}
             >
                 <AnnotationNumberField

@@ -39,7 +39,6 @@
     "numberRange": "请输入 {{min}} 到 {{max}} 之间的数字。",
     "readOnly": "你可以查看此队列，但不能标注。",
     "openConfiguration": "打开配置",
-    "retry": "重试",
     "clearValue": "清除值",
     "copyRaw": "原始",
     "copyParsed": "复制为 JSON"

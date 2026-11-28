@@ -9,6 +9,9 @@ import {AnnotationFieldLabel} from "./AnnotationFieldLabel"
 /** Keys that move a slider toward its minimum. */
 const MINIMUM_KEYS = new Set(["Home", "ArrowLeft", "ArrowDown", "PageDown"])
 
+/** How far an arrow key or a slider step moves a number: 1 for an integer, else 0.1. */
+export const numberStep = (isInteger: boolean) => (isInteger ? 1 : 0.1)
+
 /**
  * A number metric. With both bounds it is a small input beside the label, a slider below, and
  * "Min N" and "Max N" under the slider; an empty value leaves the slider without a thumb, so an
@@ -33,7 +36,7 @@ export const AnnotationNumberField = ({
 }) => {
     const t = useT(queueScreensCatalog)
     const id = useId()
-    const step = isInteger ? 1 : 0.1
+    const step = numberStep(isInteger)
     const shown = value !== null && isInteger ? Math.round(value) : value
     const emit = (next: number | null) =>
         onChange(next === null ? null : isInteger ? Math.round(next) : next)

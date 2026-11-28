@@ -39,7 +39,6 @@
     "numberRange": "{{min}} から {{max}} までの数値を入力してください。",
     "readOnly": "このキューは閲覧できますが、注釈は付けられません。",
     "openConfiguration": "設定を開く",
-    "retry": "再試行",
     "clearValue": "値をクリア",
     "copyRaw": "Raw",
     "copyParsed": "JSON としてコピー"

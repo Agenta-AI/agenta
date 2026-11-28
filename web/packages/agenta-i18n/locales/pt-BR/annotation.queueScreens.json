@@ -45,7 +45,6 @@
     "numberRange": "Digite um número entre {{min}} e {{max}}.",
     "readOnly": "Você pode ver esta fila. Você não pode anotá-la.",
     "openConfiguration": "Abrir configuração",
-    "retry": "Tentar novamente",
     "clearValue": "Limpar valor",
     "copyRaw": "Bruto",
     "copyParsed": "Copiar como JSON"

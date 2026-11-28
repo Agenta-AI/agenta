@@ -222,6 +222,11 @@ describe("an annotation field", () => {
         expect(host.querySelector("[data-testid=select]")).toBeNull()
         const radios = Array.from(host.querySelectorAll("[role=radio]")).map((r) => r.textContent)
         expect(radios).toEqual(["correct", "wrong", "none of the above"])
+        // Nothing picked: the first option is still the Tab stop.
+        const tabStops = Array.from(host.querySelectorAll<HTMLElement>("[role=radio]")).map(
+            (radio) => radio.tabIndex,
+        )
+        expect(tabStops).toEqual([0, -1, -1])
         await act(async () => button("wrong").click())
         expect(onChange).toHaveBeenLastCalledWith("wrong")
         await act(async () => button("none of the above").click())

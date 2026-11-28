@@ -45,7 +45,6 @@
     "numberRange": "Saisissez un nombre entre {{min}} et {{max}}.",
     "readOnly": "Vous pouvez voir cette file d’attente. Vous ne pouvez pas l’annoter.",
     "openConfiguration": "Ouvrir la configuration",
-    "retry": "Réessayer",
     "clearValue": "Effacer la valeur",
     "copyRaw": "Brut",
     "copyParsed": "Copier en JSON"

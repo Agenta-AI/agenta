@@ -82,7 +82,11 @@ vi.mock("@agenta/entities/evaluationRun", async (importOriginal) => {
     const {atom} = await import("jotai")
     // One atom each, as the real families give: a new atom per render would render forever.
     const run = atom<{data: unknown}>({data: null})
-    const steps = atom<{data: unknown[]}>({data: []})
+    const steps = atom<{data: unknown[]; isSuccess: boolean; isError: boolean}>({
+        data: [],
+        isSuccess: true,
+        isError: false,
+    })
     return {
         ...(await importOriginal<typeof import("@agenta/entities/evaluationRun")>()),
         evaluationRunQueryAtomFamily: () => run,
@@ -116,7 +120,8 @@ vi.mock("@/features/evaluation-run/focus/useRunAnnotationSession", () => ({
 vi.mock("@/features/evaluation-run/focus/useExpectedColumn", () => ({
     useExpectedColumn: () => "correct_answer",
 }))
-vi.mock("@/features/annotations/useScenarioInvocation", () => ({
+vi.mock("@/features/annotations/useScenarioInvocation", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/features/annotations/useScenarioInvocation")>()),
     useScenarioInvocation: (_runId: string, scenario: unknown) => ({
         pending: Boolean(scenario) && fixture.invocationPending,
         running: false,
@@ -151,7 +156,7 @@ const setRun = (run: unknown) =>
 const setStepResults = (results: unknown[]) =>
     fakeStore.set(
         evaluationRunMolecule.selectors.scenarioSteps({runId: "", scenarioId: ""}) as never,
-        {data: results} as never,
+        {data: results, isSuccess: true, isError: false} as never,
     )
 
 const render = async (props: {canEditQueue?: boolean; onOpenConfiguration?: () => void} = {}) => {
@@ -413,6 +418,21 @@ describe("the queue's Annotate tab", () => {
             expect(button("Mark completed and next")).toBeUndefined()
             await press(document.body, {key: "Enter", metaKey: true})
             expect(fixture.runApp).toHaveBeenCalledTimes(1)
+        })
+
+        it("waits for the step results before it offers Run, and offers Retry when they fail", async () => {
+            fixture.invocationPending = true
+            fakeStore.set(
+                evaluationRunMolecule.selectors.scenarioSteps({runId: "", scenarioId: ""}) as never,
+                {data: undefined, isSuccess: false, isError: true, refetch: vi.fn()} as never,
+            )
+            await render()
+            expect(host.textContent).not.toContain("Generate output to annotate")
+            expect(button("Mark completed and next")).toBeUndefined()
+            expect(host.textContent).toContain("Failed to load trace data")
+            expect(button("Retry")).toBeDefined()
+            await press(document.body, {key: "Enter", metaKey: true})
+            expect(fixture.runApp).not.toHaveBeenCalled()
         })
 
         it("with a failed app call reads Error: MESSAGE with Open trace", async () => {

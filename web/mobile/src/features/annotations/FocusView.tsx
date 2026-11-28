@@ -6,7 +6,15 @@ import {useT} from "@agenta/i18n"
 import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {Button, LoadingButton, Sheet, SheetContent, SheetTitle, SplitPane} from "@agenta/ui/ui"
+import {
+    Button,
+    LoadingButton,
+    Sheet,
+    SheetContent,
+    SheetTitle,
+    SkeletonBlock,
+    SplitPane,
+} from "@agenta/ui/ui"
 import {CheckCircle, LockSimple, Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -117,8 +125,9 @@ export const FocusView = ({
     const submission = useSubmitAnnotations(scenarioId, {queueId}, onSaved)
     const runItem = useQueueRunItem(scenarioId)
     // A run's item has no output until someone runs the app: the form waits for it.
-    const awaitingOutput = Boolean(runItem?.invocation.pending)
-    const runsApp = awaitingOutput && Boolean(runItem?.invocation.canRun) && canAnnotate
+    const resultsUnknown = Boolean(runItem && !runItem.ready)
+    const awaitingOutput = resultsUnknown || Boolean(runItem?.invocation.pending)
+    const runsApp = Boolean(runItem?.invocation.pending && runItem.invocation.canRun) && canAnnotate
     const fieldFocus = useFieldFocus(scenarioId, canAnnotate && !awaitingOutput)
 
     useAnnotationKeyboardShortcuts({
@@ -156,6 +165,7 @@ export const FocusView = ({
                             isTraces={isTraces}
                             traceId={traceRef.traceId}
                             testcaseId={testcaseRef.testcaseId}
+                            runItem={runItem}
                         />
                     </ValueViewProvider>
                 </div>
@@ -173,7 +183,14 @@ export const FocusView = ({
             <h2 className="m-0 border-0 border-b border-solid border-border px-4 py-3 text-label">
                 Annotations
             </h2>
-            {runsApp && runItem ? (
+            {resultsUnknown ? (
+                runItem?.loadFailed ? null : (
+                    <div className="flex flex-col gap-3 p-4" role="status">
+                        <SkeletonBlock className="h-8" />
+                        <SkeletonBlock className="h-8" />
+                    </div>
+                )
+            ) : runsApp && runItem ? (
                 <RunInvocationPanel invocation={runItem.invocation} />
             ) : (
                 <ScenarioMessage title="Run the invocation to generate output before annotating." />

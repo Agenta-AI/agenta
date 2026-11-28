@@ -42,7 +42,6 @@
     "numberRange": "Geben Sie eine Zahl zwischen {{min}} und {{max}} ein.",
     "readOnly": "Sie können diese Warteschlange ansehen, aber nicht annotieren.",
     "openConfiguration": "Konfiguration öffnen",
-    "retry": "Erneut versuchen",
     "clearValue": "Wert löschen",
     "copyRaw": "Roh",
     "copyParsed": "Als JSON kopieren"

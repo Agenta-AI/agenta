@@ -42,7 +42,6 @@
     "numberRange": "Enter a number between {{min}} and {{max}}.",
     "readOnly": "You can view this queue. You cannot annotate it.",
     "openConfiguration": "Open Configuration",
-    "retry": "Retry",
     "clearValue": "Clear value",
     "copyRaw": "Raw",
     "copyParsed": "Copy as JSON"

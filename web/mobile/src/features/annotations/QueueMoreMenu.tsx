@@ -1,6 +1,7 @@
 import {annotationSessionController, getAddToTestsetDisabledReason} from "@agenta/annotation"
 import {useT} from "@agenta/i18n"
 import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
+import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import {message} from "@agenta/ui/app-message"
 import {
     Button,
@@ -24,7 +25,7 @@ export const QueueMoreMenu = ({
     scenarioId: string
     submission: {isCompleted: boolean; isSubmitting: boolean; hasPendingChanges: boolean}
 }) => {
-    const t = useT(queueScreensCatalog)
+    const t = useT(queueScreensCatalog, valueViewCatalog)
     const {traceId} = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(scenarioId),
     )
@@ -37,7 +38,7 @@ export const QueueMoreMenu = ({
     const copyId = testcaseId || traceId
     const copy = () =>
         void copyToClipboard(copyId).then((copied) => {
-            if (copied) message.success("Copied")
+            if (copied) message.success(t("chat.valueView.copied"))
         })
 
     return (

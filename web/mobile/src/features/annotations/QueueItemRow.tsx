@@ -20,6 +20,7 @@ import {useAtomValue} from "jotai"
 
 import {RUN_STATUS_DOT_COLOR} from "@/features/evaluations/list/runStatusDotColor"
 
+import {useInView} from "./useInView"
 import {firstTestcaseInput} from "./useScenarioRows"
 
 /**
@@ -93,14 +94,18 @@ export const QueueItemRow = ({
     const {testcaseId} = useAtomValue(
         annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
     )
-    const testcaseText = useTestcaseText(testcaseId)
-    const traceText = useTraceText(testcaseId ? "" : traceId)
+    // A row reads its trace or test case only once it nears the viewport: a long queue does not
+    // load every item to draw one line each.
+    const {ref, inView} = useInView<HTMLButtonElement>()
+    const testcaseText = useTestcaseText(inView ? testcaseId : "")
+    const traceText = useTraceText(inView && !testcaseId ? traceId : "")
     const text = oneLine((testcaseId ? testcaseText : traceText) ?? "") || "—"
     const shortId = truncateScenarioId(testcaseId || traceId || scenarioId)
     const age = createdAt ? timeAgo(Date.parse(createdAt)) : ""
 
     return (
         <button
+            ref={ref}
             type="button"
             aria-current={selected ? "true" : undefined}
             onClick={onOpen}

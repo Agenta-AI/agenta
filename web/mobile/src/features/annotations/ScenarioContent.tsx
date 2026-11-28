@@ -1,9 +1,9 @@
-import {QueueRunItemContent, useQueueRunItem} from "./QueueRunItemContent"
+import {QueueRunItemContent, useQueueRunItem, type QueueRunItem} from "./QueueRunItemContent"
 import {ScenarioMessage} from "./ScenarioMessage"
 import {TestcaseScenarioContent} from "./TestcaseScenarioContent"
 import {TraceScenarioContent} from "./TraceScenarioContent"
 
-/** A test case item, or a run's item with its app output. */
+/** A test case item, or a run's item with its app output (for a host that did not read it). */
 const TestcaseOrRunItem = ({scenarioId, testcaseId}: {scenarioId: string; testcaseId: string}) => {
     const runItem = useQueueRunItem(scenarioId)
     if (runItem) return <QueueRunItemContent scenarioId={scenarioId} runItem={runItem} />
@@ -21,12 +21,15 @@ export const ScenarioContent = ({
     isTraces,
     traceId,
     testcaseId,
+    runItem,
 }: {
     scenarioId: string
     hasScenario: boolean
     isTraces: boolean
     traceId: string
     testcaseId: string
+    /** The run item the host already read (`useQueueRunItem`); null for none, absent to read it. */
+    runItem?: QueueRunItem | null
 }) => {
     if (!hasScenario) return <ScenarioMessage title="No scenario selected" />
     if (isTraces) {
@@ -36,5 +39,7 @@ export const ScenarioContent = ({
             <ScenarioMessage title="Trace reference is not available yet" />
         )
     }
+    if (runItem) return <QueueRunItemContent scenarioId={scenarioId} runItem={runItem} />
+    if (runItem === null) return <TestcaseScenarioContent testcaseId={testcaseId} />
     return <TestcaseOrRunItem scenarioId={scenarioId} testcaseId={testcaseId} />
 }

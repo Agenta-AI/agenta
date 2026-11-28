@@ -19,6 +19,10 @@ const SUCCESS_STATUSES = new Set(["success", "succeeded", "completed", "done"])
 const IN_FLIGHT_STATUSES = new Set(["running", "in_progress"])
 const FAILED_STATUSES = new Set(["failure", "failed", "error", "errors"])
 
+/** True when a stored app call result failed. */
+export const isFailedInvocationStatus = (status: string | null | undefined) =>
+    FAILED_STATUSES.has(status?.toLowerCase() ?? "")
+
 /** Runs started from this screen, by `runId:scenarioId`; it outlives a move to another scenario. */
 const invocationRunsAtom = atom<Record<string, "running" | "failed">>({})
 
@@ -103,7 +107,7 @@ export function useScenarioInvocation(
     return {
         pending,
         running,
-        failed: runs[key] === "failed" || FAILED_STATUSES.has(status),
+        failed: runs[key] === "failed" || isFailedInvocationStatus(status),
         // A closed run refuses new results: the app would be called for nothing.
         canRun: canRun && !run?.flags?.is_closed,
         run: start,
