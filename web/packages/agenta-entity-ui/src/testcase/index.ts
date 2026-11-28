@@ -16,7 +16,15 @@ export type {
     TestcaseDataEditorProps,
     TestcaseDataEditorSurface,
 } from "./TestcaseDataEditor.types"
-export type {RootDrawerViewMode} from "./codeFormat"
+export {
+    codeErrorText,
+    codeParseError,
+    parseCodeString,
+    textMatchesValue,
+    toCodeString,
+} from "./codeFormat"
+export type {CodeFormat, CodeParseError, CodeProblem, RootDrawerViewMode} from "./codeFormat"
+export {inferPrimitiveFromText} from "./TestcasePrimitiveValue.utils"
 export {useTestcaseDrawerNavigation} from "./useTestcaseDrawerNavigation"
 export type {
     TestcaseDrawerNavigation,

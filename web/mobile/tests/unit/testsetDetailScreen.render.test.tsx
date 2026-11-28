@@ -25,6 +25,8 @@ const state = vi.hoisted(() => ({
     rowAdded: null as null | ((id: string) => void),
     query: {} as Record<string, string>,
     morePages: false,
+    drawerMounts: 0,
+    columns: [] as {key: string; parentKey?: string}[],
 }))
 
 vi.mock("next/router", () => ({
@@ -33,12 +35,19 @@ vi.mock("next/router", () => ({
         push: vi.fn(),
     }),
 }))
-vi.mock("next/dynamic", () => ({
-    default: () => (props: Record<string, unknown>) => {
-        state.drawer = props
-        return null
-    },
-}))
+vi.mock("next/dynamic", async () => {
+    const {useEffect} = await import("react")
+    return {
+        default: () =>
+            function Drawer(props: Record<string, unknown>) {
+                state.drawer = props
+                useEffect(() => {
+                    state.drawerMounts += 1
+                }, [])
+                return null
+            },
+    }
+})
 vi.mock("@/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => state.viewEnabled,
 }))
@@ -89,7 +98,7 @@ vi.mock("@agenta/entities/testcase", () => {
         {id: "case-2", key: "case-2"},
     ]
     const rows = atom(firstPage)
-    const columns = atom([{key: "question"}])
+    const columns = atom(() => state.columns)
     // A second page with one more test case, loaded on request while `state.morePages` is set.
     // As in the store, `hasMore` reads false while the page loads, and the rows come later.
     const loading = atom(false)
@@ -161,6 +170,8 @@ describe("Test set page", () => {
         state.rowAdded = null
         state.query = {}
         state.morePages = false
+        state.columns = [{key: "question"}]
+        state.drawerMounts = 0
         queryClient = new QueryClient()
         store = createStore()
         host = document.createElement("div")
@@ -282,6 +293,65 @@ describe("Test set page", () => {
         act(() => (state.drawer?.onClose as () => void)())
         act(() => state.openRow?.("case-1"))
         expect(state.drawer).toMatchObject({testcaseId: "case-1", discardOnCancel: false})
+    })
+
+    it("A column renamed from the drawer reaches the drawer's Cancel, and closing the drawer forgets it", async () => {
+        const renameColumn = vi.fn(async () => ({ok: true}))
+        state.editor = loadedEditor({renameColumn, columnEditBlocked: null})
+        render()
+        act(() => state.openRow?.("case-1"))
+        expect(state.drawer?.columnChanges).toEqual([])
+        const actions = (state.drawer?.columnActions as (key: string) => Record<string, unknown>)(
+            "question",
+        )
+        // A field with no column has no actions.
+        expect((state.drawer?.columnActions as (key: string) => unknown)("missing")).toBeNull()
+
+        act(() => (actions.onRename as () => void)())
+        const name = document.querySelector<HTMLInputElement>('[role="dialog"] input')
+        act(() => {
+            const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+            set?.call(name, "prompt")
+            name?.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await act(async () => {
+            ;[...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+                .find((button) => button.textContent === "Rename")
+                ?.click()
+        })
+
+        expect(renameColumn).toHaveBeenCalledWith("question", "prompt")
+        expect(state.drawer?.columnChanges).toEqual([
+            {add: [], remove: [], rename: [{oldKey: "question", newKey: "prompt"}]},
+        ])
+        expect(state.drawerMounts).toBe(1)
+
+        act(() => (state.drawer?.onClose as () => void)())
+        act(() => state.openRow?.("case-2"))
+        expect(state.drawer?.columnChanges).toEqual([])
+    })
+
+    it("Delete column on an object field deletes that field, not a column whose own key holds a dot", async () => {
+        const deleteColumns = vi.fn(async () => ({ok: true}))
+        state.editor = loadedEditor({deleteColumns, columnEditBlocked: null})
+        // `{"meta": {"lang": "en"}, "meta.lang": "fr"}`: the grid keeps one column per path, and
+        // the key that holds a dot is read last.
+        state.columns = [{key: "question"}, {key: "meta.lang"}]
+        render()
+        act(() => state.openRow?.("case-1"))
+        const actions = (state.drawer?.columnActions as (key: string) => Record<string, unknown>)(
+            "meta",
+        )
+        expect(actions.onRename).toBeUndefined()
+
+        act(() => (actions.onDelete as () => void)())
+        await act(async () => {
+            ;[...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+                .find((button) => button.textContent === "Delete")
+                ?.click()
+        })
+
+        expect(deleteColumns).toHaveBeenCalledWith(["meta"])
     })
 
     describe("an archived test set", () => {

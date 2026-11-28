@@ -5,6 +5,7 @@ import {
     testcaseDataController,
     type TestcaseTableRow,
 } from "@agenta/entities/testcase"
+import type {PendingColumnOps} from "@agenta/entities/testset"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -39,6 +40,9 @@ import {AppShell} from "../../nav/AppShell"
 import {PageBackBar} from "../../page-layout/PageBackBar"
 
 import {ArchivedTestsetNotice} from "./ArchivedTestsetNotice"
+import {ColumnDialog, type ColumnDialogStep} from "./ColumnDialogs"
+import {columnHeaderTarget} from "./columnHeaderTarget"
+import type {FieldColumnActions} from "./fields/FieldMenu"
 import {TestsetDetailSkeleton} from "./states/TestsetDetailSkeleton"
 import {TestsetGrid} from "./TestsetGrid"
 import {TestsetHeader} from "./TestsetHeader"
@@ -197,6 +201,75 @@ export const TestsetDetailScreen = ({
         rows,
     ])
 
+    // The drawer's field menu changes the column of a field with the grid's column steps and the
+    // grid's rule (`columnHeaderTarget`): a top-level column can be renamed and deleted; an
+    // object split into nested columns is a group, deleted by its own key.
+    const [fieldColumnStep, setFieldColumnStep] = useState<ColumnDialogStep | null>(null)
+    // A column change from the drawer reaches every row, so the drawer's Cancel keeps it.
+    const [drawerColumnChanges, setDrawerColumnChanges] = useState<PendingColumnOps[]>([])
+    useEffect(() => {
+        if (openRowId === null) setDrawerColumnChanges([])
+    }, [openRowId])
+    const fieldColumnActions = useCallback(
+        (key: string): FieldColumnActions | null => {
+            const blockedReason = editor.columnEditBlocked
+            const header = {key, label: key, title: key, groupPath: null}
+            const columnKeys = columnHeaderTarget({...header, isGroup: false}, columns)
+            if (columnKeys) {
+                return {
+                    blockedReason,
+                    onRename: () => setFieldColumnStep({kind: "rename", columnKey: key}),
+                    onDelete: () =>
+                        setFieldColumnStep({
+                            kind: "delete",
+                            columnKey: key,
+                            columnKeys,
+                            isGroup: false,
+                        }),
+                }
+            }
+            // An object field is a group in the grid. The drawer shows the row's own top-level
+            // keys, so the field is deleted by its key: a column whose own key holds a dot
+            // (`meta.lang` next to `meta`) is another field.
+            if (!columnHeaderTarget({...header, isGroup: true}, columns)) return null
+            return {
+                blockedReason,
+                onDelete: () =>
+                    setFieldColumnStep({
+                        kind: "delete",
+                        columnKey: key,
+                        columnKeys: [key],
+                        isGroup: true,
+                    }),
+            }
+        },
+        [columns, editor.columnEditBlocked],
+    )
+    const submitFieldColumnStep = useCallback(
+        async (name: string) => {
+            const step = fieldColumnStep
+            const result =
+                step?.kind === "rename"
+                    ? await editor.renameColumn(step.columnKey, name)
+                    : step?.kind === "delete"
+                      ? await editor.deleteColumns(step.columnKeys)
+                      : await editor.addColumn(name)
+            if (result.ok) {
+                const change: PendingColumnOps =
+                    step?.kind === "rename"
+                        ? {add: [], remove: [], rename: [{oldKey: step.columnKey, newKey: name}]}
+                        : step?.kind === "delete"
+                          ? {add: [], remove: step.columnKeys, rename: []}
+                          : {add: [name], remove: [], rename: []}
+                setDrawerColumnChanges((changes) => [...changes, change])
+            }
+            return result
+        },
+        [editor, fieldColumnStep],
+    )
+    const openAddColumn = useCallback(() => setFieldColumnStep({kind: "add"}), [])
+
+    const rowIds = useMemo(() => rows.map((row) => row.id), [rows])
     const navigation = useTestcaseDrawerNavigation({
         rows,
         getRowId: rowId,
@@ -380,8 +453,18 @@ export const TestsetDetailScreen = ({
                         setCommitOpen(true)
                     }}
                     discardOnCancel={openRowId !== null && openRowId === addedRowId}
+                    columnActions={fieldColumnActions}
+                    onAddColumn={editor.columnEditBlocked ? undefined : openAddColumn}
+                    columnChanges={drawerColumnChanges}
+                    rowIds={rowIds}
                 />
             ) : null}
+            <ColumnDialog
+                step={fieldColumnStep}
+                onClose={() => setFieldColumnStep(null)}
+                onSubmit={submitFieldColumnStep}
+                onDone={() => setFieldColumnStep(null)}
+            />
         </>
     )
 }

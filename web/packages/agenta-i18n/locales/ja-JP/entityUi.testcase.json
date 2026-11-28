@@ -26,5 +26,14 @@
     "root": "ルート",
     "unsavedChanges": "未保存の変更",
     "noTestcases": "テストケースが見つかりません",
-    "invalidCode": "無効な {{format}}: {{error}}。修正すると変更が適用されます。"
+    "codeError": "無効な {{format}}: {{line}} 行目で{{problem}}。修正するまで、フィールドは最後の有効な値を保持します。",
+    "codeErrorNoLine": "無効な {{format}}: {{problem}}。修正するまで、フィールドは最後の有効な値を保持します。",
+    "codeErrorTestcase": "無効な {{format}}: {{line}} 行目で{{problem}}。修正するまで、テストケースは最後の有効な値を保持します。",
+    "codeErrorTestcaseNoLine": "無効な {{format}}: {{problem}}。修正するまで、テストケースは最後の有効な値を保持します。",
+    "codeProblemMissingComma": "カンマがありません",
+    "codeProblemMissingQuote": "引用符がありません",
+    "codeProblemExtraComma": "余分なカンマがあります",
+    "codeProblemEndsEarly": "テキストが途中で終わっています",
+    "codeProblemOther": "テキストにエラーがあります",
+    "codeProblemNotObject": "テストケースはオブジェクトである必要があります"
 }

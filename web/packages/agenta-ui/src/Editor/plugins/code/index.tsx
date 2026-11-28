@@ -121,12 +121,14 @@ export function createHighlightedNodes(
     text: string,
     language: CodeLanguage,
     disableLongText?: boolean,
+    exactText?: boolean,
 ): CodeLineNode[] {
     // For JSON, avoid splitting on \n inside string values
     if (language === "json") {
         try {
             // Only parse and pretty-print if input is compact (no indentation)
             const isCompactJson =
+                !exactText &&
                 typeof text === "string" &&
                 (text.trim().startsWith("{") || text.trim().startsWith("[")) &&
                 !text.includes("\n  ")
@@ -277,11 +279,14 @@ function InsertInitialCodeBlockPlugin({
     language = "json",
     onPropertyClick,
     disableLongText = false,
+    exactText = false,
 }: {
     initialValue: string
     language?: CodeLanguage
     onPropertyClick?: (path: string) => void
     disableLongText?: boolean
+    /** Show the given text as it is and compare texts exactly (see `EditorProps.exactText`). */
+    exactText?: boolean
 }) {
     const [editor] = useLexicalComposerContext()
 
@@ -330,10 +335,19 @@ function InsertInitialCodeBlockPlugin({
                             }
 
                             // Default processing for JSON/YAML content
-                            const currentTextValue = $getEditorCodeAsString()
+                            const currentTextValue = $getEditorCodeAsString(undefined, {
+                                exact: exactText,
+                            })
                             log("INITIAL VALUE CHANGED - CURRENT TEXT VALUE", {currentTextValue})
+                            if (
+                                exactText &&
+                                !payload.forceUpdate &&
+                                currentTextValue === payload.content
+                            ) {
+                                return
+                            }
                             // Skip semantic equality check if forceUpdate is true (for undo/redo)
-                            if (currentTextValue && !payload.forceUpdate) {
+                            if (currentTextValue && !payload.forceUpdate && !exactText) {
                                 try {
                                     const currentObjectValue = JSON5.parse(currentTextValue)
                                     const incomingObjectValue =
@@ -391,7 +405,9 @@ function InsertInitialCodeBlockPlugin({
                                 try {
                                     let value: string
                                     // For JSON/YAML content, parse and format
-                                    if (payload.language === "json") {
+                                    if (exactText && typeof payload.content === "string") {
+                                        value = payload.content
+                                    } else if (payload.language === "json") {
                                         try {
                                             const objectValue = JSON5.parse(payload.content)
                                             value = JSON.stringify(objectValue, null, 2)
@@ -462,6 +478,7 @@ function InsertInitialCodeBlockPlugin({
                                                         value,
                                                         capturedLanguage,
                                                         capturedDisableLongText,
+                                                        exactText,
                                                     )
                                                     $wrapLinesInSegments(highlightedNodes).forEach(
                                                         (node) => {
@@ -495,6 +512,7 @@ function InsertInitialCodeBlockPlugin({
                                         value,
                                         payload.language,
                                         disableLongText,
+                                        exactText,
                                     )
                                     $wrapLinesInSegments(highlightedNodes).forEach((node) => {
                                         existingCodeBlock.append(node)
@@ -890,11 +908,20 @@ function InsertInitialCodeBlockPlugin({
         let forceUpdate = false
         editor.getEditorState().read(() => {
             const hasCodeBlock = $getRoot().getChildren().some($isCodeBlockNode)
-            const currentEditorContent = $getEditorCodeAsString()
+            const currentEditorContent = $getEditorCodeAsString(undefined, {exact: exactText})
             const hasExistingContent = !!currentEditorContent
 
             if (!hasCodeBlock) {
                 needsDispatch = true
+                return
+            }
+
+            // Exact text: any other text is an update, also one that reads the same.
+            if (exactText) {
+                if (currentEditorContent !== initialValue) {
+                    needsDispatch = true
+                    forceUpdate = hasExistingContent
+                }
                 return
             }
 
@@ -979,7 +1006,7 @@ function InsertInitialCodeBlockPlugin({
 
         log("INITIAL VALUE CHANGED", {initialValue, forceUpdate})
         editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
-    }, [initialValue, language])
+    }, [initialValue, language, exactText])
 
     return null
 }

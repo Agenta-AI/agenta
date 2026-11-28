@@ -26,5 +26,14 @@
     "root": "根",
     "unsavedChanges": "未保存的更改",
     "noTestcases": "未找到测试用例",
-    "invalidCode": "无效的 {{format}}：{{error}}。修正后即可应用更改。"
+    "codeError": "无效的 {{format}}：第 {{line}} 行{{problem}}。在你修正之前，该字段保留最后一个有效值。",
+    "codeErrorNoLine": "无效的 {{format}}：{{problem}}。在你修正之前，该字段保留最后一个有效值。",
+    "codeErrorTestcase": "无效的 {{format}}：第 {{line}} 行{{problem}}。在你修正之前，该测试用例保留最后一个有效值。",
+    "codeErrorTestcaseNoLine": "无效的 {{format}}：{{problem}}。在你修正之前，该测试用例保留最后一个有效值。",
+    "codeProblemMissingComma": "缺少逗号",
+    "codeProblemMissingQuote": "缺少引号",
+    "codeProblemExtraComma": "多了一个逗号",
+    "codeProblemEndsEarly": "文本提前结束",
+    "codeProblemOther": "文本有错误",
+    "codeProblemNotObject": "测试用例必须是一个对象"
 }

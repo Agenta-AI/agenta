@@ -10,7 +10,7 @@
     "next": "Nächster Testfall",
     "newTestcase": "Neuer Testfall",
     "testcaseNumber": "Testfall {{number}}",
-    "edited": "bearbeitet",
+    "edited": "Bearbeitet",
     "copyId": "ID kopieren",
     "copiedId": "Kopiert!",
     "collapseAllFields": "Alle Felder einklappen",
@@ -26,5 +26,14 @@
     "root": "Stamm",
     "unsavedChanges": "Ungespeicherte Änderungen",
     "noTestcases": "Keine Testfälle gefunden",
-    "invalidCode": "Ungültiges {{format}}: {{error}}. Korrigieren Sie es, um die Änderung zu übernehmen."
+    "codeError": "Kein gültiges {{format}}: {{problem}} in Zeile {{line}}. Das Feld behält seinen letzten gültigen Wert, bis Sie den Fehler beheben.",
+    "codeErrorNoLine": "Kein gültiges {{format}}: {{problem}}. Das Feld behält seinen letzten gültigen Wert, bis Sie den Fehler beheben.",
+    "codeErrorTestcase": "Kein gültiges {{format}}: {{problem}} in Zeile {{line}}. Der Testfall behält seinen letzten gültigen Wert, bis Sie den Fehler beheben.",
+    "codeErrorTestcaseNoLine": "Kein gültiges {{format}}: {{problem}}. Der Testfall behält seinen letzten gültigen Wert, bis Sie den Fehler beheben.",
+    "codeProblemMissingComma": "ein Komma fehlt",
+    "codeProblemMissingQuote": "ein Anführungszeichen fehlt",
+    "codeProblemExtraComma": "ein Komma ist zu viel",
+    "codeProblemEndsEarly": "der Text endet zu früh",
+    "codeProblemOther": "der Text hat einen Fehler",
+    "codeProblemNotObject": "der Testfall muss ein Objekt sein"
 }

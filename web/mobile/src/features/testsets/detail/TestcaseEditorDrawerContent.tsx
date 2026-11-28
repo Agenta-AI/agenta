@@ -1,15 +1,20 @@
 import {useCallback, useMemo} from "react"
 
+import {ValueViewProvider} from "@agenta/chat/value-view"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {TestcaseDataEditor, type RootDrawerViewMode} from "@agenta/entity-ui/testcase"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {chatProseClassName, markdownIcons} from "@/features/chat/AssistantMarkdown"
+
+import type {FieldColumnActions} from "./fields/FieldMenu"
+import {TestcaseFieldForm} from "./fields/TestcaseFieldForm"
 import {replaceDataUpdate, splitInternalFields} from "./testcaseDataUpdate"
 
 /**
- * The body of the testcase drawer: the testcase data as a form, JSON or YAML. An edit goes to
- * the unsaved row in the editor state, and the commit saves it with the other changes.
- * A row that is not saved yet carries a note that says so.
+ * The body of the testcase drawer: the testcase data as a form (`TestcaseFieldForm`), JSON or
+ * YAML. An edit goes to the unsaved row in the editor state, and the commit saves it with the
+ * other changes. A row that is not saved yet carries a note that says so.
  *
  * The editor gets no column list. With one, it shows only those columns (the grid reads them
  * from the first 20 rows), turns null into "" and drops fields added or removed in JSON or YAML.
@@ -24,6 +29,9 @@ export const TestcaseEditorDrawerContent = ({
     onPathChange,
     rootViewMode,
     collapseSignal,
+    columnActions,
+    onAddColumn,
+    sectionKeys,
 }: {
     testcaseId: string
     isNewRow: boolean
@@ -32,6 +40,11 @@ export const TestcaseEditorDrawerContent = ({
     onPathChange: (path: string[]) => void
     rootViewMode: RootDrawerViewMode
     collapseSignal: number
+    /** Rename and delete of the column of a field; none for a reader. */
+    columnActions?: (key: string) => FieldColumnActions | null
+    onAddColumn?: () => void
+    /** Columns drawn as sections in every test case. */
+    sectionKeys?: ReadonlySet<string>
 }) => {
     const testcase = useAtomValue(testcaseMolecule.atoms.data(testcaseId))
     const update = useSetAtom(testcaseMolecule.actions.update)
@@ -47,6 +60,10 @@ export const TestcaseEditorDrawerContent = ({
                 replaceDataUpdate(data, {...splitInternalFields(next).value, ...internal}),
             ),
         [testcaseId, update, data, internal],
+    )
+    const handleFieldChange = useCallback(
+        (key: string, next: unknown) => handleChange({...value, [key]: next}),
+        [handleChange, value],
     )
 
     return (
@@ -67,21 +84,37 @@ export const TestcaseEditorDrawerContent = ({
                         in the fields below and click &quot;Commit&quot; to save all changes.
                     </p>
                 ) : null}
-                <TestcaseDataEditor
-                    value={value}
-                    onChange={viewOnly ? undefined : handleChange}
-                    mode={viewOnly ? "view" : "edit"}
-                    surface="drawer"
-                    initialPath={initialPath}
-                    onPathChange={onPathChange}
-                    features={{typeChips: true, rootViewMode: false, columnMapping: false}}
-                    rootViewMode={rootViewMode}
-                    collapseSignal={collapseSignal}
-                    // Fields follow the test set column order, and change only through the
-                    // column actions, as in the old app.
-                    fieldOrder="data"
-                    fieldControls={false}
-                />
+                {rootViewMode === "form" ? (
+                    <ValueViewProvider
+                        markdownClassName={chatProseClassName}
+                        markdownIcons={markdownIcons}
+                    >
+                        <TestcaseFieldForm
+                            value={value}
+                            onFieldChange={viewOnly ? undefined : handleFieldChange}
+                            columnActions={columnActions}
+                            onAddField={onAddColumn}
+                            collapseSignal={collapseSignal}
+                            sectionKeys={sectionKeys}
+                        />
+                    </ValueViewProvider>
+                ) : (
+                    <TestcaseDataEditor
+                        value={value}
+                        onChange={viewOnly ? undefined : handleChange}
+                        mode={viewOnly ? "view" : "edit"}
+                        surface="drawer"
+                        initialPath={initialPath}
+                        onPathChange={onPathChange}
+                        features={{typeChips: true, rootViewMode: false, columnMapping: false}}
+                        rootViewMode={rootViewMode}
+                        collapseSignal={collapseSignal}
+                        // Fields follow the test set column order, and change only through the
+                        // column actions, as in the old app.
+                        fieldOrder="data"
+                        fieldControls={false}
+                    />
+                )}
             </div>
         </div>
     )
