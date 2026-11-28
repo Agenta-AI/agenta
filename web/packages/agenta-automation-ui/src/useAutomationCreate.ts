@@ -125,8 +125,9 @@ export const useAutomationCreate = ({
     defaultReferences?: AutomationReferences
 } = {}) => {
     const t = useT(automationsEditorCatalog)
-    // Seeded once, so a later change never overwrites what has been typed since.
-    const [draft, setDraft] = useState<AutomationDraft>(() => ({
+    // Seeded once, so a later change never overwrites what has been typed since. The seed is
+    // also what `dirty` compares against.
+    const [initialDraft] = useState<AutomationDraft>(() => ({
         // Blank, so a create surface opens on an empty, focused name field rather than on a
         // placeholder the user has to clear first.
         name: "",
@@ -140,6 +141,9 @@ export const useAutomationCreate = ({
         includeEvent: true,
         isActive: true,
     }))
+    const [draft, setDraft] = useState(initialDraft)
+    // A real difference from the seed: opening the form, or undoing an edit, is not a change.
+    const dirty = JSON.stringify(draft) !== JSON.stringify(initialDraft)
     const [saving, setSaving] = useState(false)
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
@@ -356,6 +360,7 @@ export const useAutomationCreate = ({
 
     return {
         draft,
+        dirty,
         preview,
         agentName,
         eventName,

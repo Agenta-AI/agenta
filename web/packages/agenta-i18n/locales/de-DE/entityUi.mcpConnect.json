@@ -51,7 +51,6 @@
     "copy": "Kopieren",
     "copyByHand": "Markieren Sie die URL und kopieren Sie sie.",
     "clientId": "Client-ID",
-    "optional": "Optional",
     "clientSecret": "Client-Secret",
     "clientAuthentication": "Client-Authentifizierung",
     "scopes": "Bereiche",
@@ -69,5 +68,10 @@
     "noServersYet": "Noch keine MCP-Server in diesem Projekt",
     "noServersYetBody": "Verbinden Sie einen MCP-Server per URL. Sie melden sich einmal an oder fügen einmal einen Schlüssel hinzu, und jeder Agent im Projekt kann ihn nutzen.",
     "searchServers": "Server durchsuchen",
-    "noServersMatch": "Keine passenden Server"
+    "noServersMatch": "Keine passenden Server",
+    "serverResponse": "Serverantwort",
+    "tryAnotherNameOrHost": "Versuchen Sie einen anderen Namen oder Host.",
+    "serversUnavailable": "Die Server des Projekts konnten nicht geladen werden",
+    "serversUnavailableDetail": "Der Server hat nicht geantwortet, daher ist die Liste leer. Server, die der Agent schon hat, funktionieren weiterhin.",
+    "oauthApp": "OAuth-App"
 }

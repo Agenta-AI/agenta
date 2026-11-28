@@ -1,4 +1,4 @@
-import {useContext, useEffect, useRef, type ReactNode} from "react"
+import {createElement, useContext, useEffect, useRef, type ReactNode} from "react"
 
 import {createPortal} from "react-dom"
 
@@ -18,8 +18,24 @@ export const useViewForm = (form: ViewForm): void => {
     saveRef.current = form.save
     const cancelRef = useRef(form.cancel)
     cancelRef.current = form.cancel
-    const {dirty, valid, leaveDescription, saveLabel, savingLabel, actionRow} = form
+    const backRef = useRef(form.back)
+    backRef.current = form.back
+    const {
+        dirty,
+        valid,
+        leaveDescription,
+        saveLabel,
+        savingLabel,
+        actionRow,
+        leaveTitle,
+        leaveCanSave,
+        saveWhenClean,
+        closeOnSave,
+        backTitle,
+        invalidReason,
+    } = form
     const hasCancel = Boolean(form.cancel)
+    const hasBack = Boolean(form.back)
     useEffect(() => {
         setForm({
             dirty,
@@ -28,10 +44,33 @@ export const useViewForm = (form: ViewForm): void => {
             saveLabel,
             savingLabel,
             actionRow,
+            leaveTitle,
+            leaveCanSave,
+            saveWhenClean,
+            closeOnSave,
+            invalidReason,
             cancel: hasCancel ? () => cancelRef.current?.() : undefined,
+            back: hasBack ? () => backRef.current?.() : undefined,
+            backTitle,
             save: () => saveRef.current(),
         })
-    }, [setForm, dirty, valid, leaveDescription, saveLabel, savingLabel, actionRow, hasCancel])
+    }, [
+        setForm,
+        dirty,
+        valid,
+        leaveDescription,
+        saveLabel,
+        savingLabel,
+        actionRow,
+        leaveTitle,
+        leaveCanSave,
+        saveWhenClean,
+        closeOnSave,
+        backTitle,
+        invalidReason,
+        hasCancel,
+        hasBack,
+    ])
     useEffect(() => () => setForm(null), [setForm])
 }
 
@@ -40,10 +79,21 @@ export const useViewForm = (form: ViewForm): void => {
  * Done (canvas F02: "Remove from agent"). Nothing shows while the view is not on top or the chrome
  * draws no action row; it leaves with the view.
  */
-export const ViewFooterStart = ({children}: {children: ReactNode}) => {
+export const ViewFooterStart = ({
+    children,
+    ownLineOnPhone = false,
+}: {
+    children: ReactNode
+    /** On a phone, a line of its own above the buttons (a status text, not a control). */
+    ownLineOnPhone?: boolean
+}) => {
     useViewEntry("ViewFooterStart") // only inside a view
     const footerStart = useContext(ViewFooterStartContext)
-    return footerStart ? createPortal(children, footerStart) : null
+    if (!footerStart) return null
+    const content = ownLineOnPhone
+        ? createElement("span", {"data-footer-line": "", className: "contents"}, children)
+        : children
+    return createPortal(content, footerStart)
 }
 
 /** The view reports its breadcrumb title. A renamed item updates the crumb at once. */

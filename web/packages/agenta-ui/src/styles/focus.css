@@ -1,0 +1,35 @@
+/* One focus style for every control (FORM-02 in src/design/rules.json). Unlayered on purpose so no
+   utility on the same element can replace it. Focus is neutral: `--ring` is a gray, never brand yellow. */
+
+/* Any control: a 2px neutral ring hugging the edge, with an ink line inside it for contrast. */
+.focus-ring:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 0;
+    box-shadow: inset 0 0 0 1px var(--foreground);
+}
+
+/* A bordered field (input, select, composer): the border turns `ring` and grows to 2px. */
+.focus-ring-field:focus-within {
+    border-color: var(--ring);
+    outline: none;
+    box-shadow: 0 0 0 1px var(--ring);
+}
+
+/* A field inside an input group: the group draws the ring, not the field. */
+/* An invalid field keeps its red edge while focused (FORM-02). */
+.focus-ring-field[aria-invalid="true"]:focus-within,
+.focus-ring-field:has([aria-invalid="true"]):focus-within {
+    border-color: var(--destructive);
+    box-shadow: 0 0 0 1px var(--destructive);
+}
+
+[data-slot="input-group-control"].focus-ring-field:focus-within {
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* Inset focus ring for full-bleed rows inside a scroller, where an outer ring is clipped (FORM-02). */
+.focus-ring-inset:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+}

@@ -66,8 +66,10 @@ const releaseDraft = (store: ReturnType<typeof useStore>, key: string) => {
 export function useDriveFileDraft(mount: Mount | null, path: string) {
     const key = draftKey(mount?.id ?? "", path)
     const [draft, setDraft] = useAtom(driveDraftAtomFamily(key))
+    /** `edit: false` for text the editor produced with no user input. */
     const onChange = useCallback(
-        (text: string) => setDraft((d) => (d ? applyDriveDraftChange(d, text) : d)),
+        (text: string, edit = true) =>
+            setDraft((d) => (d ? applyDriveDraftChange(d, text, edit) : d)),
         [setDraft],
     )
     return {

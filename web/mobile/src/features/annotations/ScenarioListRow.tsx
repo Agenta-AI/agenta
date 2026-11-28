@@ -17,7 +17,7 @@ const DOT_COLOR: Record<StatusTone, string> = {
     processing: "text-info",
     success: "text-success",
     warning: "text-warning",
-    error: "text-error",
+    error: "text-destructive",
 }
 
 /** Clicks and keys inside this cell belong to its control, not to the row. */
@@ -65,13 +65,13 @@ export const ScenarioListRow = ({
             />
         </OwnClicks>
         <SimpleTooltip title={scenarioStatusLabel(row.status)}>
-            <span className="flex items-center gap-1.5 text-[13px] tabular-nums text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-label tabular-nums text-muted-foreground">
                 {row.status === "success" ? (
                     <CheckCircle aria-hidden size={14} weight="fill" className="text-success" />
                 ) : (
                     <span
                         aria-hidden
-                        className={`size-1.5 rounded-full bg-current ${DOT_COLOR[scenarioStatusTone(row.status)]}`}
+                        className={`size-1.5 rounded-round bg-current ${DOT_COLOR[scenarioStatusTone(row.status)]}`}
                     />
                 )}
                 {row.index + 1}

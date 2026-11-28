@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * The test set menu inside the playground run pane, on the real controllers with only HTTP
- * mocked: the sync dialog sends the typed message, the dialogs load on demand, and leaving the
+ * mocked: the sync dialog sends the typed message, the load dialog loads on demand, and leaving the
  * page asks first and then clears the connected test set.
  */
 import {act} from "react"
@@ -155,17 +155,17 @@ const store = getDefaultStore()
 let root: Root
 let host: HTMLDivElement
 let projectId = "proj-900"
-let leaveDialog: React.ReactNode = null
 
+// The screen draws the leave question from the guard's confirm state; its title stands in here.
 const Screen = () => {
     const {status, primaryRevisionId} = usePlaygroundSelection({appId: "app-1"})
-    leaveDialog = usePlaygroundLeaveGuard()
+    const leaveDialog = usePlaygroundLeaveGuard()
     return (
         <>
             {status === "ready" && primaryRevisionId ? (
                 <PlaygroundRunPane revisionId={primaryRevisionId} />
             ) : null}
-            {leaveDialog}
+            {leaveDialog.request ? <p role="alert">{leaveDialog.request.title}</p> : null}
         </>
     )
 }
@@ -255,16 +255,23 @@ afterEach(() => {
 })
 
 describe("The test set menu in the run pane", () => {
-    it("The dialogs' code loads only when one opens", async () => {
+    it("The load dialog's code loads only when it opens", async () => {
+        expect(button(host, "Test set")).toBeDefined()
+        expect(loads.testsets).toBe(0)
+
+        await openMenu()
+        await menuItem("Load test set")
+
+        expect(loads.testsets).toBe(1)
+    })
+
+    it("Disconnect with unsaved edits asks to save first", async () => {
         await connect()
         await editFrance()
-        expect(button(host, "Capitals (v2)")).toBeDefined()
-        expect(loads.testsets).toBe(0)
 
         await openMenu()
         await menuItem("Disconnect")
 
-        expect(loads.testsets).toBe(1)
         expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain(
             "Save changes?",
         )

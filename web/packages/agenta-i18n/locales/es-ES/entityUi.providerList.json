@@ -1,5 +1,4 @@
 {
-    "add": "Añadir",
     "addProviderOrSubscription": "Añadir un proveedor o una suscripción",
     "agenta": "Agenta",
     "apiKeys": "Claves de API",
@@ -9,7 +8,5 @@
     "providedByAgenta": "Proporcionada por Agenta",
     "saveConnection": "Guardar conexión",
     "signInNeeded": "Requiere iniciar sesión",
-    "subscriptions": "Suscripciones",
-    "useApiKey": "Usar una clave de API",
-    "useSubscription": "Usar una suscripción"
+    "subscriptions": "Suscripciones"
 }

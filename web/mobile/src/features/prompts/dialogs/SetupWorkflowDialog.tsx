@@ -141,7 +141,7 @@ export const SetupWorkflowDialog = ({
                 if (!next && !creating) onClose()
             }}
         >
-            <DialogContent className="sm:max-w-[480px]">
+            <DialogContent className="sm:max-w-120">
                 <form
                     className="flex flex-col gap-5"
                     onSubmit={(event) => {
@@ -191,7 +191,7 @@ export const SetupWorkflowDialog = ({
                             <LinkIcon size={14} />
                             {status === "testing" ? copy.testing : copy.testConnection}
                         </Button>
-                        <span role="status" className="flex items-center gap-1.5 text-sm">
+                        <span role="status" className="flex items-center gap-1.5 text-body">
                             {status === "success" ? (
                                 <>
                                     <CheckCircleIcon size={16} className="text-success" />
@@ -206,9 +206,9 @@ export const SetupWorkflowDialog = ({
                         </span>
                     </div>
                     {error ? (
-                        <p className="m-0 text-sm text-destructive">{error}</p>
+                        <p className="m-0 text-body text-destructive">{error}</p>
                     ) : hint ? (
-                        <p className="m-0 text-sm text-muted-foreground">{hint}</p>
+                        <p className="m-0 text-body text-muted-foreground">{hint}</p>
                     ) : null}
                     <DialogFooter>
                         <Button

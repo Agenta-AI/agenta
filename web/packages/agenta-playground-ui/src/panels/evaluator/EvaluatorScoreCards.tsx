@@ -67,8 +67,8 @@ const ScoreCard = ({
                 <p
                     className={
                         status === "error"
-                            ? "m-0 text-xs text-error"
-                            : "m-0 text-xs italic text-muted-foreground"
+                            ? "m-0 text-label font-normal text-error"
+                            : "m-0 text-meta italic text-muted-foreground"
                     }
                 >
                     {result?.error?.message ||
@@ -86,10 +86,10 @@ const ScoreCard = ({
                       .filter((port) => !port.isFallback && port.key)
                       .map((port): [string, unknown] => [port.key, null])
         if (fields.length === 0) {
-            return <p className="m-0 text-xs text-muted-foreground">—</p>
+            return <p className="m-0 text-meta text-muted-foreground">—</p>
         }
         return (
-            <dl className="m-0 grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5 text-xs">
+            <dl className="m-0 grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5 text-label font-normal">
                 {fields.map(([key, value]) => {
                     const verdict = isVerdictFieldKey(key) ? parseBooleanLikeValue(value) : null
                     return (
@@ -103,7 +103,7 @@ const ScoreCard = ({
                                 ) : verdict === null ? (
                                     formatValue(value)
                                 ) : (
-                                    <Badge variant={verdict ? "success" : "error"}>
+                                    <Badge variant={verdict ? "success" : "destructive"}>
                                         {verdict
                                             ? t("playground.evaluator.true")
                                             : t("playground.evaluator.false")}
@@ -122,7 +122,7 @@ const ScoreCard = ({
             data-testid={`evaluator-score-${node.entityId}`}
             className="flex flex-col gap-2 rounded-md border border-solid border-border px-3 py-2"
         >
-            <h4 className="m-0 truncate text-xs font-medium text-foreground">
+            <h4 className="m-0 truncate text-label text-foreground">
                 {name?.trim() || node.label || t("playground.evaluator.evaluator")}
             </h4>
             {body}

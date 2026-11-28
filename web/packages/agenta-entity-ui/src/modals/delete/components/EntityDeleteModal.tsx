@@ -2,12 +2,12 @@
  * EntityDeleteModal Component
  *
  * Performance-optimized delete modal that uses lazy rendering.
- * Uses EnhancedModal for consistent styling and auto-contained height.
+ * Uses the kit Dialog for consistent styling and auto-contained height.
  */
 
 import {useCallback, useEffect} from "react"
 
-import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {EntityDeleteModalProps, EntityReference} from "../../types"
@@ -91,10 +91,6 @@ export function EntityDeleteModal({
         }
     }, [onClose, externalOpen, resetModal])
 
-    const handleAfterClose = useCallback(() => {
-        // EnhancedModal handles lazy render reset
-    }, [])
-
     const handleSuccess = useCallback(() => {
         onSuccess?.()
         handleClose()
@@ -103,20 +99,21 @@ export function EntityDeleteModal({
     // ========== RENDER ==========
 
     return (
-        <EnhancedModal
-            open={isOpen}
-            onCancel={handleClose}
-            afterClose={handleAfterClose}
-            title={<EntityDeleteTitle />}
-            footer={<EntityDeleteFooter onClose={handleClose} onSuccess={handleSuccess} />}
-            styles={{
-                body: {
-                    paddingTop: 16,
-                },
-            }}
-        >
-            <EntityDeleteContent />
-        </EnhancedModal>
+        <Dialog open={isOpen} onOpenChange={(next) => !next && handleClose()}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>
+                        <EntityDeleteTitle />
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="pt-4">
+                    <EntityDeleteContent />
+                </div>
+                <DialogFooter>
+                    <EntityDeleteFooter onClose={handleClose} onSuccess={handleSuccess} />
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }
 

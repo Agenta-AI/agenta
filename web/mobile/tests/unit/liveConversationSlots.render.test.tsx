@@ -23,7 +23,6 @@ const calls = vi.hoisted(() => ({
 }))
 const dialog = vi.hoisted(() => ({confirm: vi.fn()}))
 const modelSetup = vi.hoisted(() => ({blocked: false, loading: false, canFix: false}))
-const personalSetup = vi.hoisted(() => ({open: false}))
 const engine = vi.hoisted(() => ({isEmpty: false, isHydrating: false}))
 
 const approval = {approvalId: "gate-1", toolName: "send_email"}
@@ -150,6 +149,7 @@ vi.mock("@agenta/chat/assets", () => ({
     resolveStopExecution: vi.fn(),
     shouldShowStopControl: () => false,
     restoreRefusedSend: vi.fn(),
+    scrollEdgeMask: () => "none",
 }))
 vi.mock("@agenta/chat/state", () => ({getSessionTurnId: () => null, runKey: () => ""}))
 vi.mock("@agenta/entities/session", async () => {
@@ -182,10 +182,10 @@ vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
 }))
 vi.mock("@agenta/entity-ui/onboarding", () => ({
-    PersonalAccountsCard: () => <div data-testid="personal-card" />,
+    PersonalAccountsCard: () => null,
 }))
 vi.mock("@/features/chat/usePersonalSetupStep", () => ({
-    usePersonalSetupStep: () => ({open: personalSetup.open, items: [], pendingKeys: new Set()}),
+    usePersonalSetupStep: () => ({open: false, items: [], pendingKeys: new Set()}),
 }))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
 // The builder's approval choices load the entities package, which needs the real utils.
@@ -306,15 +306,13 @@ vi.mock("@/features/chat/Composer", () => ({
     },
 }))
 const composerSeen = vi.hoisted(() => ({inputRef: undefined as undefined | {current: unknown}}))
-vi.mock("@/features/chat/TranscriptTurns", async () => {
-    const {useContext} = await import("react")
-    const {UserMessageAccessoryContext} = await import("@/features/chat/userMessageAccessory")
-    const Accessory = () => {
-        const read = useContext(UserMessageAccessoryContext) as ((id: string) => ReactNode) | null
-        return <div data-testid="accessory">{read ? read("m1") : "none"}</div>
-    }
-    return {TranscriptTurns: () => <Accessory />}
-})
+vi.mock("@/features/chat/TranscriptTurns", () => ({
+    TranscriptTurns: ({
+        readUserMessageAccessory: read,
+    }: {
+        readUserMessageAccessory: ((id: string, firstShownId?: string) => ReactNode) | null
+    }) => <div data-testid="accessory">{read ? read("m1") : "none"}</div>,
+}))
 vi.mock("@/features/chat/useApprovalActions", () => ({
     useApprovalActions: () => ({phase: "idle", errorText: null, respond: calls.steerRespond}),
 }))

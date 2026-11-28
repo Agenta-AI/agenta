@@ -22,7 +22,7 @@ import React from "react"
 
 import {useT} from "@agenta/i18n"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
-import {Download} from "lucide-react"
+import {DownloadSimpleIcon} from "@phosphor-icons/react"
 
 import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
 import {cn, flexLayouts, gapClasses, linkColors, textColors} from "../../utils/styles"
@@ -151,19 +151,13 @@ export function LoadAllButton({
                 onClick={handleClick}
                 disabled={isLoading || !hasMore}
             >
-                {isLoading ? <Spinner size="small" /> : <Download className="w-3 h-3" />}
+                {isLoading ? <Spinner size="small" /> : <DownloadSimpleIcon className="w-3 h-3" />}
                 {isLoading ? loadingLabel : label}
             </Button>
 
             {/* Progress indicator when loading */}
             {isLoading && progressPercent !== undefined && (
-                <Progress
-                    type="circle"
-                    percent={progressPercent}
-                    size={20}
-                    strokeWidth={10}
-                    showInfo={false}
-                />
+                <Progress type="circle" percent={progressPercent} size={20} showInfo={false} />
             )}
 
             {/* Count display */}

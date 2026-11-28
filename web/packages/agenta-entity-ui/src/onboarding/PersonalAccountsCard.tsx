@@ -48,8 +48,6 @@ export interface PersonalAccountsCardProps {
     pendingKeys: ReadonlySet<string>
     onContinue?: () => void
     onDismiss?: () => void
-    /** `bare` drops the frame's header and footer, for a host with its own (the notice). */
-    bare?: boolean
     className?: string
 }
 
@@ -59,7 +57,6 @@ export const PersonalAccountsCard = ({
     pendingKeys,
     onContinue,
     onDismiss,
-    bare = false,
     className,
 }: PersonalAccountsCardProps) => {
     // The rows read `copy`, which translates when read: this re-renders them when the text loads.
@@ -69,25 +66,6 @@ export const PersonalAccountsCard = ({
         () => items.find((item) => pendingKeys.has(item.key))?.key ?? null,
     )
     const accordion = items.length > 1
-    const rows = (
-        <div className="flex flex-col px-4 py-1">
-            {items.map((item) => {
-                const props = {
-                    item,
-                    workflowId,
-                    done: !pendingKeys.has(item.key),
-                    open: accordion ? openKey === item.key : true,
-                    onToggle: accordion
-                        ? () => setOpenKey((key) => (key === item.key ? null : item.key))
-                        : undefined,
-                }
-                if (item.kind === "app_connection") return <AppRow key={item.key} {...props} />
-                if (item.kind === "mcp_server") return <McpRow key={item.key} {...props} />
-                return <SecretRow key={item.key} {...props} />
-            })}
-        </div>
-    )
-    if (bare) return <div className={className}>{rows}</div>
     return (
         <SetupCardFrame
             title={copy.title}
@@ -98,7 +76,22 @@ export const PersonalAccountsCard = ({
             action={onContinue ? <Button onClick={onContinue}>{copy.continue}</Button> : null}
             className={className}
         >
-            {rows}
+            <div className="flex flex-col px-4 py-1">
+                {items.map((item) => {
+                    const props = {
+                        item,
+                        workflowId,
+                        done: !pendingKeys.has(item.key),
+                        open: accordion ? openKey === item.key : true,
+                        onToggle: accordion
+                            ? () => setOpenKey((key) => (key === item.key ? null : item.key))
+                            : undefined,
+                    }
+                    if (item.kind === "app_connection") return <AppRow key={item.key} {...props} />
+                    if (item.kind === "mcp_server") return <McpRow key={item.key} {...props} />
+                    return <SecretRow key={item.key} {...props} />
+                })}
+            </div>
         </SetupCardFrame>
     )
 }
@@ -112,7 +105,7 @@ interface RowProps {
 }
 
 const Failure = ({show}: {show: boolean}) =>
-    show ? <span className="text-xs text-[var(--ag-colorError)]">{copy.failed}</span> : null
+    show ? <span className="text-meta text-destructive">{copy.failed}</span> : null
 
 function AppRow({item, workflowId, done, open, onToggle}: RowProps) {
     const {integration} = useToolIntegrationDetail(item.name)
@@ -145,7 +138,7 @@ function AppRow({item, workflowId, done, open, onToggle}: RowProps) {
                 />
             }
         >
-            <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+            <p className="m-0 text-meta leading-snug text-muted-foreground">
                 {yours.length > 0 ? copy.chooseAccount(name) : copy.connectAccount(name)}
             </p>
             {yours.length > 0 ? (
@@ -197,9 +190,7 @@ function McpRow({item, done, open, onToggle}: RowProps) {
             open={open && !done}
             onToggle={done ? undefined : onToggle}
         >
-            <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
-                {copy.signIn(name)}
-            </p>
+            <p className="m-0 text-meta leading-snug text-muted-foreground">{copy.signIn(name)}</p>
             {endpoint ? (
                 <McpSignIn
                     endpoint={endpoint}
@@ -249,7 +240,7 @@ function SecretRow({item, workflowId, done, open, onToggle}: RowProps) {
                 />
             }
         >
-            <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+            <p className="m-0 text-meta leading-snug text-muted-foreground">
                 {yours.length > 0 ? copy.chooseSecret(item.name) : copy.addSecret(item.name)}
             </p>
             {yours.length > 0 ? (

@@ -42,7 +42,7 @@ const DefaultVisibilityContent = <Row extends object>({
                 <div key={node.key} className="flex flex-col gap-1">
                     <label
                         htmlFor={id}
-                        className="flex items-center gap-2 cursor-pointer text-field-md text-colorText"
+                        className="flex items-center gap-2 cursor-pointer text-field-md text-foreground"
                         style={{marginLeft: depth ? depth * 12 : 0}}
                     >
                         <Checkbox
@@ -63,9 +63,9 @@ const DefaultVisibilityContent = <Row extends object>({
 
     return (
         <div className="flex flex-col gap-3 min-w-[220px]">
-            <div className="text-xs text-colorTextSecondary">{t("ui.table.toggleColumns")}</div>
+            <div className="text-meta text-muted-foreground">{t("ui.table.toggleColumns")}</div>
             <div className="max-h-64 overflow-auto pr-1">{renderNodes(nodes)}</div>
-            <div className="h-px bg-colorBorderSecondary my-1" />
+            <div className="h-px bg-border-muted my-1" />
             <div className="flex justify-between gap-2">
                 <Button variant="outline" size="sm" onClick={() => controls.reset()}>
                     {t("ui.table.reset")}
@@ -106,11 +106,11 @@ const ColumnVisibilityTrigger = <Row extends object>({
                 aria-label={label}
                 onClick={stopPropagation}
             >
-                <GearSix size={16} weight="bold" />
+                <GearSix size={16} />
             </Button>
         ) : (
             <Button variant="outline" onClick={stopPropagation}>
-                <GearSix size={14} weight="bold" />
+                <GearSix size={14} />
                 {label} ({visibleLeafCount})
             </Button>
         )

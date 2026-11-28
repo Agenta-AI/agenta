@@ -12,14 +12,13 @@ import {
 
 // Theme status tokens, which resolve in both apps (the antd color scale exists only in /w).
 const ROLE_COLOR_CLASSES: Record<string, string> = {
-    user: "text-colorInfo",
-    assistant: "text-colorSuccess",
-    system: "text-colorWarning",
+    user: "text-info",
+    assistant: "text-success",
+    system: "text-warning",
 }
 const DEFAULT_ROLE_COLOR_CLASS = "text-inherit"
 
-const booleanValueColorClass = (value: boolean): string =>
-    value ? "text-colorSuccess" : "text-colorWarning"
+const booleanValueColorClass = (value: boolean): string => (value ? "text-success" : "text-warning")
 
 /**
  * "Pretty JSON" view.
@@ -492,22 +491,16 @@ const ScalarValue = ({value}: {value: unknown}) => {
     if (value === null || value === undefined) {
         // The JSON literal, not a word: it reads the same in every language.
         // eslint-disable-next-line agenta-i18n/no-hardcoded-text
-        return <span className="font-mono text-xs text-colorTextQuaternary italic">null</span>
+        return <span className="text-code text-muted-foreground italic">null</span>
     }
     if (typeof value === "boolean") {
-        return (
-            <span className={`font-mono text-xs ${booleanValueColorClass(value)}`}>
-                {String(value)}
-            </span>
-        )
+        return <span className={`text-code ${booleanValueColorClass(value)}`}>{String(value)}</span>
     }
     if (typeof value === "number") {
-        return (
-            <span className="font-mono text-xs text-colorInfo tabular-nums">{String(value)}</span>
-        )
+        return <span className="text-code text-info tabular-nums">{String(value)}</span>
     }
     if (typeof value === "string") {
-        return <span className="font-mono text-xs text-colorText">{value}</span>
+        return <span className="text-code text-foreground">{value}</span>
     }
     return null
 }
@@ -550,12 +543,12 @@ const CopyButton = ({value}: {value: unknown}) => {
                     ? tNow("observabilityUi.drillIn.copied")
                     : tNow("observabilityUi.drillIn.copyToClipboard")
             }
-            className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 ml-auto self-center border border-transparent rounded-sm text-colorTextQuaternary cursor-pointer shrink-0 hover:text-colorText hover:bg-colorBgContainer hover:border-colorBorder focus-visible:ring-1 focus-visible:ring-colorPrimary focus-visible:outline-none"
+            className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity inline-flex items-center justify-center h-control-xs min-w-control-xs px-1.5 ml-auto self-center border border-transparent rounded-sm text-muted-foreground cursor-pointer shrink-0 hover:text-foreground hover:bg-accent focus-ring"
             onClick={handleCopy}
             onKeyDown={handleKeyDown}
         >
             {copied ? (
-                <span className="text-xs text-colorSuccess font-medium">
+                <span className="text-meta text-success font-medium">
                     {tNow("observabilityUi.drillIn.copied")}
                 </span>
             ) : (
@@ -575,8 +568,8 @@ const CopyButton = ({value}: {value: unknown}) => {
 const ROW_HEIGHT_PX = 28
 // Sticky headers must be exactly ROW_HEIGHT so they stack flush; leaf rows may
 // grow so wrapped inline values don't overflow and overlap the next row.
-const ROW_HEIGHT_CLASS_FIXED = "min-h-[28px] h-[28px]"
-const ROW_HEIGHT_CLASS_FLEX = "min-h-[28px]"
+const ROW_HEIGHT_CLASS_FIXED = "min-h-7 h-7"
+const ROW_HEIGHT_CLASS_FLEX = "min-h-7"
 
 const NodeRow = memo(function NodeRow({
     keyLabel,
@@ -616,7 +609,7 @@ const NodeRow = memo(function NodeRow({
     return (
         <div className={isSection ? "pt-1 first:pt-0" : ""}>
             <div
-                className={`group/row flex items-baseline gap-2 py-0.5 px-1 rounded-sm ${collapsible ? ROW_HEIGHT_CLASS_FIXED : ROW_HEIGHT_CLASS_FLEX} select-none ${collapsible ? "cursor-pointer sticky z-[1] bg-colorBgContainer hover:bg-colorFillQuaternary" : "hover:bg-colorFillQuaternary"} focus-visible:ring-1 focus-visible:ring-colorPrimary focus-visible:outline-none`}
+                className={`group/row flex items-baseline gap-2 py-0.5 px-1 rounded-sm ${collapsible ? ROW_HEIGHT_CLASS_FIXED : ROW_HEIGHT_CLASS_FLEX} select-none ${collapsible ? "cursor-pointer sticky z-[1] bg-background hover:bg-[image:linear-gradient(var(--accent),var(--accent))]" : "hover:bg-accent"} focus-ring`}
                 style={
                     collapsible
                         ? {
@@ -632,7 +625,7 @@ const NodeRow = memo(function NodeRow({
                 onKeyDown={collapsible ? handleKeyDown : undefined}
             >
                 <span
-                    className={`inline-flex items-center justify-center w-3.5 h-3.5 shrink-0 relative top-px text-colorTextQuaternary ${!collapsible ? "invisible" : ""}`}
+                    className={`inline-flex items-center justify-center w-3.5 h-3.5 shrink-0 relative top-px text-muted-foreground ${!collapsible ? "invisible" : ""}`}
                 >
                     {collapsible && (
                         <span
@@ -644,25 +637,25 @@ const NodeRow = memo(function NodeRow({
                 </span>
 
                 {isMessage ? (
-                    <span className="whitespace-nowrap shrink-0 text-xs">{keyLabel}</span>
+                    <span className="whitespace-nowrap shrink-0 text-label font-normal">
+                        {keyLabel}
+                    </span>
                 ) : (
                     <span
-                        className={`font-mono whitespace-nowrap shrink-0 text-colorText ${isSection ? "font-medium text-[13px]" : "text-xs"}`}
+                        className={`font-mono whitespace-nowrap shrink-0 text-foreground ${isSection ? "font-medium text-label" : "text-code"}`}
                     >
                         {keyLabel}
                     </span>
                 )}
 
                 {meta ? (
-                    <span className="text-xs text-colorTextQuaternary font-mono shrink-0 whitespace-nowrap">
+                    <span className="text-code text-muted-foreground shrink-0 whitespace-nowrap">
                         {meta}
                     </span>
                 ) : null}
 
                 {inlineValue ? (
-                    <span className="font-mono text-xs break-words ml-1 min-w-0">
-                        {inlineValue}
-                    </span>
+                    <span className="text-code break-words ml-1 min-w-0">{inlineValue}</span>
                 ) : null}
 
                 {value !== undefined ? <CopyButton value={value} /> : null}
@@ -671,7 +664,7 @@ const NodeRow = memo(function NodeRow({
             {body && open ? (
                 // border-0 then border-l then border-solid: Ant Design's CSS layer
                 // overrides Tailwind preflight, so border-style must be set explicitly.
-                <div className="ml-[7px] pl-3.5 border-0 border-l border-solid border-colorBorderSecondary flex flex-col mt-0.5 mb-1">
+                <div className="ml-2 pl-3.5 border-0 border-l border-solid border-border-muted flex flex-col mt-0.5 mb-1">
                     {body}
                 </div>
             ) : null}
@@ -689,7 +682,7 @@ const NodeRow = memo(function NodeRow({
 const TRUNCATE_HEIGHT_PX = 160
 
 const PILL_BUTTON_CLASSES =
-    "text-xs font-medium text-colorTextSecondary bg-colorFillQuaternary hover:bg-colorFillTertiary border border-solid border-colorBorderSecondary rounded-full px-3 py-0.5 cursor-pointer focus-visible:ring-1 focus-visible:ring-colorPrimary focus-visible:outline-none motion-safe:transition-colors"
+    "text-label text-muted-foreground bg-secondary hover:bg-accent border border-solid border-border-muted rounded-md px-3 py-0.5 cursor-pointer focus-ring motion-safe:transition-colors"
 
 const TruncatedMessageBody = memo(function TruncatedMessageBody({
     editorId,
@@ -749,10 +742,10 @@ const TruncatedMessageBody = memo(function TruncatedMessageBody({
             {isTruncated ? (
                 <div className="absolute bottom-0 left-0 right-0 flex flex-col items-center">
                     <div
-                        className="w-full h-10 bg-gradient-to-t from-colorBgContainer to-transparent pointer-events-none"
+                        className="w-full h-10 bg-gradient-to-t from-background to-transparent pointer-events-none"
                         aria-hidden="true"
                     />
-                    <div className="w-full flex justify-center pb-1 bg-colorBgContainer">
+                    <div className="w-full flex justify-center pb-1 bg-background">
                         <button
                             type="button"
                             onClick={toggle}
@@ -1160,9 +1153,7 @@ const RecursiveNode = memo(function RecursiveNode({
     return (
         <NodeRow
             keyLabel={keyLabel}
-            inlineValue={
-                <span className="font-mono text-xs text-colorText">{valueToString(value)}</span>
-            }
+            inlineValue={<span className="text-code text-foreground">{valueToString(value)}</span>}
             collapsible={false}
             value={value}
             isSection={isSection}
@@ -1225,7 +1216,7 @@ export const PrettyJsonView = memo(function PrettyJsonView({
     if (topChatResult && !topChatResult.viaKey) {
         const normalized = normalizeChatMessages(topChatResult.messages)
         return (
-            <div className="text-[13px] p-2 px-3 pb-4">
+            <div className="text-label p-2 px-3 pb-4">
                 <div className="flex flex-col gap-0.5">
                     {normalized.map((msg, i) => (
                         <MessageNodeRow
@@ -1245,7 +1236,7 @@ export const PrettyJsonView = memo(function PrettyJsonView({
         const normalized = normalizeChatMessages(topChatResult.messages)
         const chatKey = topChatResult.viaKey
         return (
-            <div className="text-[13px] p-2 px-3 pb-4">
+            <div className="text-label p-2 px-3 pb-4">
                 <NodeRow
                     keyLabel={chatKey}
                     meta={`${normalized.length} ${normalized.length === 1 ? "message" : "messages"}`}
@@ -1292,7 +1283,7 @@ export const PrettyJsonView = memo(function PrettyJsonView({
 
     if (typeof data === "string") {
         return (
-            <div className="text-[13px] p-2 px-3 pb-4">
+            <div className="text-label p-2 px-3 pb-4">
                 <RecursiveNode
                     name="root"
                     value={data}
@@ -1308,7 +1299,7 @@ export const PrettyJsonView = memo(function PrettyJsonView({
     if (data && typeof data === "object" && !Array.isArray(data)) {
         const entries = Object.entries(data as Record<string, unknown>)
         return (
-            <div className="text-[13px] p-2 px-3 pb-4">
+            <div className="text-label p-2 px-3 pb-4">
                 {entries.map(([key, value]) => (
                     <RecursiveNode
                         key={key}
@@ -1330,7 +1321,7 @@ export const PrettyJsonView = memo(function PrettyJsonView({
     }
 
     return (
-        <div className="text-[13px] p-2 px-3 pb-4">
+        <div className="text-label p-2 px-3 pb-4">
             <RecursiveNode
                 name="root"
                 value={data}

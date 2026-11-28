@@ -42,7 +42,7 @@ export const LicenseNotices = ({projectId}: {projectId: string}) => {
     return (
         <div className="flex flex-col gap-1 pb-4">
             {notices.map((notice) => (
-                <p key={notice} className="text-warning m-0 text-[13px]">
+                <p key={notice} className="text-warning m-0 text-body-sm">
                     {notice}
                 </p>
             ))}

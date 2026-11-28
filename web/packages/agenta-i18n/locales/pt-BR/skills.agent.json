@@ -1,0 +1,21 @@
+{
+    "newSkill": "Nova habilidade",
+    "addTitle": "Adicionar habilidades",
+    "addedGroup": "Adicionadas",
+    "added": "Adicionada",
+    "allSkills": "Todas as habilidades",
+    "addSkillToAgent": "Adicionar {{name}} ao agente",
+    "removeSkillFromAgent": "Remover {{name}} do agente",
+    "chooseDescription": "Escolha como quer começar. A nova habilidade é salva no registro e adicionada a este agente.",
+    "writeTitle": "Escrever uma habilidade",
+    "writeHint": "Comece com uma página em branco. Dê um nome, descreva e escreva os passos.",
+    "uploadTitle": "Enviar",
+    "uploadHint": "Escolha um arquivo SKILL.md ou um .zip, ou solte aqui uma pasta de habilidade.",
+    "importTitle": "Importar do GitHub",
+    "importHint": "Copie uma ou mais habilidades de um repositório público.",
+    "createAndAdd": "Criar e adicionar",
+    "creating": "Criando…",
+    "addSkills_one": "Adicionar {{count}} habilidade",
+    "addSkills_other": "Adicionar {{count}} habilidades",
+    "addSkills_many": "Adicionar {{count}} habilidades"
+}

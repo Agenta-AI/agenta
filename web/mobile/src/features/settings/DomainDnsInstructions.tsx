@@ -18,9 +18,9 @@ export const DomainDnsInstructions = ({domain}: {domain: OrganizationDomain}) =>
     const value = `_agenta-verification=${domain.token}`
 
     return (
-        <div className="flex flex-col gap-2 rounded-md border border-solid border-border bg-muted px-3 py-2 text-xs">
+        <div className="flex flex-col gap-2 rounded-md border border-solid border-border bg-muted px-3 py-2 text-meta">
             <p className="m-0 text-muted-foreground">{t("settings.domainDnsInstructions.hint")}</p>
-            <div className="flex flex-col gap-1 font-mono">
+            <div className="flex flex-col gap-1 text-code-sm">
                 <span className="break-all">
                     {t("settings.domainDnsInstructions.name", {name})}
                 </span>

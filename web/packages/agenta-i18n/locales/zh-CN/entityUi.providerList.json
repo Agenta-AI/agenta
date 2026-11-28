@@ -1,5 +1,4 @@
 {
-    "add": "添加",
     "addProviderOrSubscription": "添加供应商或订阅",
     "agenta": "Agenta",
     "apiKeys": "API 密钥",
@@ -9,7 +8,5 @@
     "providedByAgenta": "由 Agenta 提供",
     "saveConnection": "保存连接",
     "signInNeeded": "需要登录",
-    "subscriptions": "订阅",
-    "useApiKey": "使用 API 密钥",
-    "useSubscription": "使用订阅"
+    "subscriptions": "订阅"
 }

@@ -109,6 +109,45 @@ const pickerView: ViewDef<{name: string}> = defineView({
     Component: PickerBody,
 })
 
+/** An "immediate" view whose body still reports a dirty form: leaving must not ask. */
+const ImmediateFormBody = () => {
+    useViewTitle("toggles")
+    useViewForm({dirty: true, valid: true, save: async () => true})
+    return <span>immediate body</span>
+}
+const immediateFormView: ViewDef<{name: string}> = defineView({
+    id: "test.immediateForm",
+    apply: "immediate",
+    Component: ImmediateFormBody,
+})
+
+/** A form that stays open after its Save lands, as the automation view does. */
+const StayingFormBody = ({params}: ViewProps<{name: string}>) => {
+    const [value, setValue] = useState("")
+    useViewTitle(params.name)
+    useViewForm({
+        dirty: value !== "",
+        valid: true,
+        closeOnSave: false,
+        save: async () => {
+            const ok = await saveImpl()
+            if (ok === true) setValue("")
+            return ok
+        },
+    })
+    return (
+        <label>
+            {`field ${params.name}`}
+            <input value={value} onChange={(e) => setValue(e.target.value)} />
+        </label>
+    )
+}
+const stayingFormView: ViewDef<{name: string}> = defineView({
+    id: "test.stayingForm",
+    apply: "on_save",
+    Component: StayingFormBody,
+})
+
 let stackRef: ViewStack | null = null
 const Root = () => {
     const stack = useViewStack()
@@ -488,6 +527,133 @@ describe("ViewStackHost", () => {
         expect(parent.value).toBe("")
     })
 
+    it("a Back held behind a child's Save does not also close the parent", async () => {
+        const pending = deferred()
+        saveImpl = () => pending.promise
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        fireEvent.click(screen.getByText("open child form"))
+        await screen.findByLabelText("field connect")
+        type("connect", "child edit")
+        answer("Save")
+        await screen.findByText("Saving…")
+        let first: boolean | undefined
+        let second: boolean | undefined
+        act(() => {
+            void stackRef!.back().then((r) => (first = r))
+            void stackRef!.back().then((r) => (second = r))
+        })
+        await act(async () => pending.resolve(true))
+        // Save closed the child; the held Back belonged to the child, so the parent stays.
+        await screen.findByText("here:skill")
+        await waitFor(() => expect(first).toBe(false))
+        expect(second).toBe(false)
+        expect(screen.getByLabelText("field skill")).toBeTruthy()
+    })
+
+    it("a view that leaves by itself while its Save runs leaves once the save ends", async () => {
+        const pending = deferred()
+        saveImpl = () => pending.promise
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        answer("Save")
+        await screen.findByText("Saving…")
+        // The view's step ends (for example the sign-in window reports back) while Save runs.
+        fireEvent.click(screen.getByText("leave by itself"))
+        expect(screen.getByLabelText("field skill")).toBeTruthy()
+        await act(async () => pending.resolve(false))
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+    })
+
+    it("the Save button is disabled while the edits are not valid", async () => {
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        expect((screen.getByRole("button", {name: "Save"}) as HTMLButtonElement).disabled).toBe(
+            false,
+        )
+        type("skill", "invalid")
+        expect((screen.getByRole("button", {name: "Save"}) as HTMLButtonElement).disabled).toBe(
+            true,
+        )
+    })
+
+    it("leaving a view opened with no change never asks", async () => {
+        const save = vi.fn(async () => true)
+        saveImpl = save
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        expect(stackRef?.dirty).toBe(false)
+        // Escape, the root crumb, back and closeAll all leave at once.
+        fireEvent.keyDown(screen.getByLabelText("field skill"), {key: "Escape"})
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        let closed: boolean | undefined
+        act(() => {
+            void stackRef!.closeAll().then((r) => (closed = r))
+        })
+        await waitFor(() => expect(closed).toBe(true))
+        expect(dialog()).toBeNull()
+        expect(save).not.toHaveBeenCalled()
+    })
+
+    it("an edit undone back to the loaded value does not ask", async () => {
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        expect(stackRef?.dirty).toBe(true)
+        type("skill", "")
+        expect(stackRef?.dirty).toBe(false)
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+        expect(dialog()).toBeNull()
+    })
+
+    it("an immediate view never asks, even with a form that reports edits", async () => {
+        renderHost()
+        act(() => {
+            void stackRef!.open(immediateFormView, {name: "toggles"}, AGENT)
+        })
+        await screen.findByText("immediate body")
+        expect(stackRef?.dirty).toBe(false)
+        fireEvent.keyDown(screen.getByText("immediate body"), {key: "Escape"})
+        await waitFor(() => expect(screen.queryByText("immediate body")).toBeNull())
+        expect(dialog()).toBeNull()
+    })
+
+    it("a view that stays open after Save still leaves from Save changes", async () => {
+        const save = vi.fn(async () => true)
+        saveImpl = save
+        renderHost()
+        act(() => {
+            void stackRef!.open(stayingFormView, {name: "automation"}, PROJECT)
+        })
+        await screen.findByLabelText("field automation")
+        type("automation", "edited")
+        answer("Save")
+        await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+        // The Save button keeps the view open, with no failure line.
+        expect(screen.getByLabelText("field automation")).toBeTruthy()
+        expect(screen.queryByRole("alert")).toBeNull()
+        type("automation", "edited again")
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Save changes")
+        await waitFor(() => expect(screen.queryByLabelText("field automation")).toBeNull())
+        expect(save).toHaveBeenCalledTimes(2)
+    })
+
     it("Escape at the root calls onEscapeAtRoot; with a clean view it goes back", async () => {
         const onEscape = vi.fn()
         renderHost(onEscape)
@@ -567,11 +733,13 @@ describe("useViewOpener", () => {
         expect(screen.getByText("picker can push")).toBeTruthy()
     })
 
-    it("with no stack, opens the view in a drawer that closes with Done", async () => {
+    it("with no stack, opens the view in a drawer that closes with Close", async () => {
         render(<OpenerRoot />)
         await act(async () => fireEvent.click(screen.getByText("open model")))
         expect(await screen.findByText("picker can push")).toBeTruthy()
-        await act(async () => fireEvent.click(screen.getByRole("button", {name: "Done"})))
+        // An immediate view has no Done; the drawer's Close leaves it.
+        expect(screen.queryByRole("button", {name: "Done"})).toBeNull()
+        await act(async () => fireEvent.click(screen.getByRole("button", {name: "Close"})))
         await waitFor(() => expect(screen.queryByText("picker can push")).toBeNull(), {
             timeout: 2000,
         })

@@ -32,7 +32,7 @@ import {
 } from "./controls/SessionFilterControls"
 
 const FilterLabel = ({children}: {children: ReactNode}) => (
-    <h2 className="m-0 text-xs font-medium text-colorTextTertiary">{children}</h2>
+    <h2 className="m-0 text-label text-muted-foreground">{children}</h2>
 )
 
 export interface SessionFiltersBarProps {
@@ -69,7 +69,7 @@ export const SessionFiltersBar = ({
         // from `lg` it sits inside the page column, where the rule spans the bar's full width and
         // overhangs the row grid's gutters by 64px a side — so it goes.
         <div
-            className={`box-border flex flex-col gap-3 border-x-0 border-t-0 border-b border-solid border-colorBorderSecondary px-4 pb-3 pt-3 lg:border-b-0 ${
+            className={`box-border flex flex-col gap-3 border-x-0 border-t-0 border-b border-solid border-border-muted px-4 pb-3 pt-3 lg:border-b-0 ${
                 className ?? ""
             }`}
         >
@@ -83,7 +83,7 @@ export const SessionFiltersBar = ({
                     // From `sm`, 24px is heading-3 — the rung `PageLayout` gives a desktop page
                     // title, and this bar IS the page header where there is no `PageLayout`. On a
                     // phone that rung eats the row, so the title drops to the 16px body ramp.
-                    <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-colorText sm:text-[24px] sm:leading-[1.3333333333333333]">
+                    <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                         {title}
                     </h1>
                 ) : (
@@ -95,12 +95,12 @@ export const SessionFiltersBar = ({
                         <button
                             type="button"
                             aria-label={t("sessions.filters.filters")}
-                            className="box-border flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-colorFillQuaternary px-2 text-xs text-colorTextSecondary outline-none transition-colors hover:bg-colorFillSecondary hover:text-colorText focus-visible:text-colorText focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring lg:hidden"
+                            className="box-border flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-secondary px-2 text-meta text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-ring lg:hidden"
                         >
-                            <FunnelIcon size={14} weight={activeCount ? "fill" : "regular"} />
+                            <FunnelIcon size={14} weight={activeCount ? "fill" : undefined} />
                             {t("sessions.filters.filters")}
                             {activeCount ? (
-                                <span className="rounded bg-colorFillSecondary px-1 py-0.5 text-[11px] leading-none text-colorText">
+                                <span className="rounded bg-secondary px-1 py-0.5 text-caption leading-none text-foreground">
                                     {activeCount}
                                 </span>
                             ) : null}

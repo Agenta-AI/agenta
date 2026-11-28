@@ -271,7 +271,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             />
 
             <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase text-zinc-6">
+                <span className="text-meta font-medium text-muted-foreground">
                     {t("ui.table.visibility")}
                 </span>
                 <div className="flex flex-wrap gap-1.5">
@@ -289,8 +289,8 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                     </Button>
                 </div>
             </div>
-            <div className="rounded-md border border-solid border-zinc-1 bg-[var(--ag-c-FFFFFF)] shadow-inner">
-                <div className="max-h-[320px] overflow-auto px-1 py-2">
+            <div className="rounded-md border border-solid border-border-muted bg-background">
+                <div className="max-h-80 overflow-auto px-1 py-2">
                     <CheckboxTree
                         height={300}
                         checkedKeys={checkedKeys}
@@ -308,7 +308,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
 
             <div className="flex justify-between items-center pt-1">
                 <Button size="sm" variant="ghost" onClick={handleResetLayout}>
-                    {<ArrowCounterClockwise size={14} weight="bold" />}
+                    {<ArrowCounterClockwise size={14} />}
                     {t("ui.table.resetLayout")}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={onClose}>

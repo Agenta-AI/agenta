@@ -65,7 +65,7 @@ const CornerAction = ({
                 onClick={onRemove}
                 className={CORNER_BUTTON}
             >
-                <X size={10} weight="bold" />
+                <X size={10} />
             </button>
         )
     // Named group: the turn row is a bare `group`, so an unnamed one lit every tile at once.
@@ -95,7 +95,7 @@ const AudioFace = ({src, name}: {src?: string; name: string}) => {
                     name,
                 })}
                 onClick={toggle}
-                className="flex size-8 cursor-pointer items-center justify-center rounded-full border-0 bg-background p-0 text-foreground shadow-sm transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-50"
+                className="flex size-8 cursor-pointer items-center justify-center rounded-md border-0 bg-background p-0 text-foreground shadow-overlay transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-50"
             >
                 {playing ? <Pause size={13} weight="fill" /> : <Play size={13} weight="fill" />}
             </button>
@@ -163,7 +163,7 @@ export const AttachmentCard = ({
     const face = failed ? (
         <Tooltip title={errorReason}>
             <div className={FACE}>
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-colorErrorBg text-colorError">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
                     <WarningCircle size={18} weight="fill" />
                 </span>
                 <TileName name={name} />
@@ -173,9 +173,9 @@ export const AttachmentCard = ({
                         type="button"
                         aria-label={t("chat.attachmentCard.retryNamed", {name})}
                         onClick={onRetry}
-                        className="flex cursor-pointer items-center gap-0.5 rounded border-0 bg-transparent px-1 py-0 text-[10px] leading-3 text-colorError hover:bg-colorErrorBg"
+                        className="flex cursor-pointer items-center gap-0.5 rounded border-0 bg-transparent px-1 py-0 text-caption leading-3 text-destructive hover:bg-destructive/10"
                     >
-                        <ArrowClockwise size={10} weight="bold" />
+                        <ArrowClockwise size={10} />
                         {t("chat.attachmentCard.retry")}
                     </button>
                 ) : null}

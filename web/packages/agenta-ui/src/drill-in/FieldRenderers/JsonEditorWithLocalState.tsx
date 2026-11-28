@@ -59,7 +59,7 @@ export function JsonEditorWithLocalState({
                 initialValue={localValue}
                 handleChange={readOnly ? undefined : handleChange}
                 editorType="border"
-                className="min-h-[60px] overflow-hidden"
+                className="min-h-15 overflow-hidden"
                 disableDebounce
                 noProvider
                 onPropertyClick={onPropertyClick}

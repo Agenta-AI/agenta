@@ -1,63 +1,56 @@
 import {useTypewriter} from "@agenta/chat/hooks"
 import ChatMarkdown from "@agenta/chat/markdown"
 import {chatFileResolver, chatReplyFileResolver} from "@agenta/entity-ui/drive"
-import {Check, Copy} from "lucide-react"
+import {CheckIcon, CopyIcon} from "@phosphor-icons/react"
 import type {IconMap} from "streamdown"
 
 /**
  * Streamdown's built-in classes assume a 14–30px type scale; the app sets its own body scale
- * (APP_SCALE and CHAT_SCALE below).
+ * (text-body at every width).
  * Descendant selectors (specificity 0,2,0+) win over its own single-class utilities without
  * having to fork every element renderer. Semantic tokens only — the `sidebar` role Streamdown
  * reaches for is not part of the generated token bridge, so code chrome is re-surfaced onto
  * `muted`, and long unbroken tokens wrap instead of widening the viewport. Tables draw their own
  * frame (`ChatTable`), so nothing here styles them.
- *
- * From `sm:` the prose steps up to a 14px body, so a wide window does not stay phone-sized.
  */
 const proseBase = [
     "w-full min-w-0 space-y-3 overflow-hidden wrap-anywhere sm:space-y-3.5",
-    "[&_a]:text-primary [&_a]:font-medium [&_a]:underline",
+    "[&_a]:text-link [&_a]:underline",
     "[&_p]:text-foreground",
-    "[&_:is(h1,h2,h3,h4,h5,h6)]:mt-6 [&_:is(h1,h2,h3,h4,h5,h6)]:mb-2 [&_:is(h1,h2,h3,h4,h5,h6)]:font-semibold [&_:is(h1,h2,h3,h4,h5,h6)]:tracking-tight",
-    "[&_h1]:text-base [&_:is(h2,h3)]:text-sm sm:[&_:is(h2,h3)]:text-[15px] [&_:is(h4,h5,h6)]:text-xs sm:[&_:is(h4,h5,h6)]:text-sm",
+    // Headings are text styles only, never larger than the page title: h1 and h2 are card-size
+    // titles, the rest are section titles. The style carries the weight.
+    "[&_:is(h1,h2,h3,h4,h5,h6)]:mt-6 [&_:is(h1,h2,h3,h4,h5,h6)]:mb-2",
+    "[&_:is(h1,h2)]:text-title [&_:is(h3,h4,h5,h6)]:text-subtitle",
     // Lists: our own 5px dot, hung in the indent; a nested list is a ruled block, not more dots.
     "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5",
-    "[&_ul]:list-none [&_ul]:pl-0 [&_ul>li]:relative [&_ul>li]:pl-4 [&_ul>li]:before:absolute [&_ul>li]:before:left-0.5 [&_ul>li]:before:top-[calc(0.125rem_+_0.5lh_-_2.5px)] [&_ul>li]:before:size-[5px] [&_ul>li]:before:rounded-full [&_ul>li]:before:bg-foreground [&_ul>li:has(>input)]:pl-0 [&_ul>li:has(>input)]:before:hidden",
-    "[&_li_ul]:my-1 [&_li_ul]:border-l [&_li_ul]:border-border/60 [&_li_ul]:pl-3.5 [&_li_ul>li]:pl-0 [&_li_ul>li]:before:hidden",
+    "[&_ul]:list-none [&_ul]:pl-0 [&_ul>li]:relative [&_ul>li]:pl-4 [&_ul>li]:before:absolute [&_ul>li]:before:left-0.5 [&_ul>li]:before:top-[calc(0.125rem_+_0.5lh_-_2.5px)] [&_ul>li]:before:size-[5px] [&_ul>li]:before:rounded-round [&_ul>li]:before:bg-foreground [&_ul>li:has(>input)]:pl-0 [&_ul>li:has(>input)]:before:hidden",
+    "[&_li_ul]:my-1 [&_li_ul]:border-l [&_li_ul]:border-border-muted [&_li_ul]:pl-3.5 [&_li_ul>li]:pl-0 [&_li_ul>li]:before:hidden",
     "[&_ol]:list-outside [&_ol]:pl-5 [&_ol>li]:marker:text-muted-foreground",
-    "[&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border/60 [&_blockquote]:pl-3 [&_blockquote]:not-italic [&_blockquote]:text-muted-foreground [&_blockquote_p]:text-muted-foreground",
+    "[&_blockquote]:my-2 [&_blockquote]:border-l [&_blockquote]:border-border-muted [&_blockquote]:pl-3 [&_blockquote]:not-italic [&_blockquote]:text-muted-foreground [&_blockquote_p]:text-muted-foreground",
     // A quiet break: the heading after it carries the section.
     "[&_hr]:my-3 [&_hr]:border-transparent",
-    "[&_:not(pre)>code]:rounded [&_:not(pre)>code]:border-0 [&_:not(pre)>code]:bg-muted [&_:not(pre)>code]:px-[5px] [&_:not(pre)>code]:py-px [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-[0.9em]",
-    "[&_pre_code]:text-[0.95em]",
-    // A fence as one surface: Streamdown ships three borders for one block.
-    "[&_[data-streamdown=code-block]]:my-2 [&_[data-streamdown=code-block]]:gap-0 [&_[data-streamdown=code-block]]:overflow-hidden [&_[data-streamdown=code-block]]:rounded-md [&_[data-streamdown=code-block]]:border-border/60 [&_[data-streamdown=code-block]]:bg-muted [&_[data-streamdown=code-block]]:p-0",
-    "[&_[data-streamdown=code-block-header]]:h-7 [&_[data-streamdown=code-block-header]]:border-b [&_[data-streamdown=code-block-header]]:border-border/60 [&_[data-streamdown=code-block-header]]:px-3 [&_[data-streamdown=code-block-header]]:text-[11px] [&_[data-streamdown=code-block-header]]:tracking-[0.02em] [&_[data-streamdown=code-block-header]_span]:ml-0",
+    "[&_:not(pre)>code]:rounded-sm [&_:not(pre)>code]:border-0 [&_:not(pre)>code]:bg-secondary [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-px [&_:not(pre)>code]:text-code-sm",
+    "[&_pre_code]:text-code",
+    // A fence as one bordered box: a muted header with the label and Copy, the code on
+    // background (KIT-07). Streamdown ships three borders for one block.
+    "[&_[data-streamdown=code-block]]:my-2 [&_[data-streamdown=code-block]]:gap-0 [&_[data-streamdown=code-block]]:overflow-hidden [&_[data-streamdown=code-block]]:rounded-md [&_[data-streamdown=code-block]]:border-border-muted [&_[data-streamdown=code-block]]:bg-background [&_[data-streamdown=code-block]]:p-0",
+    "[&_[data-streamdown=code-block-header]]:h-7 [&_[data-streamdown=code-block-header]]:border-b [&_[data-streamdown=code-block-header]]:border-border-muted [&_[data-streamdown=code-block-header]]:bg-muted [&_[data-streamdown=code-block-header]]:px-3 [&_[data-streamdown=code-block-header]]:text-caption [&_[data-streamdown=code-block-header]_span]:ml-0",
     // The actions' sticky frame is unlabelled: reach it as the header's sibling.
     "[&_[data-streamdown=code-block-header]+div]:-mt-7 [&_[data-streamdown=code-block-header]+div]:h-7 [&_[data-streamdown=code-block-header]+div]:top-0 [&_[data-streamdown=code-block-header]+div]:pr-1.5",
     "[&_[data-streamdown=code-block-actions]]:rounded-none [&_[data-streamdown=code-block-actions]]:border-0 [&_[data-streamdown=code-block-actions]]:bg-transparent [&_[data-streamdown=code-block-actions]]:p-0 [&_[data-streamdown=code-block-actions]]:backdrop-blur-none",
-    "[&_[data-streamdown=code-block-copy-button]]:flex [&_[data-streamdown=code-block-copy-button]]:size-[22px] [&_[data-streamdown=code-block-copy-button]]:items-center [&_[data-streamdown=code-block-copy-button]]:justify-center [&_[data-streamdown=code-block-copy-button]]:rounded [&_[data-streamdown=code-block-copy-button]]:p-0 [&_[data-streamdown=code-block-copy-button]]:hover:bg-accent",
-    "[&_[data-streamdown=code-block-body]]:rounded-none [&_[data-streamdown=code-block-body]]:border-0 [&_[data-streamdown=code-block-body]]:bg-transparent [&_[data-streamdown=code-block-body]]:px-3 [&_[data-streamdown=code-block-body]]:py-2.5 [&_[data-streamdown=code-block-body]]:text-xs [&_[data-streamdown=code-block-body]]:leading-[18px]",
+    "[&_[data-streamdown=code-block-copy-button]]:flex [&_[data-streamdown=code-block-copy-button]]:size-6 [&_[data-streamdown=code-block-copy-button]]:items-center [&_[data-streamdown=code-block-copy-button]]:justify-center [&_[data-streamdown=code-block-copy-button]]:rounded-sm [&_[data-streamdown=code-block-copy-button]]:p-0 [&_[data-streamdown=code-block-copy-button]]:hover:bg-accent",
+    "[&_[data-streamdown=code-block-body]]:rounded-none [&_[data-streamdown=code-block-body]]:border-0 [&_[data-streamdown=code-block-body]]:bg-transparent [&_[data-streamdown=code-block-body]]:px-3 [&_[data-streamdown=code-block-body]]:py-2.5 [&_[data-streamdown=code-block-body]]:text-code",
 ].join(" ")
 
-// The body scale, set on the prose and again on its paragraphs, list items and quotes (whose own
-// Streamdown size would win otherwise). Written out in full: Tailwind finds classes as literals.
-// The app scale: 13 / 20 on a phone, 14 / 24 from `sm:`; the leading gives prose read at length
-// its air.
-const APP_SCALE = [
-    "text-xs leading-5 sm:text-sm sm:leading-6",
-    "[&_p]:text-xs [&_p]:leading-5 sm:[&_p]:text-sm sm:[&_p]:leading-6",
-    "[&_li]:text-xs [&_li]:leading-5 sm:[&_li]:text-sm sm:[&_li]:leading-6",
-    "[&_blockquote]:text-xs [&_blockquote]:leading-5 sm:[&_blockquote]:text-sm sm:[&_blockquote]:leading-6",
+// Prose is text-body on every element whose own Streamdown size would win; literals so Tailwind finds them.
+const BODY_SCALE = [
+    "text-body",
+    "[&_p]:text-body",
+    "[&_li]:text-body",
+    "[&_blockquote]:text-body",
 ].join(" ")
-// The chat's own messages at the canvas scale: 15 / 22 on a phone, 14 / 20 from `sm:` (M01, S03).
-const CHAT_SCALE = [
-    "text-[15px] leading-[22px] sm:text-sm sm:leading-5",
-    "[&_p]:text-[15px] [&_p]:leading-[22px] sm:[&_p]:text-sm sm:[&_p]:leading-5",
-    "[&_li]:text-[15px] [&_li]:leading-[22px] sm:[&_li]:text-sm sm:[&_li]:leading-5",
-    "[&_blockquote]:text-[15px] [&_blockquote]:leading-[22px] sm:[&_blockquote]:text-sm sm:[&_blockquote]:leading-5",
-].join(" ")
+const APP_SCALE = BODY_SCALE
+const CHAT_SCALE = BODY_SCALE
 
 /** Markdown at the app scale (file previews, embeds, notes). */
 export const proseClassName = `${proseBase} ${APP_SCALE}`
@@ -66,7 +59,7 @@ export const chatProseClassName = `${proseBase} ${CHAT_SCALE}`
 
 /** The app's own glyph set on the fence's copy control — Streamdown's default is a different
  * icon family. Module scope: one identity across streamed tokens. */
-export const markdownIcons: Partial<IconMap> = {CopyIcon: Copy, CheckIcon: Check}
+export const markdownIcons: Partial<IconMap> = {CopyIcon, CheckIcon}
 
 /**
  * Assistant message text rendered as markdown through the shared `ChatMarkdown` renderer, so

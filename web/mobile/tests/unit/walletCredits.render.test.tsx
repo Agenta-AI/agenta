@@ -144,8 +144,9 @@ describe("the sidebar credits meter", () => {
             <CreditsRemainingWidget projectId="proj-1" settingsURL="/settings" collapsed={false} />,
         )
 
-        expect(shown).toContain("Credits remaining")
-        expect(shown).toContain("1,234.5 of 5,000")
+        expect(shown).toContain("Credits")
+        // The slim line rounds down below 10,000; the exact balance is in its tooltip.
+        expect(shown).toContain("1,234 of 5,000")
         expect(host!.querySelector("a")?.getAttribute("href")).toBe("/settings?tab=credits")
     })
 
@@ -156,7 +157,9 @@ describe("the sidebar credits meter", () => {
         )
 
         expect(shown).toContain("0 of 75")
-        expect(host!.querySelector(".bg-primary")?.getAttribute("style")).toContain("width: 0%")
+        expect(host!.querySelector(".bg-border > span")?.getAttribute("style")).toContain(
+            "width: 0%",
+        )
     })
 
     it("is hidden in off mode", async () => {

@@ -29,5 +29,6 @@
     "bedrockAccessKeys": "Access keys",
     "bedrockAccessKeysHint": "An access key ID and a secret access key.",
     "secretAccessKey": "Secret access key",
-    "apiKeyOptional": "API key (optional)"
+    "apiKeyOptional": "API key (optional)",
+    "theCustomEndpoint": "the OpenAI-compatible endpoint"
 }

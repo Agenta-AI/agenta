@@ -27,7 +27,7 @@ const tNow = createT(uiTableCatalog, commonCatalog)
 
 // Default fallback for UserReference - just shows the userId
 const DefaultUserReference = ({userId}: {userId: string | null | undefined}) => {
-    if (!userId) return <span className="text-colorTextSecondary">—</span>
+    if (!userId) return <span className="text-muted-foreground">—</span>
     return <span className="truncate">{userId}</span>
 }
 
@@ -339,10 +339,10 @@ function createMonoColumn<T extends InfiniteTableRowBase>(def: MonoColumnDef<T>)
         render: (_value: unknown, record: T) => {
             if (record.__isSkeleton) return <SkeletonLine width="70%" />
             const text = readCell(record, key, getValue)
-            if (!text) return <span className="text-colorTextSecondary">{emptyText}</span>
+            if (!text) return <span className="text-muted-foreground">{emptyText}</span>
             return (
                 <div className="h-full flex items-center min-w-0">
-                    <span className="font-mono text-xs truncate" title={text}>
+                    <span className="font-mono text-code-sm truncate" title={text}>
                         {text}
                     </span>
                 </div>
@@ -365,12 +365,12 @@ function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>)
         render: (_value: unknown, record: T) => {
             if (record.__isSkeleton) return <SkeletonLine width="70%" />
             const text = readCell(record, key, getValue)
-            if (!text) return <span className="text-colorTextSecondary">{emptyText}</span>
+            if (!text) return <span className="text-muted-foreground">{emptyText}</span>
             return (
                 // `group` + the button's group-hover keeps the copy affordance quiet until
                 // the row is hovered, matching the `⋯` button's behaviour.
                 <div className="group h-full flex items-center gap-1 min-w-0">
-                    <span className="font-mono text-xs truncate" title={text}>
+                    <span className="font-mono text-code-sm truncate" title={text}>
                         {text}
                     </span>
                     <CopyButton
@@ -380,7 +380,7 @@ function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>)
                         stopPropagation
                         size="icon-sm"
                         variant="ghost"
-                        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
                         successMessage={`${title} copied`}
                     />
                 </div>
@@ -405,7 +405,7 @@ function createEntityColumn<T extends InfiniteTableRowBase>(def: EntityColumnDef
                 return (
                     <div className="h-full flex items-center gap-2 min-w-0">
                         {hideAvatar ? null : (
-                            <span className="h-6 w-6 shrink-0 rounded-full bg-colorFillSecondary animate-pulse" />
+                            <span className="h-6 w-6 shrink-0 rounded-md bg-secondary animate-pulse" />
                         )}
                         <SkeletonLine width="50%" center={false} />
                     </div>
@@ -600,7 +600,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                                         size="sm"
                                         aria-label={tNow("common.actions")}
                                     >
-                                        <DotsThreeVertical weight="bold" />
+                                        <DotsThreeVertical />
                                     </Button>
                                 </DropdownMenuTrigger>
                             </span>

@@ -3,15 +3,21 @@ import {type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
-import {Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from "@agenta/ui/ui"
-import {DotsThree} from "@phosphor-icons/react"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
+import {DotsThreeVertical} from "@phosphor-icons/react"
 
 export function TriggerActionsMenu({
     name,
     menu,
     open,
     container,
-    phone,
 }: {
     /** The automation's name: the button is "More actions for <name>". */
     name: string
@@ -21,37 +27,28 @@ export function TriggerActionsMenu({
     open?: boolean
     /** Portal target; defaults to document.body (pass an element to render inline). */
     container?: HTMLElement | null
-    /** Phone: "⋯" is 44 px; each entry is at least 44 px high. */
+    /** Kept for callers; the menu has one size on every screen (SIZE-02). */
     phone?: boolean
 }) {
-    const t = useT(automationsEditorCatalog)
+    const t = useT(automationsEditorCatalog, uiControlsCatalog)
+    const label = t("automations.editor.moreActionsFor", {name})
     return (
         <DropdownMenu open={open}>
-            <DropdownMenuTrigger asChild>
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("automations.editor.moreActionsFor", {name})}
-                    onClick={(e) => e.stopPropagation()}
-                    className={
-                        phone
-                            ? "size-11 text-colorTextSecondary [&_svg]:!size-[18px]"
-                            : "size-6 text-colorTextSecondary [&_svg]:!size-3.5"
-                    }
-                >
-                    <DotsThree weight="bold" />
-                </Button>
-            </DropdownMenuTrigger>
+            <SimpleTooltip title={t("ui.controls.moreActions")}>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={label}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-muted-foreground hover:text-foreground"
+                    >
+                        <DotsThreeVertical aria-hidden />
+                    </Button>
+                </DropdownMenuTrigger>
+            </SimpleTooltip>
             {/* Under the button, its right edge on the row's: the menu stays inside the panel. */}
-            <DropdownMenuContent
-                align="end"
-                container={container}
-                className={
-                    phone
-                        ? "w-[220px] [&_[role=menuitem]]:min-h-11 [&_[role=menuitem]]:text-[15px]"
-                        : "w-[180px] [&_[role=menuitem]]:h-8 [&_[role=menuitem]]:text-[13px] [&_[role=menuitem]_svg]:!size-3.5"
-                }
-            >
+            <DropdownMenuContent align="end" container={container} className="w-popover-sm">
                 {menu}
             </DropdownMenuContent>
         </DropdownMenu>

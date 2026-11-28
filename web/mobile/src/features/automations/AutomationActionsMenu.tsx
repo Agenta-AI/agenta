@@ -1,21 +1,27 @@
 import {useCallback, useState} from "react"
 
 import {type Automation, useAutomation} from "@agenta/automation-ui"
-import {AutomationDeleteDialog} from "@agenta/entity-ui/drill-in"
+import {useAutomationDelete} from "@agenta/entity-ui/drill-in"
 import {createT, useT} from "@agenta/i18n"
+import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {message} from "@agenta/ui/app-message"
 import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
-    cn,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    PHONE_TOUCH_TARGET_CLASS,
 } from "@agenta/ui/ui"
-import {ClockCounterClockwise, DotsThreeVertical, Pause, Play, Trash} from "@phosphor-icons/react"
+import {ClockCounterClockwise, DotsThree, Pause, Play, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {useAutomationRunNow} from "./useAutomationRunNow"
@@ -54,7 +60,7 @@ export const AutomationActionsMenu = ({
      */
     onLeave?: (url: string) => void
 }) => {
-    const t = useT(automationsScreensCatalog)
+    const t = useT(automationsScreensCatalog, automationsPanelCatalog)
     const router = useRouter()
     const {remove, setActive} = useAutomation(automation.id, automation.kind)
     // The list row's Run now ignores unsaved edits: the row has none.
@@ -83,6 +89,7 @@ export const AutomationActionsMenu = ({
         if (onLeave) onLeave(list)
         else void router.push(list).catch(() => undefined)
     }, [automation.id, base, onLeave, remove, router])
+    const deletion = useAutomationDelete({onDelete, onClose: () => setConfirmDelete(false)})
 
     return (
         <>
@@ -98,22 +105,17 @@ export const AutomationActionsMenu = ({
                         size={surface === "list" ? "icon-xs" : "icon-sm"}
                         variant="ghost"
                         aria-label={t("automations.screens.actionsAria")}
-                        className={cn(
-                            "hover:bg-foreground/10 dark:hover:bg-foreground/15",
-                            PHONE_TOUCH_TARGET_CLASS,
-                        )}
                     >
                         {/* Bigger than the box would give it: three small dots read smaller than
                             a glyph that fills its box, so matching by measurement mismatches by
                             eye. */}
-                        <DotsThreeVertical
+                        <DotsThree
                             aria-hidden
                             className={surface === "list" ? "size-3.5" : "size-4"}
-                            weight="bold"
                         />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[220px]">
+                <DropdownMenuContent align="end" className="w-popover-sm">
                     {surface === "list" ? (
                         <>
                             <DropdownMenuItem onSelect={() => void onRunNow()}>
@@ -152,12 +154,39 @@ export const AutomationActionsMenu = ({
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-            <AutomationDeleteDialog
+            <AlertDialog
                 open={confirmDelete}
-                name={automation.name}
-                onDelete={onDelete}
-                onClose={() => setConfirmDelete(false)}
-            />
+                onOpenChange={(next) => (next ? undefined : deletion.close())}
+            >
+                <AlertDialogContent data-testid="automation-delete-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("automations.screens.deleteTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("automations.screens.deleteMessage", {name: automation.name})}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {deletion.failed ? (
+                        <p role="alert" className="m-0 text-label text-destructive">
+                            {t("automations.panel.deleteFailed")}
+                        </p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        {/* Focus starts on Cancel when the dialog opens. */}
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline" disabled={deletion.pending}>
+                                {t("automations.screens.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <Button
+                            variant="destructive"
+                            disabled={deletion.pending}
+                            onClick={() => void deletion.remove()}
+                        >
+                            {t("automations.screens.delete")}
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

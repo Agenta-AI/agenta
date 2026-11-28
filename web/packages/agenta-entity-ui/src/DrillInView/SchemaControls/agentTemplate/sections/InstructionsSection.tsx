@@ -1,14 +1,15 @@
 import {createT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import itemDescriptorsCatalog from "@agenta/i18n/catalogs/entityUi.itemDescriptors"
 import {FileText} from "@phosphor-icons/react"
 
-import {InstructionsFileRow, type ItemRowStatus} from "../ItemRow"
+import {mdPreview} from "../itemDescriptors"
+import {InstructionsFileRow, StatusTag, type ItemRowStatus} from "../ItemRow"
 import type {PanelSectionKey} from "../sectionChanges"
-import {SectionPageAction} from "../SectionPageAction"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 
-const tItems = createT(configItemsCatalog)
+const tItems = createT(configItemsCatalog, itemDescriptorsCatalog)
 const FILENAME = "AGENTS.md"
 
 export interface InstructionsSectionParams {
@@ -41,11 +42,11 @@ export const instructionsSection = ({
         : undefined
     // Counted as the file row inside counts them.
     const words = (agentsMd ?? "").trim().split(/\s+/).filter(Boolean).length
-    const phoneSummary = `${FILENAME} · ${
+    const wordCount =
         words > 0
             ? tItems("entityUi.configItems.wordCount", {count: words})
             : tItems("entityUi.configItems.empty")
-    }`
+    const phoneSummary = `${FILENAME} · ${wordCount}`
 
     return (
         hasInstructions && {
@@ -56,7 +57,6 @@ export const instructionsSection = ({
             indicator: sectionIndicator("instructions"),
             defaultOpen: true,
             insetBody: true,
-            pageAction: <SectionPageAction action="edit" onClick={openInstruction} />,
             content: (
                 <InstructionsFileRow
                     filename={FILENAME}
@@ -65,6 +65,21 @@ export const instructionsSection = ({
                     status={instructionsStatus}
                 />
             ),
+            panelCard: {
+                onOpen: openInstruction,
+                summary: words > 0 ? wordCount : undefined,
+                badge: instructionsStatus ? <StatusTag status={instructionsStatus} /> : undefined,
+                preview:
+                    words > 0 ? (
+                        <span className="line-clamp-3 text-meta text-foreground">
+                            {mdPreview(agentsMd ?? "", 320)}
+                        </span>
+                    ) : (
+                        <span className="text-meta text-muted-foreground">
+                            {tItems("entityUi.itemDescriptors.emptyFile")}
+                        </span>
+                    ),
+            },
         }
     )
 }

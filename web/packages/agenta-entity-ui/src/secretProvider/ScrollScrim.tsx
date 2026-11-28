@@ -59,14 +59,14 @@ const ScrollScrim = ({children, className}: ScrollScrimProps) => {
             <span
                 aria-hidden
                 className={cn(
-                    "pointer-events-none absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-colorBgContainer to-transparent transition-opacity",
+                    "pointer-events-none absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-background to-transparent transition-opacity",
                     edges.top ? "opacity-100" : "opacity-0",
                 )}
             />
             <span
                 aria-hidden
                 className={cn(
-                    "pointer-events-none absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-colorBgContainer to-transparent transition-opacity",
+                    "pointer-events-none absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-background to-transparent transition-opacity",
                     edges.bottom ? "opacity-100" : "opacity-0",
                 )}
             />

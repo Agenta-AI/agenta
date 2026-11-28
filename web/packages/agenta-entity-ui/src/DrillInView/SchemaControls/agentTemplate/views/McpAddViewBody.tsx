@@ -1,7 +1,8 @@
-import {useCallback, useMemo, useRef} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import {USER_ACCOUNT_SOURCE} from "@agenta/entities/accountChoice"
 import {
+    deleteMcpEndpointAtom,
     findCustomMcpEndpoint,
     getMcpConnectionStatus,
     hostnameLabel,
@@ -14,9 +15,21 @@ import {
 } from "@agenta/entities/mcpEndpoint"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
+import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
+import {message} from "@agenta/ui/app-message"
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {McpAddServerList, type McpConnectionOption} from "../../../../mcpEndpoint/McpAddServerList"
 import {
@@ -31,9 +44,10 @@ import {useAgentConfigWriter} from "../useAgentConfigWriter"
 import type {McpAddViewParams} from "./mcpAddView"
 import {mcpConnectView} from "./mcpConnectView"
 import {mcpServerView} from "./mcpServerView"
+import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
 
 const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
-    const t = useT(mcpConnectCatalog)
+    const t = useT(mcpConnectCatalog, integrationDrawerCatalog, integrationViewsCatalog)
     useViewTitle(t("entityUi.mcpConnect.addMcpServer"))
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
@@ -130,15 +144,104 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
         [endpoints, push],
     )
 
+    // "Remove from agent" from an added row's menu, after the question: every item of that server.
+    const [removing, setRemoving] = useState<McpConnectionOption | null>(null)
+    const confirmRemove = () => {
+        const slug = removing?.slug
+        if (slug) {
+            writer.update((agent) => ({
+                ...agent,
+                mcps: mcpsOf(agent).filter(
+                    (item) => readMcpConnectionSlug(item as Record<string, unknown>) !== slug,
+                ),
+            }))
+        }
+        setRemoving(null)
+    }
+
+    // Delete from a connected row's menu, after the question.
+    const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
+    const [deleting, setDeleting] = useState<McpConnectionOption | null>(null)
+    const [deleteBusy, setDeleteBusy] = useState(false)
+    const confirmDelete = async () => {
+        const endpoint = deleting ? findCustomMcpEndpoint(endpoints, deleting.slug) : undefined
+        if (!endpoint?.id) return setDeleting(null)
+        setDeleteBusy(true)
+        try {
+            await deleteEndpoint(endpoint.id)
+            // A deleted server also leaves this agent, so the agent keeps no broken reference.
+            if (deleting?.added) {
+                const slug = deleting.slug
+                writer.update((agent) => ({
+                    ...agent,
+                    mcps: mcpsOf(agent).filter(
+                        (item) => readMcpConnectionSlug(item as Record<string, unknown>) !== slug,
+                    ),
+                }))
+            }
+            setDeleting(null)
+        } catch {
+            message.error(t("entityUi.integrationDrawer.deleteFailed"))
+        } finally {
+            setDeleteBusy(false)
+        }
+    }
+
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
+        // pt-3: the search sits where the integration catalog's does.
+        <div className="flex min-h-0 flex-1 flex-col pt-3">
             <McpAddServerList
                 options={options}
                 loading={endpointsQuery.isPending}
+                error={endpointsQuery.isError && !endpointsQuery.data}
+                onRetry={() => void endpointsQuery.refetch()}
                 onConnectServer={connect}
                 onAdd={add}
                 onReconnect={reconnect}
+                onRefresh={() => void endpointsQuery.refetch()}
+                onDelete={setDeleting}
+                onRemoveFromAgent={writer.readOnly ? undefined : setRemoving}
             />
+            <RemoveFromAgentDialog
+                open={removing !== null}
+                name={removing?.name ?? ""}
+                body={t("entityUi.integrationViews.connectionStays")}
+                onConfirm={confirmRemove}
+                onCancel={() => setRemoving(null)}
+            />
+            {deleting ? (
+                <AlertDialog
+                    open
+                    onOpenChange={(next) => (next || deleteBusy ? undefined : setDeleting(null))}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("entityUi.integrationDrawer.deleteTitle", {name: deleting.name})}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t("entityUi.integrationDrawer.deleteBody")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <Button
+                                variant="outline"
+                                disabled={deleteBusy}
+                                onClick={() => setDeleting(null)}
+                            >
+                                {t("entityUi.integrationDrawer.cancel")}
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                disabled={deleteBusy}
+                                onClick={() => void confirmDelete()}
+                            >
+                                {t("entityUi.integrationDrawer.delete")}
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            ) : null}
         </div>
     )
 }

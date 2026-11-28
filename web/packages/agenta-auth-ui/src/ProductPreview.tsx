@@ -4,11 +4,11 @@ import {useEffect, useState, type ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import previewDemoCatalog from "@agenta/i18n/catalogs/auth.previewDemo"
 import previewCatalog from "@agenta/i18n/catalogs/auth.productPreview"
+import {Spinner} from "@agenta/ui/ui"
 import {
     CaretDown,
     CaretUpDown,
     ChatsCircle,
-    CircleNotch,
     Compass,
     Gear,
     House,
@@ -51,7 +51,7 @@ const AppLogo = ({app, className}: {app: AppId; className: string}) => {
     const [failed, setFailed] = useState(false)
     if (failed)
         return (
-            <span className="auth-preview-muted text-[10px] font-semibold uppercase leading-none">
+            <span className="auth-preview-muted text-caption font-semibold uppercase leading-none">
                 {app[0]}
             </span>
         )
@@ -66,8 +66,8 @@ const AppLogo = ({app, className}: {app: AppId; className: string}) => {
 }
 
 const AppTile = ({app}: {app: AppId}) => (
-    <span className="auth-preview-tile inline-flex size-9 flex-none items-center justify-center rounded-[10px]">
-        <AppLogo app={app} className="size-[18px]" />
+    <span className="auth-preview-tile inline-flex size-8 flex-none items-center justify-center rounded-md">
+        <AppLogo app={app} className="size-4" />
     </span>
 )
 
@@ -86,9 +86,9 @@ const SESSION_GROUPS = AUTOMATIONS.filter((automation) => automation.sessions.le
 const Sidebar = () => {
     const t = useT(previewCatalog, previewDemoCatalog)
     return (
-        <aside className="auth-preview-sidebar flex w-[232px] flex-none flex-col gap-[18px] overflow-hidden px-2.5 pb-3 pt-4">
+        <aside className="auth-preview-sidebar flex w-[232px] flex-none flex-col gap-4 overflow-hidden px-2.5 pb-3 pt-4">
             <div className="flex items-center justify-between px-1.5">
-                <AgentaWordmark className="h-[18px] w-auto" />
+                <AgentaWordmark className="h-4.5 w-auto" />
                 <SidebarSimple size={15} className="auth-preview-muted" />
             </div>
             <nav className="flex flex-col gap-0.5">
@@ -96,7 +96,7 @@ const Sidebar = () => {
                     <div
                         key={label}
                         className={clsx(
-                            "flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[13px]",
+                            "flex h-8 items-center gap-2 rounded-md px-2.5 text-label",
                             label === "Automations" && "auth-preview-nav-active",
                         )}
                     >
@@ -108,7 +108,7 @@ const Sidebar = () => {
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
                 {SESSION_GROUPS.map(({id, sessions}) => (
                     <div key={id} className="flex flex-col gap-0.5">
-                        <div className="auth-preview-faint flex h-[26px] items-center justify-between px-2.5 text-xs">
+                        <div className="auth-preview-faint flex h-6 items-center justify-between px-2.5 text-meta">
                             <span className="inline-flex items-center gap-1">
                                 {t(`auth.previewDemo.${id}Name`)}
                                 <CaretDown size={10} />
@@ -118,9 +118,9 @@ const Sidebar = () => {
                         {sessions.map((session) => (
                             <div
                                 key={session}
-                                className="flex h-7 items-center gap-2.5 overflow-hidden whitespace-nowrap px-2.5 text-[13px]"
+                                className="flex h-7 items-center gap-2.5 overflow-hidden whitespace-nowrap px-2.5 text-label"
                             >
-                                <span className="auth-preview-ring-dot size-1.5 flex-none rounded-full" />
+                                <span className="auth-preview-ring-dot size-1.5 flex-none rounded-round" />
                                 <span className="truncate">{t(`auth.previewDemo.${session}`)}</span>
                             </div>
                         ))}
@@ -128,16 +128,16 @@ const Sidebar = () => {
                 ))}
             </div>
             <div className="flex flex-col gap-0.5">
-                <div className="flex h-8 items-center gap-2.5 px-2.5 text-[13px]">
+                <div className="flex h-8 items-center gap-2.5 px-2.5 text-label">
                     <SquaresFour size={16} />
                     <span className="flex-1">{t("auth.productPreview.navTemplates")}</span>
                 </div>
-                <div className="flex h-8 items-center gap-2.5 px-2.5 text-[13px]">
+                <div className="flex h-8 items-center gap-2.5 px-2.5 text-label">
                     <Gear size={16} />
                     <span className="flex-1">{t("auth.productPreview.navSettings")}</span>
                 </div>
-                <div className="mt-1 flex h-9 items-center gap-2.5 px-1.5 text-[13px]">
-                    <span className="inline-flex size-6 items-center justify-center rounded-[7px] bg-[#3b82f6] text-xs font-medium text-white">
+                <div className="mt-1 flex h-9 items-center gap-2.5 px-1.5 text-label">
+                    <span className="inline-flex size-6 items-center justify-center rounded-md bg-secondary text-label text-muted-foreground">
                         M
                     </span>
                     <span className="flex-1 truncate">maya@northwind.io</span>
@@ -150,12 +150,12 @@ const Sidebar = () => {
 
 /** Live text, as the playground shimmers it. */
 const LIVE_TEXT =
-    "bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_50%,var(--ag-colorTextQuaternary)_100%)] bg-clip-text motion-safe:animate-text-shimmer motion-safe:bg-[length:200%_100%] motion-safe:text-transparent"
+    "bg-[linear-gradient(90deg,var(--muted-foreground)_0%,var(--foreground)_50%,var(--muted-foreground)_100%)] bg-clip-text motion-safe:animate-text-shimmer motion-safe:bg-[length:200%_100%] motion-safe:text-transparent"
 
 /** The 24px round node on the timeline wire. */
 const StepNode = ({icon, running}: {icon: Step["icon"]; running: boolean}) => {
     let glyph
-    if (running) glyph = <CircleNotch size={13} className="motion-safe:animate-spin" />
+    if (running) glyph = <Spinner aria-hidden className="size-3.5" />
     else if (typeof icon === "string") {
         glyph = <AppLogo app={icon} className="size-3.5" />
     } else {
@@ -163,7 +163,7 @@ const StepNode = ({icon, running}: {icon: Step["icon"]; running: boolean}) => {
         glyph = <Glyph size={13} />
     }
     return (
-        <span className="auth-preview-node auth-preview-faint relative z-10 flex size-6 flex-none items-center justify-center rounded-full">
+        <span className="auth-preview-node auth-preview-faint relative z-10 flex size-6 flex-none items-center justify-center rounded-md">
             {glyph}
         </span>
     )
@@ -198,7 +198,7 @@ const Activity = ({
     const current = automation.steps[Math.max(0, shown - 1)]
     return (
         <div className="flex flex-col pl-[50px] pt-3">
-            <div className="auth-preview-muted flex items-center gap-1.5 text-[13px]">
+            <div className="auth-preview-muted flex items-center gap-1.5 text-label">
                 <span className={clsx("min-w-0 truncate", !finished && LIVE_TEXT)}>
                     {finished
                         ? t("auth.productPreview.workedFor", {seconds})
@@ -211,7 +211,7 @@ const Activity = ({
                         · {t("auth.productPreview.elapsed", {seconds})}
                     </span>
                 )}
-                <CaretDown size={10} weight="bold" className="auth-preview-faint flex-none" />
+                <CaretDown size={10} className="auth-preview-faint flex-none" />
             </div>
             <div className="relative mt-1 flex flex-col">
                 {shown > 1 ? (
@@ -235,7 +235,7 @@ const Activity = ({
                             )}
                         >
                             <StepNode icon={step.icon} running={running} />
-                            <span className={clsx("truncate text-[13px]", running && LIVE_TEXT)}>
+                            <span className={clsx("truncate text-label", running && LIVE_TEXT)}>
                                 {running
                                     ? t(`auth.previewDemo.${id}Step${step.n}Running`)
                                     : t(`auth.previewDemo.${id}Step${step.n}Done`)}
@@ -246,7 +246,7 @@ const Activity = ({
             </div>
             <p
                 className={clsx(
-                    "m-0 pt-3.5 text-[13px] leading-5 transition-opacity duration-300",
+                    "m-0 pt-3.5 text-label leading-5 transition-opacity duration-300",
                     finished ? "opacity-100" : "opacity-0",
                 )}
             >
@@ -272,14 +272,12 @@ export const ProductPreview = () => {
             <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-hidden px-10 pt-10">
                 <div className="flex items-end justify-between gap-4">
                     <div className="flex flex-col gap-1.5">
-                        <h3 className="m-0 text-[26px] font-semibold leading-8 tracking-[-0.02em]">
-                            {t("auth.productPreview.title")}
-                        </h3>
-                        <p className="auth-preview-muted m-0 text-sm">
+                        <h3 className="m-0 text-heading">{t("auth.productPreview.title")}</h3>
+                        <p className="auth-preview-muted m-0 text-body">
                             {t("auth.productPreview.subtitle")}
                         </p>
                     </div>
-                    <span className="auth-preview-cta inline-flex h-8 flex-none items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium">
+                    <span className="auth-preview-cta inline-flex h-8 flex-none items-center gap-1.5 rounded-md px-3 text-label">
                         <Plus size={13} />
                         {t("auth.productPreview.newAutomation")}
                     </span>
@@ -291,17 +289,17 @@ export const ProductPreview = () => {
                             <div
                                 key={automation.id}
                                 className={clsx(
-                                    "auth-preview-row flex flex-col rounded-xl px-4 py-3 transition-shadow duration-300",
+                                    "auth-preview-row flex flex-col rounded-lg px-4 py-3 transition-shadow duration-300",
                                     active && "auth-preview-open",
                                 )}
                             >
-                                <div className="flex items-center gap-3.5">
+                                <div className="flex items-center gap-3">
                                     <AppTile app={automation.apps[0]} />
                                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                        <span className="truncate text-sm font-medium">
+                                        <span className="truncate text-label">
                                             {t(`auth.previewDemo.${automation.id}Name`)}
                                         </span>
-                                        <span className="auth-preview-muted flex items-center gap-1.5 text-[13px]">
+                                        <span className="auth-preview-muted flex items-center gap-1.5 text-label">
                                             <span className="truncate">
                                                 {active
                                                     ? t(`auth.previewDemo.${automation.id}Event`)

@@ -102,7 +102,9 @@ describe("archived test sets route", () => {
         expect(host.textContent).toContain(
             "Archived test sets are hidden from your workspace but can be restored at any time.",
         )
-        const back = host.querySelector('a[aria-label="Back to test sets"]')
+        const back = [...host.querySelectorAll<HTMLAnchorElement>("a[aria-label]")].find(
+            (a) => a.getAttribute("aria-label")?.toLowerCase() === "back to test sets",
+        )
         expect(back?.getAttribute("href")).toBe("/w/ws/p/pr/testsets")
         expect(host.textContent).toContain("No archived test sets")
     })
@@ -172,9 +174,7 @@ describe("archived test sets route", () => {
         document.body.appendChild(host)
         root = createRoot(host)
 
-        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
-        localStorage.setItem("agenta:settings:user-1:beta-developer-mode", JSON.stringify(true))
-        // A fresh store reads the stored switch, as a page load does.
+        // A fresh store reads the stored Developer Mode, as a page load does.
         store = createStore()
         store.set(activeUserIdAtom, "user-1")
         store.set(navSimplifiedOverrideAtom, false)

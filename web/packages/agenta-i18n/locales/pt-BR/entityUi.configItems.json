@@ -7,7 +7,6 @@
     "noSkillsYet": "Ainda não há habilidades",
     "newSkill": "Nova habilidade",
     "locked": "Bloqueado",
-    "remove": "Remover",
     "wordCount_one": "{{count}} palavra",
     "wordCount_many": "{{count}} palavras",
     "wordCount_other": "{{count}} palavras",
@@ -64,7 +63,8 @@
     "countTool_one": "{{count}} ferramenta",
     "countTool_many": "{{count}} ferramentas",
     "countTool_other": "{{count}} ferramentas",
-    "change": "Alterar",
-    "policyHint": "O que o agente pode fazer sem perguntar",
-    "modelVia": "via {{harness}}"
+    "removeName": "Remover {{name}}",
+    "groupSetup": "Modelo e instruções",
+    "groupUses": "O que ele pode usar",
+    "groupMore": "Mais configurações"
 }

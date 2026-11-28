@@ -12,8 +12,8 @@ import {cn} from "./utils"
  * Structure mirrors antd's DOM/tokens (verified against v6.3.7 source + the app theme):
  * - root `.ant-progress` → `inline-flex`, `role="progressbar"` + aria-valuenow/min/max.
  * - body → `inline-flex items-center w-full`, gap `marginXS` 8px (`gap-2`).
- * - track (antd's `-rail`) → `bg-fill-secondary` (`remainingColor` = colorFillSecondary),
- *   `overflow-hidden`, radius `lineBorderRadius` 100 (`rounded-full`), height 8px default /
+ * - track (antd's `-rail`) → `bg-secondary` (`remainingColor` = colorFillSecondary),
+ *   `overflow-hidden`, radius 2px (`rounded-xs`, SHAPE-01), height 8px default /
  *   6px small (antd `size === 'small' ? 6 : 8` → `h-2` / `h-1.5`).
  * - bar (antd's `-track`) → absolute, inset-y-0 left-0, radius inherit, width = `percent%`
  *   (inline style, content-driven like antd). Colour = antd `defaultColor` = **colorInfo**
@@ -21,7 +21,7 @@ import {cn} from "./utils"
  *   colorSuccess, exception = colorError. `transition-[width]` at `motionDurationSlow` 0.3s
  *   with antd's `motionEaseInOutCirc` — a CSS transition, not a keyframe.
  * - text (antd's `-indicator`) → `colorText` normal / colorSuccess / colorError, `fontSize`
- *   14px default / 12px small (`text-sm` / `text-[12px]`), `line-height:1` (`leading-none`). At
+ *   13px default / 12px small (`text-label` / `text-meta`), `line-height:1` (`leading-none`). At
  *   status success/exception antd swaps the `{percent}%` label for filled glyphs
  *   `CheckCircle` / `XCircle` (Phosphor, `fill` weight; no antd icon package, so the mobile
  *   bundle stays free of it). The `1em` block svg keeps the info-area height at the font size,
@@ -61,7 +61,7 @@ import {cn} from "./utils"
  * (and its `gapDegree`/`gapPosition`) is still deferred — see Progress.md.
  */
 const progressTrackVariants = cva(
-    "relative box-border w-full flex-auto overflow-hidden rounded-full bg-fill-secondary",
+    "relative box-border w-full flex-auto overflow-hidden rounded-xs bg-secondary",
     {
         variants: {
             // antd line height: default 8px, small 6px (`size === 'small' ? 6 : 8`).
@@ -80,7 +80,7 @@ const progressBarVariants = cva(
                 normal: "bg-info",
                 active: "bg-info",
                 success: "bg-success",
-                exception: "bg-error",
+                exception: "bg-destructive",
             },
         },
         defaultVariants: {status: "normal"},
@@ -96,9 +96,9 @@ const progressTextVariants = cva("box-border whitespace-nowrap leading-none [&_s
             normal: "text-foreground",
             active: "text-foreground",
             success: "text-success",
-            exception: "text-error",
+            exception: "text-destructive",
         },
-        size: {default: "text-sm", small: "text-[12px]"},
+        size: {default: "text-label", small: "text-meta"},
     },
     defaultVariants: {status: "normal", size: "default"},
 })
@@ -113,7 +113,7 @@ const progressCircleStrokeVariants = cva(
                 normal: "text-info",
                 active: "text-info",
                 success: "text-success",
-                exception: "text-error",
+                exception: "text-destructive",
             },
         },
         defaultVariants: {status: "normal"},
@@ -130,7 +130,7 @@ const progressCircleTextVariants = cva(
                 normal: "text-foreground",
                 active: "text-foreground",
                 success: "text-success",
-                exception: "text-error",
+                exception: "text-destructive",
             },
         },
         defaultVariants: {status: "normal"},
@@ -210,9 +210,9 @@ export function Progress({
         if (format) {
             info = format(pct)
         } else if (effectiveStatus === "exception") {
-            info = isCircle ? <X weight="bold" /> : <XCircle weight="fill" />
+            info = isCircle ? <X /> : <XCircle weight="fill" />
         } else if (effectiveStatus === "success") {
-            info = isCircle ? <Check weight="bold" /> : <CheckCircle weight="fill" />
+            info = isCircle ? <Check /> : <CheckCircle weight="fill" />
         } else {
             info = `${pct}%`
         }
@@ -254,7 +254,7 @@ export function Progress({
                     >
                         <circle
                             data-slot="progress-circle-trail"
-                            className="text-fill-secondary"
+                            className="text-secondary"
                             cx={50}
                             cy={50}
                             r={radius}

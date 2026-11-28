@@ -1,6 +1,6 @@
 /**
- * Each section of the agent configuration carries an anchor, so a host (the Configuration page)
- * can list the sections and scroll to one.
+ * Each section of the agent configuration carries an anchor, so a host (the builder's section
+ * marks) can find it.
  */
 import {act, createElement} from "react"
 
@@ -26,7 +26,7 @@ afterEach(() => {
 })
 
 describe("AgentTemplateSectionList anchors", () => {
-    it("marks each section with its key and its title", () => {
+    it("marks each section with its key", () => {
         act(() =>
             root.render(
                 createElement(AgentTemplateSectionList, {
@@ -39,7 +39,5 @@ describe("AgentTemplateSectionList anchors", () => {
         )
         const anchors = [...container.querySelectorAll<HTMLElement>("[data-config-section]")]
         expect(anchors.map((a) => a.dataset.configSection)).toEqual(["model-harness", "skills"])
-        expect(anchors[0].dataset.configSectionTitle).toBe("Model")
-        expect(anchors[1].dataset.configSectionTitle).toBeUndefined()
     })
 })

@@ -13,9 +13,9 @@ export const WorkingDots = () => {
             aria-label={t("chat.turnActivity.working")}
             className="flex items-center gap-1 px-1 py-0.5"
         >
-            <span className="inline-block h-[5px] w-[5px] animate-pulse rounded-full bg-colorTextTertiary [animation-duration:1.2s]" />
-            <span className="inline-block h-[5px] w-[5px] animate-pulse rounded-full bg-colorTextTertiary [animation-delay:0.2s] [animation-duration:1.2s]" />
-            <span className="inline-block h-[5px] w-[5px] animate-pulse rounded-full bg-colorTextTertiary [animation-delay:0.4s] [animation-duration:1.2s]" />
+            <span className="inline-block size-1 animate-pulse rounded-round bg-muted-foreground [animation-duration:1.2s]" />
+            <span className="inline-block size-1 animate-pulse rounded-round bg-muted-foreground [animation-delay:0.2s] [animation-duration:1.2s]" />
+            <span className="inline-block size-1 animate-pulse rounded-round bg-muted-foreground [animation-delay:0.4s] [animation-duration:1.2s]" />
         </span>
     )
 }
@@ -29,7 +29,7 @@ export const WaitingForInput = () => {
         <span
             role="status"
             aria-label={t("chat.turnActivity.waitingLabel")}
-            className="flex items-center gap-1.5 px-1 py-0.5 text-xs text-colorTextTertiary"
+            className="flex items-center gap-1.5 px-1 py-0.5 text-meta text-muted-foreground"
         >
             <Hourglass size={12} />
             {t("chat.turnActivity.waiting")}
@@ -46,13 +46,13 @@ export const WaitingForInput = () => {
  */
 export const StartupActivity = ({label}: {label: string}) => (
     <span role="status" aria-live="polite" className="flex items-end gap-2 py-0.5">
-        <span className="bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_45%,var(--ag-colorTextQuaternary)_90%)] bg-clip-text text-sm text-colorTextSecondary motion-safe:animate-text-shimmer motion-safe:bg-[length:240%_100%] motion-safe:text-transparent">
+        <span className="bg-[linear-gradient(90deg,var(--muted-foreground)_0%,var(--foreground)_45%,var(--muted-foreground)_90%)] bg-clip-text text-body text-muted-foreground motion-safe:animate-text-shimmer motion-safe:bg-[length:240%_100%] motion-safe:text-transparent">
             {label}
         </span>
         <span aria-hidden className="flex items-end gap-1 pb-1">
-            <span className="inline-block h-1 w-1 rounded-full bg-colorTextTertiary motion-safe:animate-pulse [animation-duration:1.2s]" />
-            <span className="inline-block h-1 w-1 rounded-full bg-colorTextTertiary motion-safe:animate-pulse [animation-delay:0.2s] [animation-duration:1.2s]" />
-            <span className="inline-block h-1 w-1 rounded-full bg-colorTextTertiary motion-safe:animate-pulse [animation-delay:0.4s] [animation-duration:1.2s]" />
+            <span className="inline-block h-1 w-1 rounded-round bg-muted-foreground motion-safe:animate-pulse [animation-duration:1.2s]" />
+            <span className="inline-block h-1 w-1 rounded-round bg-muted-foreground motion-safe:animate-pulse [animation-delay:0.2s] [animation-duration:1.2s]" />
+            <span className="inline-block h-1 w-1 rounded-round bg-muted-foreground motion-safe:animate-pulse [animation-delay:0.4s] [animation-duration:1.2s]" />
         </span>
     </span>
 )

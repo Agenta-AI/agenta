@@ -100,7 +100,7 @@ const base = {
 export const Missing: Story = {
     parameters: seeded,
     render: () => (
-        <div className="w-[720px]">
+        <div className="w-full max-w-[720px]">
             <PersonalAccountsCard
                 {...base}
                 items={[GITHUB, LINEAR, TOKEN]}
@@ -114,7 +114,7 @@ export const Missing: Story = {
 export const NoAccountYet: Story = {
     parameters: seeded,
     render: () => (
-        <div className="w-[720px]">
+        <div className="w-full max-w-[720px]">
             <PersonalAccountsCard {...base} items={[SLACK]} pendingKeys={new Set([SLACK.key])} />
         </div>
     ),
@@ -124,7 +124,7 @@ export const NoAccountYet: Story = {
 export const OneDone: Story = {
     parameters: seeded,
     render: () => (
-        <div className="w-[720px]">
+        <div className="w-full max-w-[720px]">
             <PersonalAccountsCard
                 {...base}
                 items={[GITHUB, LINEAR]}

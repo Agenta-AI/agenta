@@ -2,19 +2,30 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     AutomationDetailBody,
-    AutomationDetailSkeleton,
+    AutomationPaneSkeleton,
     useAutomation,
     useAutomationEditor,
 } from "@agenta/automation-ui"
-import {AutomationDeleteDialog} from "@agenta/entity-ui/drill-in"
+import {useAutomationDelete} from "@agenta/entity-ui/drill-in"
 import {createT, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {message} from "@agenta/ui/app-message"
-import {useIsPhone} from "@agenta/ui/phone"
-import {Button} from "@agenta/ui/ui"
-import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {Trash} from "@phosphor-icons/react"
+import {
+    Alert,
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    EmptyState,
+} from "@agenta/ui/ui"
+import {useViewForm, useViewTitle, ViewFooterStart, type ViewProps} from "@agenta/ui/view-stack"
+import {Lightning, Trash} from "@phosphor-icons/react"
 
 import {automationRunHistoryView} from "./automationRunHistoryView"
 import {AutomationRunNowButton} from "./AutomationRunNowButton"
@@ -24,11 +35,8 @@ const tNow = createT(automationsScreensCatalog)
 
 /** The body of the automation view: the shared body in a panel column, with this app's Run now. */
 const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParams>) => {
-    const t = useT(automationsScreensCatalog)
+    const t = useT(automationsScreensCatalog, automationsPanelCatalog)
     const tEditor = useT(automationsEditorCatalog)
-    // A phone keeps 44 px tap targets in the footer.
-    const phone = useIsPhone()
-    const footerButton = phone ? "h-11 px-4 text-[15px]" : ""
     const editor = useAutomationEditor(params.automationId)
     const {remove} = useAutomation(params.automationId, params.kind)
     const base = `/w/${params.workspaceId}/p/${params.projectId}`
@@ -38,7 +46,9 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
     useViewForm({
         dirty: editor.dirty,
         valid: true,
-        save: editor.save,
+        // The automation stays open after Save; a failed save says so itself, so it stays too.
+        closeOnSave: false,
+        save: async () => (await editor.save()) || "stay",
         leaveDescription: t("automations.screens.leaveMessage"),
     })
 
@@ -77,13 +87,41 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
         message.success(tNow("automations.screens.deleted"))
         nav.cancel()
     }, [nav, params.automationId, remove])
+    const deletion = useAutomationDelete({onDelete, onClose: () => setConfirmDelete(false)})
 
-    if (editor.loading) return <AutomationDetailSkeleton />
+    if (editor.loading) return <AutomationPaneSkeleton />
+    if (editor.loadFailed)
+        return (
+            <div className="p-4">
+                <Alert
+                    type="error"
+                    showIcon
+                    message={t("automations.screens.loadOneFailed")}
+                    description={t("automations.screens.loadOneFailedBody")}
+                    action={
+                        <Button
+                            variant="outline"
+                            size="compact"
+                            onClick={() => void editor.retry()}
+                        >
+                            {tEditor("automations.editor.tryAgain")}
+                        </Button>
+                    }
+                />
+            </div>
+        )
     if (!editor.automation || !editor.preview)
         return (
-            <p className="m-0 px-6 py-16 text-center text-[13px] text-muted-foreground">
-                {t("automations.screens.noLongerExists")}
-            </p>
+            <EmptyState
+                className="px-4 py-14"
+                image={<Lightning aria-hidden />}
+                title={t("automations.screens.noLongerExists")}
+                description={t("automations.screens.noLongerExistsBody")}
+            >
+                <Button variant="outline" size="compact" onClick={() => nav.cancel()}>
+                    {t("automations.screens.backToAutomations")}
+                </Button>
+            </EmptyState>
         )
 
     return (
@@ -93,7 +131,7 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     automation={editor.automation}
                     preview={editor.preview}
                     agentName={editor.agentName}
-                    className="flex min-w-0 flex-col px-4 pb-6 pt-3.5"
+                    className="flex min-w-0 flex-col px-4 pb-6 pt-4"
                     panel
                     hideSaveBar
                     onOpenRunHistory={openRuns}
@@ -118,51 +156,52 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     }
                 />
             </div>
-            {/* The view's footer (F05 f5): Delete at the left; Discard and Save, which belong to
-                "Settings", at the right. */}
-            <div
-                className={`flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-colorBorderSecondary ${phone ? "px-4 pb-6 pt-3" : "p-3"}`}
-            >
+            {/* The chrome's action row: Delete at its start, quiet, as "Remove from agent". */}
+            <ViewFooterStart>
                 <Button
                     type="button"
-                    variant="ghost"
+                    variant="destructive-ghost"
                     size="compact"
-                    className={`font-normal text-destructive hover:text-destructive ${footerButton}`}
+                    className="-ml-2"
                     onClick={() => setConfirmDelete(true)}
                 >
-                    <Trash aria-hidden className="size-3.5" />
+                    <Trash data-icon="inline-start" />
                     {t("automations.screens.delete")}
                 </Button>
-                <span className="flex items-center gap-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="compact"
-                        className={`font-normal ${footerButton}`}
-                        disabled={editor.saving || !editor.dirty}
-                        onClick={editor.discard}
-                    >
-                        {tEditor("automations.editor.discard")}
-                    </Button>
-                    <Button
-                        type="button"
-                        size="compact"
-                        className={`font-normal ${footerButton}`}
-                        disabled={editor.saving || !editor.dirty}
-                        onClick={() => void editor.save()}
-                    >
-                        {editor.saving
-                            ? tEditor("automations.editor.saving")
-                            : tEditor("automations.editor.save")}
-                    </Button>
-                </span>
-            </div>
-            <AutomationDeleteDialog
+            </ViewFooterStart>
+            <AlertDialog
                 open={confirmDelete}
-                name={editor.automation.name}
-                onDelete={onDelete}
-                onClose={() => setConfirmDelete(false)}
-            />
+                onOpenChange={(next) => (next ? undefined : deletion.close())}
+            >
+                <AlertDialogContent data-testid="automation-delete-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("automations.screens.deleteTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("automations.screens.deleteMessage", {name: editor.automation.name})}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {deletion.failed ? (
+                        <p role="alert" className="m-0 text-label text-destructive">
+                            {t("automations.panel.deleteFailed")}
+                        </p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        {/* Focus starts on Cancel when the dialog opens. */}
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline" disabled={deletion.pending}>
+                                {t("automations.screens.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <Button
+                            variant="destructive"
+                            disabled={deletion.pending}
+                            onClick={() => void deletion.remove()}
+                        >
+                            {t("automations.screens.delete")}
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

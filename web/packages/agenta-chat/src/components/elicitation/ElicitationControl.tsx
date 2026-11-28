@@ -10,8 +10,15 @@ import {useEffect, useId, useMemo, useRef} from "react"
 import {createT, useT} from "@agenta/i18n"
 import chatElicitationCatalog from "@agenta/i18n/catalogs/chat.elicitation"
 import {dayjs, type ElicitationStep} from "@agenta/shared/utils"
-import {AutosizeTextarea, DatePicker, DateTimePicker, Input, SimpleTooltip} from "@agenta/ui/ui"
-import {Check, CircleNotch, Info} from "@phosphor-icons/react"
+import {
+    AutosizeTextarea,
+    DatePicker,
+    DateTimePicker,
+    Input,
+    SimpleTooltip,
+    Spinner,
+} from "@agenta/ui/ui"
+import {Check, Info} from "@phosphor-icons/react"
 
 import {ElicitationChips} from "./ElicitationChips"
 
@@ -127,7 +134,7 @@ export interface ElicitationControlProps {
 }
 
 const inputCls =
-    "h-8 w-full rounded-md border border-solid border-colorBorder bg-colorBgContainer px-2.5 text-[13px] text-colorText outline-none focus:border-colorPrimary"
+    "h-8 w-full rounded-md border border-solid border-border bg-background px-2.5 text-label text-foreground outline-none focus-ring-field"
 
 export const ElicitationControl = ({
     step,
@@ -276,19 +283,19 @@ export const ElicitationControl = ({
                             // made merely pointing at a row look like having chosen it. Hover
                             // belongs to CSS so it leaves when the pointer does — driving it from
                             // state stranded the last hovered row lit.
-                            className={`flex h-[30px] shrink-0 items-center gap-2 rounded-md px-2 text-xs ${
+                            className={`flex h-8 shrink-0 items-center gap-2 rounded-sm px-2 text-label font-normal ${
                                 disabled ? "cursor-default" : "cursor-pointer"
                             } ${
                                 isSelected
-                                    ? "bg-colorFillSecondary font-medium"
+                                    ? "bg-selected font-medium"
                                     : isCursor
-                                      ? "bg-colorFillTertiary"
+                                      ? "bg-accent"
                                       : disabled
                                         ? ""
-                                        : "hover:bg-colorFillTertiary"
+                                        : "hover:bg-accent"
                             }`}
                         >
-                            <span className="shrink-0 text-[11px] tabular-nums text-colorText">
+                            <span className="shrink-0 text-caption tabular-nums text-foreground">
                                 {`${index + 1}.`}
                             </span>
                             {isOther ? (
@@ -304,7 +311,7 @@ export const ElicitationControl = ({
                                     onChange={(event) =>
                                         onChange(nextOtherValue(event.target.value))
                                     }
-                                    className="min-w-0 flex-1 border-none bg-transparent text-xs text-colorText outline-none placeholder:text-colorTextTertiary"
+                                    className="min-w-0 flex-1 border-none bg-transparent text-label font-normal text-foreground outline-none placeholder:text-muted-foreground"
                                 />
                             ) : (
                                 <>
@@ -322,9 +329,9 @@ export const ElicitationControl = ({
                                                 // aria-describedby carries the same words.
                                                 tabIndex={-1}
                                                 onClick={(event) => event.stopPropagation()}
-                                                className="flex shrink-0 items-center text-colorTextTertiary hover:text-colorText"
+                                                className="flex shrink-0 items-center text-muted-foreground hover:text-foreground"
                                             >
-                                                <Info size={11} weight="bold" />
+                                                <Info size={11} />
                                             </span>
                                         </SimpleTooltip>
                                     ) : null}
@@ -340,21 +347,19 @@ export const ElicitationControl = ({
                                 and multi alike — a chosen row is a chosen row. */}
                             {isSelected && !isOther ? (
                                 pending ? (
-                                    <CircleNotch
-                                        size={12}
+                                    <Spinner
                                         aria-label={t("chat.elicitation.sending")}
-                                        className="ml-auto shrink-0 animate-spin text-colorText"
+                                        className="ml-auto size-3 text-foreground"
                                     />
                                 ) : (
                                     <Check
                                         size={12}
-                                        weight="bold"
                                         aria-hidden
-                                        className="ml-auto shrink-0 text-colorText"
+                                        className="ml-auto shrink-0 text-foreground"
                                     />
                                 )
                             ) : isCursor && !touch && !disabled ? (
-                                <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[9px] text-colorTextQuaternary">
+                                <span className="ml-auto flex shrink-0 items-center gap-1.5 text-caption text-muted-foreground">
                                     <kbd className="font-sans">↑</kbd>
                                     <kbd className="font-sans">↓</kbd>
                                     <kbd className="font-sans">↵</kbd>
@@ -389,7 +394,7 @@ export const ElicitationControl = ({
                         onChange={emit}
                         aria-label={step.label}
                         placeholder={t("chat.elicitation.pickDate")}
-                        className="min-w-0 focus-visible:outline-none focus-visible:border-primary [&>span]:truncate"
+                        className="min-w-0 focus-ring-field [&>span]:truncate"
                     />
                 ) : (
                     <DateTimePicker
@@ -397,7 +402,7 @@ export const ElicitationControl = ({
                         onChange={emit}
                         aria-label={step.label}
                         placeholder={t("chat.elicitation.pickDateTime")}
-                        className="[&_button]:min-w-0 [&_button]:focus-visible:outline-none [&_button]:focus-visible:border-primary [&_span]:truncate"
+                        className="[&_button]:min-w-0 focus-ring [&_button]:focus-visible:border-ring [&_span]:truncate"
                     />
                 )}
             </div>
@@ -428,7 +433,7 @@ export const ElicitationControl = ({
                 // Capped: past this the card scrolls the textarea rather than growing the dock.
                 autoSize={{minRows: 3, maxRows: 8}}
                 onChange={(event) => onChange(event.target.value)}
-                className="text-[13px]"
+                className="text-label"
             />
         )
     }

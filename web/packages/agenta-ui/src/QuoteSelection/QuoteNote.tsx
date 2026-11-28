@@ -91,7 +91,7 @@ export const QuoteNote = ({
             data-quote-ignore="true"
             role="dialog"
             aria-label={t("ui.quoteSelection.replyToSelection")}
-            className="absolute z-30 flex flex-col overflow-hidden rounded-lg bg-popover shadow-lg"
+            className="absolute z-30 flex flex-col overflow-hidden rounded-lg bg-popover shadow-overlay"
             style={{top, left, width, opacity: height ? 1 : 0}}
             onKeyDown={(e) => {
                 if (e.key === "Escape") {
@@ -108,7 +108,7 @@ export const QuoteNote = ({
                     weight="fill"
                     className="mt-[3px] shrink-0 text-muted-foreground"
                 />
-                <p className="m-0 line-clamp-2 text-[13px] leading-5 text-muted-foreground">
+                <p className="m-0 line-clamp-2 text-label leading-5 text-muted-foreground">
                     {truncateQuoteText(quote.text, 220)}
                 </p>
             </div>
@@ -125,7 +125,7 @@ export const QuoteNote = ({
                     }}
                     rows={2}
                     placeholder={t("ui.quoteSelection.askAboutThis")}
-                    className="max-h-32 min-h-10 resize-none border-0 bg-transparent p-0 font-[inherit] text-[13px] leading-5 text-popover-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground"
+                    className="max-h-32 min-h-10 resize-none border-0 bg-transparent p-0 font-[inherit] text-label leading-5 text-popover-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground"
                 />
                 <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
                     <Tooltip>
@@ -137,7 +137,7 @@ export const QuoteNote = ({
                                 aria-keyshortcuts="Enter"
                                 onClick={() => onStage(note)}
                             >
-                                <ArrowUp weight="bold" />
+                                <ArrowUp />
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>

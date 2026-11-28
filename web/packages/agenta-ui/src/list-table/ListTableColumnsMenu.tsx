@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
-import {Columns3} from "lucide-react"
+import {ColumnsIcon} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
 import {
@@ -52,7 +52,7 @@ export const ListTableColumnsMenu = ({
                     size="sm"
                     className={cn("hidden md:inline-flex", className)}
                 >
-                    <Columns3 aria-hidden data-icon="inline-start" />
+                    <ColumnsIcon aria-hidden data-icon="inline-start" />
                     {label}
                 </Button>
             </DropdownMenuTrigger>

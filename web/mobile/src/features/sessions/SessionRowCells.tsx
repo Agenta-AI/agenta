@@ -14,7 +14,7 @@ import {
 } from "@agenta/sessions-ui"
 import {userAtom} from "@agenta/shared/state"
 import {timeAgo} from "@agenta/shared/utils"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, IconTile, SimpleTooltip} from "@agenta/ui/ui"
 import {
     ArrowBendDownRight,
     ChatCircle,
@@ -48,7 +48,7 @@ const RowActionButton = ({
         aria-label={label}
         onClick={onClick}
         // 20px box (icon-xs is 24) so the row keeps its height; the ::after is the hit extender.
-        className="relative size-5 rounded text-colorTextTertiary after:absolute after:inset-[-10px] after:content-[''] hover:text-colorText [@media(hover:hover)]:after:inset-[-4px] [&_svg:not([class*='size-'])]:size-3.5"
+        className="relative size-5 rounded-sm text-muted-foreground after:absolute after:inset-[-10px] after:content-[''] hover:text-foreground [@media(hover:hover)]:after:inset-[-4px] [&_svg:not([class*='size-'])]:size-3.5"
     >
         {children}
     </Button>
@@ -61,12 +61,14 @@ const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
         <span
             aria-hidden
             className={cn(
-                "box-border size-[7px] shrink-0 rounded-full border-[1.5px] border-solid",
-                live ? `${status.dotClassName} border-transparent` : "border-colorBorder",
+                "box-border size-2 shrink-0 rounded-round border border-solid",
+                live ? `${status.dotClassName} border-transparent` : "border-border",
             )}
         />
     )
 }
+
+const ACTIVE_STATUSES = new Set<SessionRowStatusMeta["status"]>(["waiting", "running", "alive"])
 
 /**
  * The row's mark: what KIND of session, with its status on the shoulder. The glyph is the pair
@@ -86,17 +88,23 @@ const KindIcon = ({vm}: {vm: SessionRowVm}) => {
                 {status: vm.status.label},
             )}
             title={vm.status.label}
-            className="relative flex shrink-0 text-muted-foreground"
+            className="relative flex shrink-0"
         >
-            <Glyph size={14} aria-hidden />
-            <span
-                aria-hidden
-                className={cn(
-                    "absolute -right-0.5 -top-0.5 size-[7px] rounded-full",
-                    vm.status.dotClassName,
-                    vm.status.pulse && "motion-safe:animate-pulse",
-                )}
-            />
+            {/* A 24px Mark, the one-line row's size (ROW rule), like every list's first cell. */}
+            <IconTile size={24} aria-hidden>
+                <Glyph aria-hidden />
+            </IconTile>
+            {/* Only an active session gets the dot; a calm one (idle, ended) shows none. */}
+            {ACTIVE_STATUSES.has(vm.status.status) ? (
+                <span
+                    aria-hidden
+                    className={cn(
+                        "absolute -right-0.5 -top-0.5 size-1.5 rounded-round ring-2 ring-background",
+                        vm.status.dotClassName,
+                        vm.status.pulse && "motion-safe:animate-pulse",
+                    )}
+                />
+            ) : null}
         </span>
     )
 }
@@ -154,7 +162,7 @@ export const SessionRowCells = ({
 
     return (
         <>
-            <span className={cn("flex min-w-0 items-center gap-2", archived && FADED)}>
+            <span className={cn("flex min-w-0 items-center gap-3", archived && FADED)}>
                 <KindIcon vm={vm} />
                 {rename.renaming ? (
                     <span className="min-w-0 flex-1" onClick={swallow}>
@@ -162,13 +170,13 @@ export const SessionRowCells = ({
                             `focus-visible`: the editor is focused the moment it mounts. */}
                         <InlineRenameInput
                             rename={rename}
-                            className="h-6 w-full min-w-0 rounded-md border border-solid border-input bg-background px-2 text-[14px] leading-none text-foreground shadow-xs outline-none transition-[color,box-shadow] [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus:border-ring focus:ring-[3px] focus:ring-ring/50 dark:bg-input/30"
+                            className="h-6 w-full min-w-0 rounded-md border border-solid border-border bg-background px-2 text-body leading-none text-foreground outline-none transition-colors [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus-ring-field"
                         />
                     </span>
                 ) : (
                     <>
                         <span
-                            className="min-w-0 truncate text-[14px] text-foreground"
+                            className="min-w-0 truncate text-body font-medium text-foreground"
                             title={vm.title}
                         >
                             {vm.title}
@@ -202,7 +210,7 @@ export const SessionRowCells = ({
                                     onClick={() => onTogglePin(vm.id)}
                                 >
                                     {/* One control: a pinned row keeps the same pin, filled. */}
-                                    <PushPin size={14} weight={vm.isPinned ? "fill" : "regular"} />
+                                    <PushPin size={14} weight={vm.isPinned ? "fill" : undefined} />
                                 </RowActionButton>
                                 {/* Renaming an owned chat is its owner's verb. */}
                                 {notOwner ? null : (
@@ -219,17 +227,6 @@ export const SessionRowCells = ({
                 )}
             </span>
 
-            {narrow ? null : (
-                // A dot and a coloured word, never a pill: the column is read down, and a stack
-                // of pills reads as a stack of buttons. Same shape the automations table uses.
-                <span className={cn("flex min-w-0 items-center gap-[7px]", archived && FADED)}>
-                    <StatusDot status={vm.status} />
-                    <span className={cn("truncate text-[13px]", vm.status.textClassName)}>
-                        {vm.status.label}
-                    </span>
-                </span>
-            )}
-
             {narrow || hideAgent ? null : vm.agentId ? (
                 <span className={cn("flex min-w-0 items-center gap-1.5", archived && FADED)}>
                     {/* The agent's own mark, not a generic robot — the same tile the automations
@@ -241,9 +238,20 @@ export const SessionRowCells = ({
                 <SessionAgentName agentId={null} />
             )}
 
+            {narrow ? null : (
+                // A dot and a coloured word, never a pill: the column is read down, and a stack
+                // of pills reads as a stack of buttons. Same shape the automations table uses.
+                <span className={cn("flex min-w-0 items-center gap-1.5", archived && FADED)}>
+                    <StatusDot status={vm.status} />
+                    <span className={cn("truncate text-body-sm", vm.status.textClassName)}>
+                        {vm.status.label}
+                    </span>
+                </span>
+            )}
+
             <span
                 className={cn(
-                    "truncate text-right text-[13px] text-muted-foreground",
+                    "truncate text-right text-meta tabular-nums text-muted-foreground",
                     archived && FADED,
                 )}
             >

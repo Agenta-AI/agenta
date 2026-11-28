@@ -3,8 +3,19 @@
  * via the shared --ag-* token bridge). These are the consolidation targets that replace
  * the antd-based presets. Import via `@agenta/ui/ui`.
  */
-export {Badge, badgeVariants, type BadgeProps} from "./badge"
-export {Button, buttonVariants, type ButtonProps} from "./button"
+export {BackLink} from "./back-link"
+export {PageToolbar} from "./page-toolbar"
+export {RightPane, RightPaneHost, type RightPaneProps} from "./right-pane"
+export {ResizeEdgeLine} from "./resize-edge"
+export {Badge, badgeVariants, statusBadgeVariant, type BadgeProps, type BadgeVariant} from "./badge"
+export {
+    Button,
+    buttonVariants,
+    fromLegacyButton,
+    type ButtonProps,
+    type LegacyButtonSize,
+    type LegacyButtonType,
+} from "./button"
 export {LoadingButton, type LoadingButtonProps} from "./button-composed"
 export {Input, Textarea, inputVariants, type InputProps, type TextareaProps} from "./input"
 export {
@@ -45,6 +56,7 @@ export {
     type TooltipShortcut,
 } from "./tooltip"
 export {Kbd, KbdGroup, kbdVariants, type KbdProps} from "./kbd"
+export {MENU_ITEM, MENU_ITEM_INSET} from "./menu-item"
 export {CollapseCaret, type CollapseCaretProps} from "./collapse-caret"
 export {CarouselDots, type CarouselDotsProps} from "./carousel-dots"
 export {SimpleTooltip, type SimpleTooltipProps} from "./tooltip-composed"
@@ -133,6 +145,7 @@ export {
     DialogTitle,
     DialogDescription,
 } from "./dialog"
+export {DialogScope, useDialogScope} from "./dialog-scope"
 export {
     Command,
     CommandDialog,
@@ -188,6 +201,7 @@ export {
     type SegmentedProps,
     type SegmentedValue,
 } from "./segmented"
+export {ChoiceSwitch, type ChoiceSwitchOption, type ChoiceSwitchProps} from "./choice-switch"
 export {
     Avatar,
     AvatarImage,
@@ -219,6 +233,7 @@ export {InlineConfirm, type InlineConfirmProps} from "./inline-confirm"
 export {SkeletonRows, type SkeletonRowsProps} from "./skeleton-rows"
 export {Label} from "./label"
 export {Field, fieldLabelVariants, type FieldProps} from "./field"
+export {FieldHelp, type FieldHelpProps} from "./field-help"
 export {
     Breadcrumb,
     BreadcrumbList,
@@ -232,20 +247,6 @@ export {Calendar, type CalendarProps} from "./calendar"
 export {DatePicker, type DatePickerProps} from "./date-picker"
 export {DateTimePicker, type DateTimePickerProps} from "./date-time-picker"
 export {TimePicker, type TimePickerProps} from "./time-picker"
-export {
-    PHONE_TOUCH_TARGET_CLASS,
-    touchTargetExpansion,
-    touchTargetHeight,
-    touchTargetHitArea,
-    touchTargetWidth,
-    TOUCH_TARGET_LABELLED_REACH_PX,
-    TOUCH_TARGET_MINIMUM_PX,
-    type TouchTargetControlBorder,
-    type TouchTargetControlBox,
-    type TouchTargetControlHeight,
-    type TouchTargetControlWidth,
-    type TouchTargetHitArea,
-} from "./touch-target"
 export {cn} from "./utils"
 export {
     ChartContainer,
@@ -256,3 +257,9 @@ export {
     ChartStyle,
     type ChartConfig,
 } from "./chart"
+export {
+    ItemViewTitle,
+    ItemViewTitleSkeleton,
+    type ItemViewTitleEditable,
+    type ItemViewTitleProps,
+} from "./item-view-title"

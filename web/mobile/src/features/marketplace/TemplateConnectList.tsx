@@ -11,10 +11,10 @@ export const TemplateConnectList = ({template}: {template: AgentStarterTemplate}
     return (
         <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
             {templateConnects(template).map((connect) => (
-                <li key={connect.key} className="flex items-center gap-2.5 text-[13px]">
+                <li key={connect.key} className="flex items-center gap-2.5 text-label">
                     <AppTileStack apps={connect.apps} size="sm" decorative />
                     <span className="min-w-0 flex-1 truncate text-foreground">{connect.label}</span>
-                    <span className="text-muted-foreground shrink-0 text-xs">
+                    <span className="text-muted-foreground shrink-0 text-meta">
                         {connect.required
                             ? t("marketplace.page.required")
                             : t("marketplace.page.optional")}

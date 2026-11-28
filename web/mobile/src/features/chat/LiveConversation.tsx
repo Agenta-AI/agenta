@@ -14,6 +14,7 @@ import {
     resolveStopExecution,
     shouldShowStopControl,
     restoreRefusedSend as restoreRefusedSendInto,
+    scrollEdgeMask,
 } from "@agenta/chat/assets"
 import {
     ConnectionDock,
@@ -67,10 +68,12 @@ import {ChatBubble} from "@agenta/ui/components/presentational"
 import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
+import {cn} from "@agenta/ui/styles"
 import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
+import dynamic from "next/dynamic"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ContentRailCapContext} from "@/components/contentRailCap"
@@ -117,14 +120,19 @@ import {mergeAssistantRuns} from "./turnRuns"
 import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useChildApprovals} from "./useChildApprovals"
-import {useOpenModelSetup} from "./useOpenModelSetup"
+import {useManageModelProviders} from "./useManageModelProviders"
 import {usePersonalSetupStep} from "./usePersonalSetupStep"
-import {UserMessageAccessoryContext} from "./userMessageAccessory"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
 
 const tNow = createT(chatMobileLiveCatalog)
+
+// Loaded on the first Set up that no Configuration pane can take.
+const ProvidersDrawer = dynamic(
+    () => import("./RunErrorProviderDrawer").then((m) => m.RunErrorProviderDrawer),
+    {ssr: false},
+)
 
 /**
  * The LIVE conversation screen — the same engine the desktop chat runs on
@@ -138,6 +146,14 @@ const tNow = createT(chatMobileLiveCatalog)
  * `revalidate()` folds the resumed turn in.
  */
 /** The caret is in a field that is not ours — leave it there. */
+/** A scroll edge mask without its top fade. */
+const withoutTopFade = (mask: string): string =>
+    mask === scrollEdgeMask(true, true)
+        ? scrollEdgeMask(false, true)
+        : mask === scrollEdgeMask(true, false)
+          ? "none"
+          : mask
+
 const isTypingElsewhere = (active: Element | null): boolean =>
     active instanceof HTMLElement &&
     active !== document.body &&
@@ -234,8 +250,11 @@ export const LiveConversation = ({
      * (F05). Its approval and connect cards still answer.
      */
     hideComposer?: boolean
-    /** Shown with each sent user message, from the message as stored (with its full text). */
-    userMessageAccessory?: (message: UIMessage) => ReactNode
+    /**
+     * Shown with each sent user message, from the message as stored (with its full text), given
+     * the shown messages before it (none for the first shown turn). Its chat drops the top fade.
+     */
+    userMessageAccessory?: (message: UIMessage, earlier: UIMessage[]) => ReactNode
     /** Called after the messages change (the builder page reads its tool results). */
     onMessagesChanged?: (messages: UIMessage[]) => void
 }) => {
@@ -406,9 +425,16 @@ export const LiveConversation = ({
     const readUserMessageAccessory = useMemo(
         () =>
             hasAccessory
-                ? (messageId: string) => {
-                      const source = messagesRef.current.find((m) => m.id === messageId)
-                      return source ? (accessoryRef.current?.(source) ?? null) : null
+                ? (messageId: string, firstShownId: string | undefined) => {
+                      const messages = messagesRef.current
+                      const index = messages.findIndex((m) => m.id === messageId)
+                      if (index < 0) return null
+                      const from = Math.max(
+                          0,
+                          messages.findIndex((m) => m.id === firstShownId),
+                      )
+                      const earlier = messages.slice(Math.min(from, index), index)
+                      return accessoryRef.current?.(messages[index], earlier) ?? null
                   }
                 : null,
         [hasAccessory],
@@ -428,7 +454,9 @@ export const LiveConversation = ({
     // Subscribed here so the check starts with the screen's other requests.
     const modelSetup = useAgentModelSetup(entityId)
     const setupBlocked = modelSetup.blocked && !modelBlocked
-    const openModelSetup = useOpenModelSetup()
+    // Set up on the banner goes where "Manage model providers" goes: the pane's Model view when
+    // this chat's agent has a Configuration pane, else the providers drawer (the builder).
+    const modelProviders = useManageModelProviders()
     // The strips stay hidden until the vault, the wallet and the needs-setup check answer, but the
     // parked task must NOT go out on that same unknown — see `pendingTaskPolicy`.
     const modelKeyLoading = modelKey.loading || walletPending || modelSetup.loading
@@ -576,6 +604,8 @@ export const LiveConversation = ({
     )
     // The viewer's own missing "user" items. Optional: it never holds a message.
     const personalSetup = usePersonalSetupStep(sessionId, entityId)
+    // A view with no composer (an automation run) has nothing to send, so the card stays away.
+    const personalSetupOpen = personalSetup.open && !hideComposer && !readOnly && !accessPending
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery || locked) return
         const decision = pendingTaskDecision({
@@ -902,7 +932,12 @@ export const LiveConversation = ({
         [conversation.turns],
     )
     // Keyed by session: a remount (a move to an agent page and back) puts the position back.
-    const autoScroll = useTranscriptAutoScroll(visibleTurns, sessionId)
+    // A run read without a composer opens at its answer, not at the end of it.
+    const autoScroll = useTranscriptAutoScroll(
+        visibleTurns,
+        sessionId,
+        hideComposer ? "answer" : "latest",
+    )
 
     // Parked connect interactions → the dock above the composer owns their actions, so a paused
     // run can't scroll out of reach. Gated the same way desktop gates it.
@@ -1059,7 +1094,7 @@ export const LiveConversation = ({
                                 variant="filled"
                                 className="min-w-0 max-w-[85%]"
                                 classNames={{
-                                    content: "min-w-0 max-w-full overflow-hidden text-xs",
+                                    content: "min-w-0 max-w-full overflow-hidden text-body",
                                     body: "min-w-0 max-w-full overflow-hidden",
                                 }}
                                 content={
@@ -1081,7 +1116,7 @@ export const LiveConversation = ({
                             {emptyState ?? <AgentIntroCard entityId={entityId} />}
                             {conversation.historyReadFailed ? (
                                 <div className="mt-3 flex flex-col items-center gap-2">
-                                    <p className="text-muted-foreground m-0 text-center text-xs">
+                                    <p className="text-muted-foreground m-0 text-center text-meta">
                                         {t("chat.mobileLive.couldNotLoadEarlier")}
                                     </p>
                                     <Button
@@ -1092,42 +1127,34 @@ export const LiveConversation = ({
                                         {t("chat.mobileLive.tryAgain")}
                                     </Button>
                                 </div>
-                            ) : conversation.historyUnavailable ? (
-                                <p className="text-muted-foreground mt-3 text-center text-xs">
-                                    {t("chat.mobileLive.noMessagesSaved")}
-                                </p>
                             ) : null}
                         </div>
                     ) : null}
-                    <UserMessageAccessoryContext.Provider value={readUserMessageAccessory}>
-                        <ChangeResultHostContext.Provider value={changeResultHost}>
-                            <TranscriptTurns
-                                turns={visibleTurns}
-                                scrollerRef={autoScroll.ref}
-                                sessionId={sessionId}
-                                remoteRunning={showingTurnActivity && !streamingHere}
-                                waitingOnUser={parkedOnUser}
-                                resuming={resumingAfterAnswer}
-                                pending={showTrailingWorkingPulse(
-                                    showingTurnActivity,
-                                    visibleTurns,
-                                )}
-                                // A tool answer and a rewind both write: someone who cannot send here cannot
-                                // answer a tool or re-run a turn (retry rides rewind) either.
-                                onClientToolOutput={
-                                    locked ? undefined : conversation.sendToolOutput
-                                }
-                                // Rewind puts the message back in the composer: none without one.
-                                onRewind={locked || hideComposer ? undefined : handleRewind}
-                                renderChildSession={renderChildSession}
-                            />
-                        </ChangeResultHostContext.Provider>
-                    </UserMessageAccessoryContext.Provider>
+                    <ChangeResultHostContext.Provider value={changeResultHost}>
+                        <TranscriptTurns
+                            turns={visibleTurns}
+                            readUserMessageAccessory={readUserMessageAccessory}
+                            scrollerRef={autoScroll.ref}
+                            sessionId={sessionId}
+                            remoteRunning={showingTurnActivity && !streamingHere}
+                            waitingOnUser={parkedOnUser}
+                            resuming={resumingAfterAnswer}
+                            pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
+                            // A tool answer and a rewind both write: someone who cannot send here cannot
+                            // answer a tool or re-run a turn (retry rides rewind) either.
+                            onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
+                            // Rewind puts the message back in the composer: none without one.
+                            onRewind={locked || hideComposer ? undefined : handleRewind}
+                            renderChildSession={renderChildSession}
+                        />
+                    </ChangeResultHostContext.Provider>
                 </ContentRail>
             </div>
         )
     }
 
+    // The stuck context divider marks the top edge; a fade there would wash it out.
+    const edgeMask = hasAccessory ? withoutTopFade(autoScroll.edgeMask) : autoScroll.edgeMask
     // Wraps transcript AND dock: a parked "Connect to X below" row taps through to X's card.
     const scaffold = (
         <ConnectionFocusProvider connects={connects}>
@@ -1144,10 +1171,7 @@ export const LiveConversation = ({
                 }
                 // Edge fades as a MASK, only where content is clipped — the Home list's rule, so
                 // the first message reads crisp at the top and the bottom says there is more.
-                scrollStyle={{
-                    maskImage: autoScroll.edgeMask,
-                    WebkitMaskImage: autoScroll.edgeMask,
-                }}
+                scrollStyle={{maskImage: edgeMask, WebkitMaskImage: edgeMask}}
                 footer={
                     <div className={groupLayout ? "relative flex grow flex-col" : "relative"}>
                         {/* What you have lined up stays visible while a gate is open: the queued
@@ -1155,7 +1179,7 @@ export const LiveConversation = ({
                         {/* Not for a reader who cannot send: every row control (send now, edit,
                         remove) writes, and nothing they queued can go out from here. */}
                         {!locked && (conversation.queued.length > 0 || conversation.editingId) ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                            <div className="bg-background shrink-0 px-4 pt-3 pb-0">
                                 <ContentRail>
                                     <QueuedMessagesDock
                                         queued={conversation.queued}
@@ -1184,6 +1208,8 @@ export const LiveConversation = ({
                                 actions={approvalActions}
                                 entityId={entityId}
                                 bottomMost={false}
+                                // On a phone the card owns the bottom edge while it waits (COMPACT-01).
+                                phoneBottomMost={!locked && !hideComposer && !readOnly}
                                 readOnly={locked}
                                 readOnlyNote={readOnly?.approvalNote}
                                 privateSession={privateSession}
@@ -1210,7 +1236,7 @@ export const LiveConversation = ({
                         {/* Parked question forms, between approval and connect — the same order as
                         desktop, and the same order as the keyboard precedence. */}
                         {secrets.front ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                            <div className="bg-background shrink-0 px-4 pt-3 pb-0">
                                 <ContentRail>
                                     <SecretRequestDock
                                         key={secrets.front.toolCallId}
@@ -1224,7 +1250,7 @@ export const LiveConversation = ({
                             </div>
                         ) : null}
                         {elicits.open ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                            <div className="bg-background shrink-0 px-4 pt-3 pb-0">
                                 <ContentRail>
                                     <ElicitationDock
                                         elicits={elicits}
@@ -1237,7 +1263,7 @@ export const LiveConversation = ({
                         {/* Parked connections. The rail and padding are all this host adds; the dock
                         itself is the shared package component. */}
                         {connects.open ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                            <div className="bg-background shrink-0 px-4 pt-3 pb-0">
                                 <ContentRail>
                                     <ConnectionDock
                                         connects={connects}
@@ -1250,8 +1276,8 @@ export const LiveConversation = ({
                         {/* The viewer's own accounts for this agent's "user" items. Not `locked`: a
                         reloaded chat with no turns has no session row, so sending stays off, and
                         the card holds no message. */}
-                        {personalSetup.open && !readOnly && !accessPending ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                        {personalSetupOpen ? (
+                            <div className="bg-background shrink-0 px-4 pt-3 pb-0">
                                 <ContentRail>
                                     <PersonalAccountsCard
                                         workflowId={personalSetup.workflowId}
@@ -1263,21 +1289,41 @@ export const LiveConversation = ({
                                 </ContentRail>
                             </div>
                         ) : null}
+                        {/* A new chat's quick actions sit above the banner, which stays next to the
+                        composer it disables. */}
+                        {newChat ? aboveComposer : null}
                         {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
                         {hideComposer ? null : (
-                            <ContentRail>
-                                <ConnectModelStrip gateActive={modelBlocked} />
-                                {modelBlocked ? null : (
-                                    <ModelSetupBanner
-                                        revisionId={entityId}
-                                        onSetUp={openModelSetup}
-                                    />
+                            <div
+                                className={cn(
+                                    "shrink-0 px-4",
+                                    // Under the builder's quick actions the composer has no top
+                                    // padding on a desktop: the banner keeps 8 px.
+                                    newChat &&
+                                        Boolean(aboveComposer) &&
+                                        "md:has-[[role=status]]:pb-2",
                                 )}
-                            </ContentRail>
+                            >
+                                <ContentRail>
+                                    <ConnectModelStrip gateActive={modelBlocked} />
+                                    {modelBlocked ? null : (
+                                        <ModelSetupBanner
+                                            revisionId={entityId}
+                                            onSetUp={modelProviders.open}
+                                        />
+                                    )}
+                                    {modelProviders.drawerOpen ? (
+                                        <ProvidersDrawer
+                                            open
+                                            onClose={modelProviders.closeDrawer}
+                                        />
+                                    ) : null}
+                                </ContentRail>
+                            </div>
                         )}
                         {readOnly || hideComposer ? null : (
-                            <div className="bg-background shrink-0 px-3">
+                            <div className="bg-background shrink-0 px-4">
                                 <ContentRail>
                                     <CreditAlertStrip
                                         projectId={projectId}
@@ -1289,7 +1335,7 @@ export const LiveConversation = ({
                                             Boolean(secrets.front) ||
                                             elicits.open ||
                                             connects.open ||
-                                            (personalSetup.open && !readOnly && !accessPending)
+                                            personalSetupOpen
                                         }
                                         onSwitchModel={() => modelPickerRef.current?.()}
                                     />
@@ -1325,16 +1371,17 @@ export const LiveConversation = ({
                                 }}
                             />
                         ) : null}
-                        {newChat ? aboveComposer : null}
                         {hideComposer ? null : readOnly ? (
                             <ReadOnlyComposerNotice text={readOnly.notice} />
                         ) : (
                             <Composer
                                 // A new chat's group: 16 px under the intro, and the quick actions
                                 // 12 px under the box (S07), 14 px on a phone (M04).
-                                className={
-                                    groupLayout && belowComposer ? "pt-0 pb-3.5 md:pb-3" : undefined
-                                }
+                                className={cn(
+                                    groupLayout && Boolean(belowComposer) && "pt-0 pb-3.5 md:pb-3",
+                                    // Kept mounted (the draft stays); the approval card has the edge.
+                                    approvalsOpen && !locked && "max-sm:hidden",
+                                )}
                                 entityId={entityId}
                                 sessionId={sessionId}
                                 agentName={builderChat ? undefined : agentName}
@@ -1422,7 +1469,7 @@ export const LiveConversation = ({
     // Marks this conversation for the focus rule of its shortcuts and its approval card. Every rail
     // inside takes the canvas column: 720 px in a session, 780 px on the builder page.
     const rootedScaffold = (
-        <ContentRailCapContext.Provider value={builderChat ? "max-w-[780px]" : "max-w-[720px]"}>
+        <ContentRailCapContext.Provider value="max-w-content-md">
             <ConversationRoot>{scaffold}</ConversationRoot>
         </ContentRailCapContext.Provider>
     )

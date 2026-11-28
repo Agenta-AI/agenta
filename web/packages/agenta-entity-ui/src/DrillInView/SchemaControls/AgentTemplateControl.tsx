@@ -23,7 +23,11 @@
  */
 import {memo, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
-import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
+import {
+    toolActionAvailabilityKey,
+    useToolActionAvailability,
+    useToolIntegrationDetail,
+} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentRequirementsAtomFamily,
@@ -35,6 +39,7 @@ import {
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {createT, getActiveLanguage, useT, type CatalogKey} from "@agenta/i18n"
 import agentTemplateCatalog from "@agenta/i18n/catalogs/entityUi.agentTemplate"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
@@ -78,10 +83,7 @@ import {
 import {advancedSection} from "./agentTemplate/sections/AdvancedSection"
 import {agentMcpSection} from "./agentTemplate/sections/AgentMcpSection"
 import {instructionsSection} from "./agentTemplate/sections/InstructionsSection"
-import {
-    IntegrationRemoveDialog,
-    integrationsSection,
-} from "./agentTemplate/sections/IntegrationsSection"
+import {integrationsSection} from "./agentTemplate/sections/IntegrationsSection"
 import {ModelHarnessSectionBody} from "./agentTemplate/sections/ModelHarnessSectionBody"
 import {modelSection} from "./agentTemplate/sections/ModelSection"
 import {permissionsSection} from "./agentTemplate/sections/PermissionsSection"
@@ -101,6 +103,7 @@ import {integrationView} from "./agentTemplate/views/integrationView"
 import {mcpAddView} from "./agentTemplate/views/mcpAddView"
 import {mcpServerView} from "./agentTemplate/views/mcpServerView"
 import {modelView} from "./agentTemplate/views/modelView"
+import {RemoveFromAgentDialog} from "./agentTemplate/views/RemoveFromAgentDialog"
 import {skillAddView} from "./agentTemplate/views/skillAddView"
 import {skillItemRef, skillView} from "./agentTemplate/views/skillView"
 import {subagentAddView} from "./agentTemplate/views/subagentAddView"
@@ -154,6 +157,8 @@ export interface AgentTemplateControlProps {
 // the agent populates them (see `useAutoExpandOnPopulate`).
 /** Stable no-op stand-in when no skills bridge is wired (hook order must not depend on data). */
 const useNoHeadVersions = (): Record<string, string> => EMPTY_HEAD_VERSIONS
+const NO_ARCHIVED_SLUGS: ReadonlySet<string> = new Set()
+const useNoArchivedSlugs = (): ReadonlySet<string> => NO_ARCHIVED_SLUGS
 const EMPTY_HEAD_VERSIONS: Record<string, string> = {}
 
 const CONTROLLED_SECTION_KEYS = new Set(["tools", "subagents", "mcp", "skills", "triggers"])
@@ -211,6 +216,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     }, [openView, viewTarget, disabled])
     // The integration whose remove dialog is open (F06 f2).
     const [removingIntegration, setRemovingIntegration] = useState<IntegrationRow | null>(null)
+    const tViews = useT(integrationViewsCatalog)
+    const {integration: removingDetail} = useToolIntegrationDetail(
+        removingIntegration?.integration ?? "",
+    )
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
     // Nothing is registered at save any more. An MCP item names a connection that already
     // exists, created by the connect journey, so committing one writes the reference and
@@ -445,7 +454,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         [openEdit, openView, skillsBridge, viewTarget],
     )
-    // "Add manually" opens "Add skills"; a host with no skills bridge keeps the inline editor.
+    // "+" opens "Add skills"; a host with no skills bridge keeps the inline editor.
     const handleAddSkill = useCallback(() => {
         if (skillsBridge?.enabled && viewTarget) void openView(skillAddView, {}, viewTarget)
         else openCreate("skill", ITEM_KINDS.skill.createSeed())
@@ -707,6 +716,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // so the conditional hook resolution keeps a stable hook order in practice.
     const useHeadVersions = skillsBridge?.useHeadVersions ?? useNoHeadVersions
     const skillHeadVersions = useHeadVersions()
+    const useArchivedSlugs = skillsBridge?.useArchivedSlugs ?? useNoArchivedSlugs
+    const archivedSkillSlugs = useArchivedSlugs()
     const skillStatusFor = useMemo(() => {
         const base = statusForKind("skill")
         return (item: unknown, index: number) => {
@@ -715,6 +726,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             // Gold nudge on pinned embeds the registry has moved past.
             if (!isEmbedRefSkill(item) || isStaticSkill(item)) return undefined
             const record = item as Record<string, unknown>
+            // An archived registry skill no longer runs for this agent: mark the row.
+            const embedSlug = staticEmbedSlug(record)
+            if (embedSlug && archivedSkillSlugs.has(embedSlug))
+                return {
+                    tone: "invalid" as const,
+                    label: tNow("entityUi.agentTemplate.skillArchived"),
+                    tooltip: tNow("entityUi.agentTemplate.skillArchivedTip"),
+                }
             const pinned = embedRevisionVersion(record)
             if (!pinned) return undefined
             const slug = staticEmbedSlug(record)
@@ -726,7 +745,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 tooltip: tNow("entityUi.agentTemplate.updateAvailableTip"),
             }
         }
-    }, [statusForKind, skillHeadVersions])
+    }, [statusForKind, skillHeadVersions, archivedSkillSlugs])
 
     // Section headers: a blocking problem (invalid) outranks unsaved edits (draft).
     const sectionInvalidTip = (key: string): string | null => {
@@ -922,9 +941,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             sectionIndicator,
             advancedChangeBody,
             openAdvanced,
-            schema,
-            config,
-            revisionId,
         }),
     ].filter(Boolean) as AgentTemplateSectionDescriptor[]
     // A container's marks on sections (the builder page's "Changed by the builder").
@@ -1020,23 +1036,29 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
             {/* A view in this drawer follows the revision on screen and the edit right. */}
             <AgentEditorContext.Provider value={editor}>{views.drawer}</AgentEditorContext.Provider>
-            {removingIntegration ? (
-                <IntegrationRemoveDialog
-                    row={removingIntegration}
-                    onRemove={() => {
-                        const latest = configRef.current
-                        onChange({
-                            ...latest,
-                            tools: removeIntegrationByRef(
-                                Array.isArray(latest.tools) ? (latest.tools as unknown[]) : [],
-                                integrationItemRef(removingIntegration),
-                            ),
-                        })
-                        setRemovingIntegration(null)
-                    }}
-                    onClose={() => setRemovingIntegration(null)}
-                />
-            ) : null}
+            <RemoveFromAgentDialog
+                open={removingIntegration !== null}
+                name={removingDetail?.name || removingIntegration?.integration || ""}
+                // A per-person entry names no project connection.
+                body={
+                    removingIntegration?.entry?.accountSource === "user"
+                        ? tViews("entityUi.integrationViews.accountsStay")
+                        : tViews("entityUi.integrationViews.connectionStays")
+                }
+                onConfirm={() => {
+                    if (!removingIntegration) return
+                    const latest = configRef.current
+                    onChange({
+                        ...latest,
+                        tools: removeIntegrationByRef(
+                            Array.isArray(latest.tools) ? (latest.tools as unknown[]) : [],
+                            integrationItemRef(removingIntegration),
+                        ),
+                    })
+                    setRemovingIntegration(null)
+                }}
+                onCancel={() => setRemovingIntegration(null)}
+            />
         </div>
     )
 })

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The automation view in the panel (F05 f5): its own footer holds Delete, Discard and Save, and
- * the row menu's "Run history" (`openRuns`) puts the run history over the automation once, so the
- * crumb keeps the automation's name.
+ * The automation view in the panel (F05 f5): Delete sits at the start of the chrome's action row,
+ * Discard and Save are the chrome's own through the view form, and the row menu's "Run history"
+ * (`openRuns`) puts the run history over the automation once, so the crumb keeps its name.
  */
 import {act, createElement} from "react"
 
@@ -14,10 +14,14 @@ const editor = vi.hoisted(() => ({
     discard: vi.fn(),
     save: vi.fn(),
 }))
+const viewForm = vi.hoisted(() => ({
+    last: null as null | {dirty: boolean; save: () => Promise<unknown>},
+}))
 
-vi.mock("@agenta/automation-ui", () => ({
+vi.mock("@agenta/automation-ui", async (importOriginal) => ({
+    ...(await importOriginal<object>()),
     AutomationDetailBody: () => createElement("div", {"data-testid": "detail-body"}),
-    AutomationDetailSkeleton: () => null,
+    AutomationPaneSkeleton: () => null,
     useAutomation: () => ({remove: vi.fn()}),
     useAutomationEditor: () => ({
         loading: false,
@@ -32,14 +36,15 @@ vi.mock("@agenta/automation-ui", () => ({
         save: editor.save,
     }),
 }))
-vi.mock("@agenta/entity-ui/drill-in", () => ({
-    AutomationDeleteDialog: ({open}: {open: boolean}) =>
-        open ? createElement("div", {"data-testid": "delete-dialog"}) : null,
-}))
-vi.mock("@agenta/ui/view-stack", () => ({
+vi.mock("@agenta/ui/view-stack", async (importOriginal) => ({
+    ...(await importOriginal<object>()),
     defineView: (def: unknown) => def,
-    useViewForm: () => undefined,
+    useViewForm: (form: {dirty: boolean; save: () => Promise<unknown>}) => {
+        viewForm.last = form
+    },
     useViewTitle: () => undefined,
+    // The chrome's action row stands in as the place the start slot renders.
+    ViewFooterStart: ({children}: {children: React.ReactNode}) => children,
 }))
 vi.mock("@agenta/ui/phone", () => ({useIsPhone: () => false}))
 vi.mock("../../src/features/automations/AutomationRunNowButton", () => ({
@@ -58,6 +63,7 @@ beforeEach(() => {
     editor.dirty = false
     editor.discard.mockReset()
     editor.save.mockReset()
+    viewForm.last = null
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -85,27 +91,31 @@ const button = (text: string) =>
     ) as HTMLButtonElement
 
 describe("Automation view footer", () => {
-    it("holds Delete, Discard and Save; Discard and Save wait for a change", () => {
+    it("puts Delete in the action row and hands a clean form to the chrome", () => {
         render({nav: navWith()})
         expect(button("Delete")).toBeTruthy()
-        expect(button("Discard").disabled).toBe(true)
-        expect(button("Save").disabled).toBe(true)
+        // Discard and Save are the chrome's: they wait for a change of the form.
+        expect(viewForm.last?.dirty).toBe(false)
     })
 
-    it("saves and discards the settings once they changed", () => {
+    it("saves through the chrome once the settings changed, and stays open", async () => {
         editor.dirty = true
+        editor.save.mockResolvedValue(undefined)
         render({nav: navWith()})
-        act(() => button("Save").click())
-        act(() => button("Discard").click())
+        expect(viewForm.last?.dirty).toBe(true)
+        let outcome: unknown
+        await act(async () => {
+            outcome = await viewForm.last?.save()
+        })
         expect(editor.save).toHaveBeenCalledTimes(1)
-        expect(editor.discard).toHaveBeenCalledTimes(1)
+        expect(outcome).toBe("stay")
     })
 
     it("asks before Delete", () => {
         render({nav: navWith()})
-        expect(container.querySelector("[data-testid=delete-dialog]")).toBeNull()
+        expect(document.querySelector("[data-testid=automation-delete-dialog]")).toBeNull()
         act(() => button("Delete").click())
-        expect(container.querySelector("[data-testid=delete-dialog]")).not.toBeNull()
+        expect(document.querySelector("[data-testid=automation-delete-dialog]")).not.toBeNull()
     })
 })
 

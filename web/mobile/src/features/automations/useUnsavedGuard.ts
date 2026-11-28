@@ -13,7 +13,7 @@ interface ConfirmRequest {
  *
  * The Pages Router has no navigation blocker, so the documented way out is to abort
  * `routeChangeStart` by throwing — the throw IS the abort, and `routeChangeError` is what puts
- * the progress bar back. The confirmation is the app's own `ConfirmModal`, not the browser's, so
+ * the progress bar back. The confirmation is the app's own `AlertDialog`, not the browser's, so
  * leaving an automation reads like every other confirm on this surface.
  *
  * The retry sets a bypass flag rather than unbinding the listener: the effect is keyed on `dirty`,
@@ -61,6 +61,10 @@ export const useUnsavedGuard = ({
                 bypass.current = false
                 return
             }
+            // Back and Forward have moved the browser's address already; a link click has not.
+            const historyMove =
+                url.split("#")[0] === window.location.pathname + window.location.search
+            const here = router.asPath
             confirm({
                 title,
                 message,
@@ -76,6 +80,14 @@ export const useUnsavedGuard = ({
                 },
             })
             router.events.emit("routeChangeError")
+            // The page stays while the person answers, so its address comes back too. Without
+            // this, a cancel after Back leaves the page under the previous page's address. The
+            // push is shallow, so this guard lets it through.
+            if (historyMove) {
+                setTimeout(
+                    () => void router.push(here, undefined, {shallow: true}).catch(() => undefined),
+                )
+            }
             // The Next.js idiom for cancelling a navigation; nothing catches it.
             throw "Route change aborted: there are unsaved changes"
         }

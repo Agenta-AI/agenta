@@ -6,9 +6,8 @@ import {type Mount} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {CopyButton} from "@agenta/ui/components/presentational"
-import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
 import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
-import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
+import {Button, SimpleTooltip as Tooltip} from "@agenta/ui/ui"
 import {Info} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
@@ -82,7 +81,7 @@ export const DriveFilePreview = ({
                             {...META_REVEAL}
                             className="shrink-0 overflow-hidden"
                         >
-                            <div className="border-0 border-b border-solid border-colorBorderSecondary px-4 py-3">
+                            <div className="border-0 border-b border-solid border-border-muted px-4 py-3">
                                 <DriveFileMetaList
                                     mount={mount}
                                     path={path}
@@ -97,12 +96,12 @@ export const DriveFilePreview = ({
             ) : (
                 // Fixed header (breadcrumb + name + actions + metadata) — stays put while the content
                 // scrolls; the action cluster [copy · details · download] matches the chat file view.
-                <div className="flex shrink-0 flex-col gap-2 border-0 border-b border-solid border-colorBorderSecondary p-4 pb-3">
+                <div className="flex shrink-0 flex-col gap-2 border-0 border-b border-solid border-border-muted p-4 pb-3">
                     <DriveBreadcrumb shown={shown} rootLabel={rootLabel} onNavigate={onSelect} />
 
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2">
-                            <span className="truncate font-mono text-[13px] font-semibold">
+                            <span className="truncate font-mono text-label font-semibold">
                                 {name}
                             </span>
                             {showOrigin ? (
@@ -118,24 +117,20 @@ export const DriveFilePreview = ({
                                     size="icon-sm"
                                     aria-label={t("entityUi.drivePreview.copyFilePath")}
                                     successMessage=""
-                                    className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"
+                                    className="!h-7 !w-7 !p-0 !text-muted-foreground hover:!text-foreground"
                                 />
                             </Tooltip>
                             <Tooltip title={t("entityUi.drivePreview.fileDetails")}>
                                 <Button
-                                    type="text"
-                                    size="small"
+                                    variant="ghost"
+                                    size="sm"
                                     aria-label={t("entityUi.drivePreview.fileDetails")}
                                     aria-pressed={metaExpanded}
                                     onClick={() => setMetaExpanded((v) => !v)}
-                                    icon={
-                                        <Info
-                                            size={16}
-                                            weight={metaExpanded ? "fill" : "regular"}
-                                        />
-                                    }
-                                    className={`!h-7 !w-7 !p-0 ${metaExpanded ? "!text-colorPrimary" : "!text-colorTextTertiary hover:!text-colorText"}`}
-                                />
+                                    className={`!h-7 !w-7 !p-0 ${metaExpanded ? "!text-primary" : "!text-muted-foreground hover:!text-foreground"}`}
+                                >
+                                    <Info size={16} weight={metaExpanded ? "fill" : undefined} />
+                                </Button>
                             </Tooltip>
                             <DriveFileDownloadButton mount={mount} path={path} />
                         </div>

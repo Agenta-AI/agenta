@@ -32,12 +32,12 @@ export function EventFieldTags({
                                     ? `${field.label}: ${field.description}`
                                     : field.label
                             }
-                            className={`inline-flex cursor-pointer items-center gap-1 rounded-md border border-solid border-border bg-muted px-1.5 py-0.5 font-[inherit] text-xs font-medium text-foreground transition-colors hover:border-primary ${
+                            className={`inline-flex cursor-pointer items-center gap-1 rounded-md border border-solid border-border bg-muted px-1.5 py-0.5 font-[inherit] text-label font-medium text-foreground transition-colors hover:border-primary ${
                                 isUsed ? "opacity-60" : ""
                             }`}
                         >
                             {isUsed ? (
-                                <Check aria-hidden className="size-3 text-primary" weight="bold" />
+                                <Check aria-hidden className="size-3 text-primary" />
                             ) : (
                                 <Plus aria-hidden className="size-3 text-muted-foreground" />
                             )}

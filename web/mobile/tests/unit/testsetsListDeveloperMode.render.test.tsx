@@ -147,11 +147,9 @@ describe("Testsets list in beta developer mode", () => {
     }
 
     const mount = async (developerMode: boolean) => {
-        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
-        localStorage.setItem("agenta:settings:u1:beta-developer-mode", JSON.stringify(true))
         const store = createStore()
         store.set(activeUserIdAtom, "u1")
-        // Developer Mode is on with beta, or off: beta developer mode needs both.
+        // Developer Mode on opens the Developer section here; off, it is the simple app.
         store.set(navSimplifiedOverrideAtom, !developerMode)
         const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
         await act(async () =>
@@ -368,9 +366,10 @@ describe("Testsets list in beta developer mode", () => {
         })
 
         await act(async () => button("Filters")!.click())
+        // The sheet's title also reads "Date created" when it is the only filter: press the row.
         await press(
             Array.from(document.querySelectorAll("[role=dialog] *")).find(
-                (item) => item.textContent === "Date created",
+                (item) => item.textContent === "Date created" && !item.closest("h2"),
             ),
         )
         await press(

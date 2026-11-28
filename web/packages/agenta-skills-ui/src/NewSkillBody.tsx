@@ -31,7 +31,7 @@ import {
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import type {NewSkillBodyProps as BridgeNewSkillBodyProps} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
+import {Button, Checkbox, IconTile, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {useViewTitle} from "@agenta/ui/view-stack"
 import {ArrowUp, CaretRight, Export, PencilSimple, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -91,9 +91,9 @@ interface RepoCandidate {
 /** A found skill (canvas F07 f15): a plain 55 px row (1 + 9 + 36 + 9) under a divider, the checkbox on the column
  *  edge. */
 const ROW =
-    "box-border flex items-center gap-2.5 border-0 border-t border-solid border-[var(--ag-colorSplit)] py-[9px]"
+    "box-border flex items-center gap-2.5 border-0 border-t border-solid border-border-muted py-2"
 /** "Skills found · N" over the rows: 13/600. */
-const FOUND_HEADING = "mb-2.5 text-[13px] font-semibold leading-5 text-colorText"
+const FOUND_HEADING = "mb-2.5 text-label font-semibold leading-5 text-foreground"
 
 export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBodyProps) {
     const t = useT(
@@ -431,7 +431,10 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
     )
 
     const errorLine = error ? (
-        <span role="alert" className="flex items-start gap-1.5 text-xs text-colorError">
+        <span
+            role="alert"
+            className="flex items-start gap-1.5 text-label font-normal text-destructive"
+        >
             <WarningCircle size={14} className="mt-px shrink-0" />
             <span className="min-w-0">{error}</span>
         </span>
@@ -495,22 +498,22 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                             void takeScan(scanSkillFromDataTransfer(e.dataTransfer))
                         }}
                         className={cn(
-                            "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-colorBorderSecondary px-4 py-8 text-center transition-colors",
-                            over && "border-colorBorder bg-colorFillTertiary",
+                            "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-muted px-4 py-8 text-center transition-colors",
+                            over && "border-border bg-secondary",
                         )}
                     >
                         {reading ? (
                             <Spinner size="small" />
                         ) : (
-                            <ArrowUp size={20} className="text-colorTextSecondary" />
+                            <ArrowUp size={20} className="text-muted-foreground" />
                         )}
-                        <span className="text-xs text-colorTextSecondary">
+                        <span className="text-meta text-muted-foreground">
                             {/* ".zip" and ".skill" in the line's own font (F07 f7). */}
                             {richText(t("entityUi.skillTemplate.dragHint"), {
                                 mono: (text) => text,
                             })}
                         </span>
-                        <span className="text-xs text-colorTextTertiary">
+                        <span className="text-meta text-muted-foreground">
                             {t("entityUi.skillNew.or")}
                         </span>
                         <Button
@@ -537,7 +540,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                         />
                     </div>
                 )}
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.skillNew.uploadLine")}
                 </span>
                 {errorLine}
@@ -548,14 +551,14 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
     if (step === "import") {
         return (
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-meta text-muted-foreground">
                     {t("skills.gallery.importDrawerHint")}
                 </span>
                 <div className="flex items-center gap-2">
                     <Input
                         autoFocus
                         size="compact"
-                        className="font-mono md:text-[12px]"
+                        className="font-mono text-meta"
                         value={repoUrl}
                         aria-label={t("ui.repoImport.repositoryUrl")}
                         placeholder="https://github.com/owner/repo"
@@ -608,10 +611,10 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                                         })}
                                     />
                                     <span className="flex min-w-0 flex-1 flex-col">
-                                        <span className="min-w-0 truncate font-mono text-[13px] leading-5 text-colorText">
+                                        <span className="min-w-0 truncate font-mono text-label leading-5 text-foreground">
                                             {row.name}
                                         </span>
-                                        <span className="line-clamp-1 text-[12px] leading-4 text-colorTextSecondary">
+                                        <span className="line-clamp-1 text-meta text-muted-foreground">
                                             {row.unavailable ??
                                                 (row.description ||
                                                     t("skills.gallery.noDescription"))}
@@ -619,7 +622,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
                                     </span>
                                     {row.imported ? (
                                         // Canvas F07 f15: a square white tag with a light border.
-                                        <span className="flex h-5 shrink-0 items-center rounded-[4px] border border-solid border-colorBorderSecondary bg-colorBgContainer px-[7px] text-[12px] leading-4 text-colorTextTertiary">
+                                        <span className="flex h-5 shrink-0 items-center rounded-sm border border-solid border-border-muted bg-background px-2 text-meta text-muted-foreground">
                                             {t("skills.gallery.alreadyImported")}
                                         </span>
                                     ) : null}
@@ -636,7 +639,7 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
             {onCreated ? (
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.skillNew.chooseLine")}
                 </span>
             ) : null}
@@ -679,17 +682,17 @@ function WayRow({
         <button
             type="button"
             onClick={onSelect}
-            className="box-border flex w-full cursor-pointer appearance-none items-center gap-3 rounded-lg border border-solid border-colorBorderSecondary bg-transparent p-3 text-left font-[inherit] outline-none transition-colors hover:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
+            className="box-border flex w-full cursor-pointer appearance-none items-center gap-3 rounded-lg border border-solid border-border-muted bg-transparent p-3 text-left font-[inherit] transition-colors hover:bg-accent focus-ring"
         >
             {/* An icon tile and a chevron: a click goes on to that way (F07 f12). */}
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-[6px] border border-solid border-colorBorderSecondary bg-colorFillQuaternary text-colorText">
+            <IconTile size={32} className="shrink-0">
                 {icon}
-            </span>
+            </IconTile>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-sm font-medium text-colorText">{title}</span>
-                <span className="text-[12px] leading-4 text-colorTextSecondary">{hint}</span>
+                <span className="text-label text-foreground">{title}</span>
+                <span className="text-meta text-muted-foreground">{hint}</span>
             </span>
-            <CaretRight aria-hidden size={14} className="shrink-0 text-colorTextTertiary" />
+            <CaretRight aria-hidden size={14} className="shrink-0 text-muted-foreground" />
         </button>
     )
 }
@@ -717,10 +720,10 @@ function UploadPicks({
                         })}
                     />
                     <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate font-mono text-[13px] leading-5 text-colorText">
+                        <span className="truncate font-mono text-label leading-5 text-foreground">
                             {candidate.skill.name || candidate.dir || t("skills.gallery.unnamed")}
                         </span>
-                        <span className="line-clamp-1 text-[12px] leading-4 text-colorTextSecondary">
+                        <span className="line-clamp-1 text-meta text-muted-foreground">
                             {candidate.skill.description ||
                                 candidate.dir ||
                                 t("skills.gallery.noDescription")}

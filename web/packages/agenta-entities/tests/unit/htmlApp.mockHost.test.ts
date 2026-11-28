@@ -3,7 +3,6 @@ import {describe, expect, it} from "vitest"
 import {
     computeEtag,
     createMockHtmlAppHost,
-    normalizeAppPath,
     READ_CAP,
     WRITE_CAP,
     type FsFailure,
@@ -41,42 +40,6 @@ const expectOk = (res: FsResponse | FsFailure): FsResponse => {
     expect(res.ok).toBe(true)
     return res as FsResponse
 }
-
-describe("normalizeAppPath", () => {
-    it("accepts ordinary relative paths and strips a trailing slash", () => {
-        expect(normalizeAppPath("data/cards.json")).toBe("data/cards.json")
-        expect(normalizeAppPath("data/")).toBe("data")
-        expect(normalizeAppPath("a b.txt")).toBe("a b.txt")
-    })
-
-    it("rejects absolute, empty, dot segments, backslashes, control chars, encoded dots", () => {
-        for (const bad of [
-            "",
-            "/",
-            "/etc/passwd",
-            ".",
-            "..",
-            "../x",
-            "a/../b",
-            "a/./b",
-            "a//b",
-            "a\\b",
-            "a\x00b",
-            "a\nb",
-            "%2e%2e/x",
-            "a/%2E%2E/b",
-            "%2e",
-            "%zz",
-        ]) {
-            expect(normalizeAppPath(bad), bad).toBeNull()
-        }
-    })
-
-    it("allows the root only when asked", () => {
-        expect(normalizeAppPath("", {allowRoot: true})).toBe("")
-        expect(normalizeAppPath("/", {allowRoot: true})).toBeNull()
-    })
-})
 
 describe("createMockHtmlAppHost.handle", () => {
     it("echoes the request id and logs it", async () => {

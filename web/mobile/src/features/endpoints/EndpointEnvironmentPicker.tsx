@@ -12,7 +12,7 @@ export const EndpointEnvironmentPicker = ({
     onSelect: (slug: string) => void
 }) => (
     <div className="flex flex-wrap items-center gap-2" data-testid="endpoints-environments">
-        <span className="text-[13px] text-foreground">Environment: </span>
+        <span className="text-label text-foreground">Environment: </span>
         <Segmented
             size="sm"
             value={selected ?? undefined}

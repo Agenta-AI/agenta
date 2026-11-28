@@ -47,5 +47,6 @@
     "untitledSession": "未命名会话",
     "waiting": "等待中",
     "waitingCount": "等待中 {{count}}",
-    "yesterday": "昨天"
+    "yesterday": "昨天",
+    "pageDescription": "你与 Agent 的对话。打开一个即可从上次停下的地方继续。"
 }

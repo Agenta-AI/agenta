@@ -17,7 +17,6 @@ import {ArrowDown} from "@phosphor-icons/react"
 // element and CSS source order decides, so an override to a smaller scale silently loses.
 import {Button} from "../../ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
-import {PHONE_TOUCH_TARGET_CLASS} from "../../ui/touch-target"
 import {cn} from "../../ui/utils"
 
 /** The antd-x loading dots: three 4px primary dots on a gentle bounce. */
@@ -26,7 +25,7 @@ export const ChatTypingDots = ({className}: {className?: string}) => (
         {[0, 1, 2].map((i) => (
             <span
                 key={i}
-                className="size-1 rounded-full bg-colorPrimary motion-safe:animate-bounce"
+                className="size-1 rounded-round bg-primary motion-safe:animate-bounce"
                 style={{animationDuration: "1.2s", animationDelay: `${i * 0.2}s`}}
             />
         ))}
@@ -94,10 +93,10 @@ export const ChatBubble = ({
             ) : content ? (
                 <div
                     className={cn(
-                        "relative box-border min-w-0 max-w-full break-words text-xs leading-normal text-colorText",
-                        variant === "filled" && "rounded-xl bg-colorFillSecondary px-4 py-3",
+                        "relative box-border min-w-0 max-w-full break-words text-body text-foreground",
+                        variant === "filled" && "rounded-xl bg-secondary px-4 py-3",
                         variant === "outlined" &&
-                            "rounded-xl border border-solid border-colorBorderSecondary px-4 py-3",
+                            "rounded-xl border border-solid border-border-muted px-4 py-3",
                         variant === "borderless" && "min-h-0 bg-transparent p-0",
                         classNames?.content,
                     )}
@@ -113,8 +112,8 @@ export const ChatBubble = ({
 export const ChatBubbleAvatar = ({icon, className}: {icon: ReactNode; className?: string}) => (
     <span
         className={cn(
-            "flex size-6 items-center justify-center rounded-full",
-            "bg-colorTextQuaternary text-white",
+            "flex size-6 items-center justify-center rounded-md",
+            "bg-secondary text-muted-foreground",
             className,
         )}
     >
@@ -143,7 +142,8 @@ export const ChatBubbleAvatar = ({icon, className}: {icon: ReactNode; className?
 export const turnToolbarRevealClass =
     "opacity-0 transition-opacity duration-150 pointer-events-none " +
     "group-hover:opacity-100 group-hover:pointer-events-auto " +
-    "focus-within:opacity-100 focus-within:pointer-events-auto"
+    "focus-within:opacity-100 focus-within:pointer-events-auto " +
+    "pointer-coarse:opacity-100 pointer-coarse:pointer-events-auto"
 
 /**
  * The toolbar's own position: a bare row in the reserved lane, so a turn's meta reads as one quiet
@@ -162,7 +162,7 @@ export const turnToolbarClass = "absolute bottom-0 z-10 flex items-center gap-1"
 
 /** The turn row the reveal above hangs off. `pb-8` reserves the toolbar's lane so revealing it
  * never reflows the transcript — the scroll engineering is sensitive to hover-driven layout. The
- * lane is 32px and the toolbar 18px, so the row sits 14px under the bubble. */
+ * lane is 32px and the toolbar 24px. */
 export const turnRowClass = "ag-turn group relative flex items-start pb-8"
 
 export const ChatActionIconButton = ({
@@ -183,16 +183,11 @@ export const ChatActionIconButton = ({
             aria-label={label}
             onClick={onClick}
             className={cn(
-                // 18px box around the footer's 12px icon. `p-0` is load-bearing: the UA sheet gives
-                // a button 6px of side padding, which left an 8px content box and squashed the
-                // glyph. `shrink-0` so a tight row squeezes the gap, never the glyph.
-                "flex size-[18px] shrink-0 cursor-pointer items-center justify-center rounded border-0 p-0",
-                "bg-transparent text-colorTextSecondary transition-colors",
-                "hover:bg-colorFillTertiary hover:text-colorText",
-                // A phone: a 44 px area, and 11 px more room each side. With the row's 4 px gap
-                // the centres sit 44 px apart, so no two areas overlap.
-                PHONE_TOUCH_TARGET_CLASS,
-                "max-md:mx-[11px]",
+                // control-xs (24px) on every screen (SIZE-01). `p-0` is load-bearing: the UA sheet
+                // gives a button side padding that squashes the glyph.
+                "flex size-control-xs shrink-0 cursor-pointer items-center justify-center rounded-control-sm border-0 p-0",
+                "bg-transparent text-muted-foreground transition-colors",
+                "hover:bg-accent hover:text-foreground",
             )}
         >
             {icon}
@@ -203,7 +198,7 @@ export const ChatActionIconButton = ({
         <TooltipProvider delayDuration={300}>
             <Tooltip>
                 <TooltipTrigger asChild>{button}</TooltipTrigger>
-                <TooltipContent className="max-w-64 text-xs">{label}</TooltipContent>
+                <TooltipContent className="max-w-64">{label}</TooltipContent>
             </Tooltip>
         </TooltipProvider>
     )
@@ -252,9 +247,8 @@ export const ChatJumpToLatest = ({
             aria-hidden={!show}
             aria-label={t("ui.chatActions.jumpToLatestMessage")}
             className={cn(
-                // `hover:bg-colorBgElevated` is load-bearing: the variant's hover fill is 4% white
-                // in dark mode, which would let streamed text read through the pill.
-                "border-colorBorderSecondary bg-colorBgElevated hover:bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-lg !text-[12px] shadow-sm transition-[opacity,transform] duration-200 ease-out",
+                // Opaque on hover (accent layered as an image), so streamed text never reads through.
+                "border-border-muted bg-popover hover:bg-popover hover:bg-[image:linear-gradient(var(--accent),var(--accent))] absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-lg !text-meta shadow-overlay transition-[opacity,transform] duration-200 ease-out",
                 show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
                 className,
             )}

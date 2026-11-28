@@ -1,7 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    hostnameLabel,
     mcpEndpointsQueryAtom,
     useMcpConnectJourney,
     type McpConnectedEndpoint,
@@ -9,13 +8,13 @@ import {
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
-import mcpConnectOwnerCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnectOwner"
 import mcpJourneyCatalog from "@agenta/i18n/catalogs/entityUi.mcpJourney"
 import mcpViewsCatalog from "@agenta/i18n/catalogs/entityUi.mcpViews"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
-import {ConnectOwnerField, type ConnectionOwner} from "../../../../accounts/ConnectOwnerField"
+import {type ConnectionOwner} from "../../../../accounts/ConnectOwnerField"
+import {OwnerField} from "../../../../accounts/OwnerField"
 import {useProjectName} from "../../../../accounts/useProjectName"
 import {useMcpConnectScreens} from "../../../../mcpEndpoint/McpConnectJourney"
 
@@ -30,7 +29,7 @@ const hasUserActivation = (): boolean => {
 }
 
 const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
-    const t = useT(mcpViewsCatalog, mcpConnectOwnerCatalog, mcpJourneyCatalog, mcpConnectCatalog)
+    const t = useT(mcpViewsCatalog, mcpJourneyCatalog, mcpConnectCatalog)
     const endpoints = useAtomValue(mcpEndpointsQueryAtom).data
     const existingNames = useMemo(
         () => (endpoints ?? []).map((endpoint) => endpoint.name),
@@ -43,7 +42,8 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
     const permitted = reconnect ? null : (params.owners ?? null)
     // "Who can use it" asks only when the opener allows both owners.
     const owners = permitted && permitted.length > 1 ? permitted : null
-    const [chosenOwner, setOwner] = useState<ConnectionOwner>(permitted?.[0] ?? "project")
+    const [initialOwner] = useState<ConnectionOwner>(permitted?.[0] ?? "project")
+    const [chosenOwner, setOwner] = useState(initialOwner)
     const owner = permitted?.includes(chosenOwner) ? chosenOwner : (permitted?.[0] ?? "project")
     const projectName = useProjectName(owners !== null)
     const journey = useMcpConnectJourney({
@@ -61,13 +61,10 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
         onClose: nav.cancel,
         canvas: true,
         ownerField: owners ? (
-            <ConnectOwnerField
+            <OwnerField<ConnectionOwner>
                 value={owner}
                 owners={owners}
                 onChange={setOwner}
-                onlyMeDetail={t("entityUi.mcpConnectOwner.onlyMeNote", {
-                    name: journey.state.name.trim() || hostnameLabel(journey.state.url),
-                })}
                 projectName={projectName}
             />
         ) : null,
@@ -76,12 +73,18 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
     useViewTitle(reconnect ? t("entityUi.mcpConnect.reconnect") : t("entityUi.mcpJourney.connect"))
 
     const done = connected !== null || journey.state.status === "connected"
+    // The address the view opened with: empty, or a reconnect's saved one.
+    const [openingUrl] = useState(journey.state.url)
     useViewForm({
-        // Until the connection is made: what the person typed, or for a reconnect the repair
-        // itself. Save (the step's action) needs a dirty form to run.
-        dirty: !done && (reconnect !== null || journey.state.url.trim() !== ""),
-        valid: screens.canConfirm && screens.screen !== "waiting",
+        // Until the connection is made, leaving asks only after the person changed the address or
+        // the owner. Leaving drops the pending connection (see below).
+        dirty:
+            !done &&
+            (journey.state.url.trim() !== openingUrl.trim() || chosenOwner !== initialOwner),
+        saveWhenClean: true,
         leaveDescription: t("entityUi.mcpViews.connectLeaveDescription"),
+        valid: !done && screens.canConfirm && screens.screen !== "waiting",
+        invalidReason: screens.confirmBlockedReason ?? undefined,
         saveLabel: screens.confirmLabel,
         // Each press runs the screen's action inside the press, so the provider's window can
         // open. The step stays on this view; the journey shows what happens next.

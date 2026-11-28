@@ -13,7 +13,7 @@
     "oauth": "OAuth",
     "removeFailed": "移除 MCP 服务器失败。",
     "removeMessage": "{{name}} 将从此项目中移除。配置为使用它的 Agent 将停止工作，之后重新连接会创建新的连接。",
-    "removeTitle": "移除服务器",
+    "removeTitle": "移除 {{name}}？",
     "serverActions": "服务器操作",
     "serverUrl": "服务器 URL",
     "signInActions": "登录操作",
@@ -26,5 +26,11 @@
     "token": "令牌",
     "tokenDialogDescription": "粘贴你自己的此服务器令牌。只有你发起的运行会使用它。",
     "viewTools": "查看工具",
-    "yours": "你的"
+    "searchServers": "搜索 MCP 服务器",
+    "yourSignIn": "你的登录",
+    "noneNeedAttentionTitle": "没有需要处理的项",
+    "noneNeedAttentionBody": "所有服务器均已连接。",
+    "noneConnectedTitle": "没有已连接的服务器",
+    "noneConnectedBody": "需要登录或修复的服务器在“需要处理”中。",
+    "showAllServers": "显示所有服务器"
 }

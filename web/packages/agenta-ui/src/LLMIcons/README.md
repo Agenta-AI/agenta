@@ -9,7 +9,7 @@ This module provides React components for LLM provider logos. Each icon is a pur
 ## Quick Start
 
 ```tsx
-import {LLMIconMap, OpenAi, Anthropic} from "@agenta/ui"
+import {LLMIconMap, OpenAi, Claude} from "@agenta/ui"
 
 // Using the map
 function ProviderIcon({provider}: {provider: string}) {
@@ -29,7 +29,7 @@ function OpenAIIcon() {
 | Provider Name    | Component    |
 | ---------------- | ------------ |
 | OpenAI           | `OpenAi`     |
-| Anthropic        | `Anthropic`  |
+| Anthropic        | `Claude`     |
 | Google Gemini    | `Gemini`     |
 | Google Vertex AI | `Vertex`     |
 | AWS Bedrock      | `Bedrock`    |
@@ -76,7 +76,7 @@ LLMIcons/
 └── assets/
     ├── types.d.ts     # IconProps type
     ├── OpenAi.tsx
-    ├── Anthropic.tsx
+    ├── Claude.tsx
     ├── Gemini.tsx
     └── ... (other providers)
 ```

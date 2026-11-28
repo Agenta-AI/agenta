@@ -13,19 +13,22 @@ import {AgentChip} from "@agenta/entity-ui/agent"
 import {
     firstBadFile,
     SKILL_ACTION_ROW,
-    SkillFormSkeleton,
-    SkillFormView,
+    SkillBodySkeleton,
     SkillViewHeader,
+    SkillViewSkeleton,
     useSkillViewForm,
     skillFilesOf,
     useSkillDownloadAction,
     type SkillAction,
 } from "@agenta/entity-ui/drill-in"
-import {richText, useT} from "@agenta/i18n"
+import {useT} from "@agenta/i18n"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
+import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
+import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
+import {timeAgo} from "@agenta/shared/utils"
 import {
     archiveSkill,
     commitSkillRevision,
@@ -34,10 +37,12 @@ import {
     skillContentSchema,
     unarchiveSkill,
 } from "@agenta/skills"
-import {invalidateSkillsListCache, skillsResolveQueryAtom} from "@agenta/skills/state"
+import {invalidateSkillsListCache} from "@agenta/skills/state"
+import {message} from "@agenta/ui/app-message"
 import type {RegistrySkillParams} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
+    Alert,
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -46,28 +51,27 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
+    Badge,
     Button,
-    PHONE_TOUCH_TARGET_CLASS,
     Popover,
     PopoverAnchor,
     PopoverContent,
+    SkeletonBlock,
     Spinner,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
 } from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {Archive, ArrowUUpLeft, Info, Lightning, Plus, WarningCircle} from "@phosphor-icons/react"
+import {Archive, ArrowUUpLeft, Plus} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
-import {toSkillListItem, toSourceInfo} from "./registrySections"
 import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
+import {skillNameProblem, toSkillContent, toSkillDraft, type SkillDraft} from "./skillDraft"
+import {SkillEditor} from "./SkillEditor"
 import {skillTitle} from "./skillTitle"
 import type {SkillListItem, SkillUsageRef} from "./types"
+import {useRegistrySkill} from "./useRegistrySkill"
 
 /** The head-revision query's key; the registry row's Download reads the same cache. */
 export const skillRevisionsQueryKey = (projectId: string, workflowId: string) =>
@@ -77,40 +81,17 @@ export const skillRevisionsQueryKey = (projectId: string, workflowId: string) =>
 export const SkillAgentHrefContext = createContext<((agentId: string) => string) | null>(null)
 
 /** The Skills page with this skill open, in this project: the "skill registry" link. */
-const skillsPageHref = (slug: string): string | null => {
-    if (typeof window === "undefined") return null
-    const project = window.location.pathname.match(/^(.*?\/p\/[^/]+)/)?.[1]
-    return project ? `${project}/skills?skill=${encodeURIComponent(slug)}` : null
-}
-
-const toFormValue = (skill?: Record<string, unknown>): Record<string, unknown> => ({
-    name: skill?.name ?? "",
-    description: skill?.description ?? "",
-    body: skill?.body ?? "",
-    files: Array.isArray(skill?.files) ? skill.files : [],
-    ...(skill?.disable_model_invocation != null
-        ? {disable_model_invocation: skill.disable_model_invocation}
-        : {}),
-    ...(skill?.allow_executable_files != null
-        ? {allow_executable_files: skill.allow_executable_files}
+/** The editor's draft back as the form value, the name kept as typed. */
+const fromDraft = (draft: SkillDraft): Record<string, unknown> => ({
+    name: draft.name,
+    description: draft.description,
+    body: draft.body,
+    files: draft.files,
+    allow_executable_files: draft.allowExecutable,
+    ...(draft.disableModelInvocation != null
+        ? {disable_model_invocation: draft.disableModelInvocation}
         : {}),
 })
-
-/** The registry entry with this workflow slug: project skills (archived too), then built-ins. */
-const useRegistrySkill = (slug: string) => {
-    const query = useAtomValue(skillsResolveQueryAtom)
-    const item = useMemo<SkillListItem | null>(() => {
-        const matches = (entry: {workflow_slug?: string | null}) => entry.workflow_slug === slug
-        const project = query.data?.skills?.find(matches)
-        if (project) {
-            const mapped = toSkillListItem(project, project.origin ? "imported" : "project")
-            return project.origin ? {...mapped, source: toSourceInfo(project.origin)} : mapped
-        }
-        const builtin = query.data?.builtin?.find(matches)
-        return builtin ? toSkillListItem(builtin, "builtin") : null
-    }, [query.data, slug])
-    return {item, query}
-}
 
 /** Open on hover, close a beat after the pointer leaves, so crossing a gap does not shut it. */
 const useHoverOpen = () => {
@@ -126,7 +107,7 @@ const useHoverOpen = () => {
     }, [])
     const scheduleHide = useCallback(() => {
         clear()
-        timer.current = setTimeout(() => setOpen(false), 140)
+        timer.current = setTimeout(() => setOpen(false), 120)
     }, [])
     return {open, setOpen, show, scheduleHide}
 }
@@ -138,9 +119,7 @@ const RegistrySkillViewBody = ({params, target, nav, readOnly}: ViewProps<Regist
 
     if (!item) {
         return query.isPending ? (
-            <div className="flex min-h-0 flex-1 flex-col p-4">
-                <SkillFormSkeleton />
-            </div>
+            <SkillViewSkeleton />
         ) : (
             <LoadFailed onRetry={() => void query.refetch()} />
         )
@@ -160,12 +139,18 @@ const RegistrySkillViewBody = ({params, target, nav, readOnly}: ViewProps<Regist
 const LoadFailed = ({onRetry}: {onRetry: () => void}) => {
     const t = useT(skillsGalleryCatalog)
     return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-            <WarningCircle size={20} className="text-[var(--ag-colorError)]" />
-            <span className="text-sm">{t("skills.gallery.loadFailed")}</span>
-            <Button variant="outline" size="sm" onClick={onRetry}>
-                {t("skills.gallery.tryAgain")}
-            </Button>
+        <div className="p-4">
+            <Alert
+                type="error"
+                showIcon
+                message={t("skills.gallery.loadFailed")}
+                description={t("skills.gallery.loadFailedHint")}
+                action={
+                    <Button variant="outline" size="sm" onClick={onRetry}>
+                        {t("skills.gallery.tryAgain")}
+                    </Button>
+                }
+            />
         </div>
     )
 }
@@ -184,7 +169,7 @@ const RegistrySkillEditor = ({
     /** The host shows the view read only (a phone): no edit, no archive, no restore. */
     viewReadOnly: boolean
 }) => {
-    const t = useT(skillsGalleryCatalog, skillViewCatalog)
+    const t = useT(skillsGalleryCatalog, skillViewCatalog, skillsEditorCatalog, skillsPageCatalog)
     // Leave without a question: after an archive or a restore there is nothing left to save.
     const onLeave = nav.cancel
     const agentHref = useContext(SkillAgentHrefContext)
@@ -222,26 +207,29 @@ const RegistrySkillEditor = ({
     const [draft, setDraft] = useState<Record<string, unknown> | null>(null)
     const [editBaseId, setEditBaseId] = useState<string | null>(null)
     if (head && draft === null) {
-        setDraft(toFormValue(head.skill))
+        setDraft(fromDraft(toSkillDraft(head.skill)))
         setEditBaseId(head.id)
     }
-    const headValue = useMemo(() => toFormValue(head?.skill), [head])
+    const headValue = useMemo(() => fromDraft(toSkillDraft(head?.skill)), [head])
     // Read only shows the saved skill, never a draft typed before the view turned read only.
     const value = readOnly ? headValue : (draft ?? headValue)
     const dirty = !readOnly && draft !== null && JSON.stringify(draft) !== JSON.stringify(headValue)
     const valid =
         !readOnly &&
-        skillContentSchema.safeParse(value).success &&
+        skillContentSchema.safeParse(toSkillContent(toSkillDraft(value))).success &&
         firstBadFile(skillFilesOf(value)) === undefined
     const [error, setError] = useState<string | null>(null)
 
-    const {onUploadControl} = useSkillViewForm(
+    useSkillViewForm(
         {
             dirty,
             valid,
+            // Read only (archived, built-in, a phone): nothing to save, so no Cancel and Save row.
+            ...(readOnly ? {actionRow: false as const} : {}),
             leaveDescription: t("entityUi.skillView.registryLeaveDescription"),
             save: async () => {
-                const parsed = skillContentSchema.safeParse(value)
+                // The stored name is the typed name's slug, as the skill page saves it.
+                const parsed = skillContentSchema.safeParse(toSkillContent(toSkillDraft(value)))
                 if (!parsed.success || !editBaseId) return false
                 setError(null)
                 try {
@@ -284,6 +272,7 @@ const RegistrySkillEditor = ({
                 else await archiveSkill({projectId, workflowId})
                 invalidateSkillsListCache()
                 setArchiveOpen(false)
+                if (restore) message.success(t("skills.page.restored"))
                 onLeave()
             } catch (err) {
                 setArchiveError(
@@ -302,6 +291,8 @@ const RegistrySkillEditor = ({
         [onLeave, projectId, t, workflowId],
     )
 
+    // The header's slot for the editor's Files toggle.
+    const [filesSlot, setFilesSlot] = useState<HTMLDivElement | null>(null)
     // Flyouts render inside the view, so a modal drawer around it keeps their lists scrollable.
     const [editorRoot, setEditorRoot] = useState<HTMLDivElement | null>(null)
     // "Add to agent" opens the agent picker as a flyout, on hover as the filter menu rows do.
@@ -366,90 +357,70 @@ const RegistrySkillEditor = ({
                     : []),
             ]
 
-    const registryLink = skill.workflowSlug ? skillsPageHref(skill.workflowSlug) : null
     const status = isBuiltin ? (
-        <span className="flex items-center gap-0.5">
-            <Lightning size={10} weight="fill" />
-            {t("skills.gallery.builtinReadOnly")}
-        </span>
-    ) : inAgent ? (
-        richText(t("entityUi.skillView.registryStatus"), {
-            link: (text) =>
-                registryLink ? (
-                    <a
-                        href={registryLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={cn(
-                            "text-inherit underline underline-offset-2",
-                            PHONE_TOUCH_TARGET_CLASS,
-                        )}
-                    >
-                        {text}
-                    </a>
-                ) : (
-                    text
-                ),
-        })
+        <span>{t("skills.gallery.builtinReadOnly")}</span>
     ) : skill.archived ? (
         t("skills.gallery.archived")
     ) : null
 
-    // Where an imported skill came from, behind an info mark beside the name.
-    const provenance = skill.source ? (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button
-                        type="button"
-                        aria-label={t("skills.gallery.provenanceAria")}
-                        className="box-border inline-flex shrink-0 cursor-help items-center border-0 bg-transparent p-0 font-[inherit] text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorText)]"
-                    >
-                        <Info size={14} aria-hidden />
-                    </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" align="start">
-                    <span className="flex flex-col gap-0.5">
-                        <span>
-                            {richText(
-                                t("skills.gallery.importedFrom", {source: skill.source.label}),
-                                {mono: (text) => <span className="font-mono">{text}</span>},
-                            )}
-                        </span>
-                        {skill.source.detached ? (
-                            <span className="opacity-80">
-                                {t("skills.gallery.modifiedLocally")}
-                            </span>
-                        ) : null}
-                    </span>
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
-    ) : null
-
-    const usage =
-        !inAgent && usedBy.length ? (
-            <UsedBy
-                container={editorRoot}
-                usedBy={usedBy}
-                agentHref={agentHref}
-                dirty={dirty}
-                onLeave={onLeave}
-                onAskLeave={nav.back}
-            />
+    // While the usage loads its line keeps its place, so the fields do not move when it lands.
+    const usage = !usageQuery.data ? (
+        usageQuery.isLoading ? (
+            <SkeletonBlock className="h-3 w-28" />
+        ) : null
+    ) : usedBy.length ? (
+        <UsedBy
+            container={editorRoot}
+            usedBy={usedBy}
+            agentHref={agentHref}
+            dirty={dirty}
+            onLeave={onLeave}
+            onAskLeave={nav.back}
+        />
+    ) : inAgent ? null : (
+        // This agent's unsaved draft may use the skill, so the agent view does not say "not used".
+        <span>{t("skills.page.notUsed")}</span>
+    )
+    const editedAt = head?.createdAt ? new Date(head.createdAt).getTime() : NaN
+    const edited = Number.isNaN(editedAt) ? "" : timeAgo(editedAt)
+    // "Used by · Edited" under the name, as on the Skills page.
+    const meta =
+        !isBuiltin && (usage || edited) ? (
+            <div className="flex min-h-6 shrink-0 flex-wrap items-center gap-x-1.5 px-4 pb-2 text-meta text-muted-foreground">
+                {usage}
+                {usage && edited ? <span aria-hidden>·</span> : null}
+                {edited ? <span>{t("skills.page.edited", {age: edited})}</span> : null}
+            </div>
         ) : null
 
     return (
         <div ref={setEditorRoot} className="flex min-h-0 flex-1 flex-col">
             <SkillViewHeader
+                // The name is the view's title, edited in place, as on the skill page.
+                editable={
+                    readOnly
+                        ? undefined
+                        : {
+                              value: toSkillDraft(value).name,
+                              onChange: (name) => setDraft({...value, name}),
+                              "aria-label": t("skills.editor.name"),
+                              placeholder: t("skills.editor.namePlaceholder"),
+                              error:
+                                  skillNameProblem(toSkillDraft(value).name) === "invalid"
+                                      ? t("skills.editor.nameInvalid")
+                                      : dirty && !valid && !toSkillDraft(value).name.trim()
+                                        ? t("skills.editor.nameMissing")
+                                        : undefined,
+                          }
+                }
+                extra={
+                    skill.archived ? (
+                        <Badge className="shrink-0">{t("skills.gallery.archived")}</Badge>
+                    ) : null
+                }
+                end={<div ref={setFilesSlot} className="flex empty:hidden" />}
                 name={skillTitle(skill)}
                 status={status}
-                extra={
-                    <>
-                        {provenance}
-                        {usage}
-                    </>
-                }
                 actions={actions}
                 menuTop={addToAgent}
                 menuOpen={menuOpen}
@@ -460,6 +431,7 @@ const RegistrySkillEditor = ({
                 busy={archiveBusy}
                 error={error ?? (archiveOpen ? null : archiveError)}
             />
+            {meta}
             {skill.archived && !isBuiltin && !viewReadOnly ? (
                 <div className="flex shrink-0 items-center gap-2 px-4 pb-3">
                     <Button
@@ -479,31 +451,30 @@ const RegistrySkillEditor = ({
             ) : null}
             <div className="flex min-h-0 flex-1 flex-col">
                 {isBuiltin ? (
-                    <div className="mx-4 flex flex-col gap-2 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-4 text-xs">
-                        <span className="text-[var(--ag-colorTextSecondary)]">
+                    <div className="mx-4 flex flex-col gap-2 rounded-md border border-solid border-border-muted bg-secondary p-4 text-label font-normal">
+                        <span className="text-muted-foreground">
                             {skill.description || t("skills.gallery.noDescriptionDot")}
                         </span>
-                        <span className="text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-muted-foreground">
                             {t("skills.gallery.builtinNote")}
                         </span>
                     </div>
                 ) : revisionsQuery.isPending ? (
-                    <div className="flex min-h-0 flex-1 flex-col px-4">
-                        <SkillFormSkeleton />
-                    </div>
+                    <SkillBodySkeleton />
                 ) : revisionsQuery.isError || !head ? (
                     <LoadFailed onRetry={() => void revisionsQuery.refetch()} />
                 ) : (
-                    <SkillFormView
-                        value={value}
-                        onChange={readOnly ? () => undefined : setDraft}
-                        baseline={headValue}
-                        downloadable
-                        disabled={readOnly}
-                        valuesAsText={viewReadOnly}
-                        onUploadControl={onUploadControl}
-                        showMissing={dirty && !valid}
-                    />
+                    // The same editor as the skill page, with Files beside or over the fields.
+                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4 pt-3">
+                        <SkillEditor
+                            draft={toSkillDraft(value)}
+                            onChange={(next) => setDraft(fromDraft(next))}
+                            readOnly={readOnly}
+                            showMissing={dirty && !valid}
+                            filesPlacement="inline"
+                            filesToggleSlot={filesSlot}
+                        />
+                    </div>
                 )}
             </div>
 
@@ -514,7 +485,6 @@ const RegistrySkillEditor = ({
                 }}
             >
                 <AlertDialogContent
-                    className="sm:max-w-[440px]"
                     onEscapeKeyDown={(event) => {
                         if (archiveBusy) event.preventDefault()
                     }}
@@ -528,15 +498,16 @@ const RegistrySkillEditor = ({
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     {usedBy.length ? (
-                        <div className="flex items-start gap-1.5 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
-                            <WarningCircle size={14} className="mt-px shrink-0" />
-                            <span>
-                                {t("skills.gallery.agentsReference", {count: usedBy.length})}
-                            </span>
-                        </div>
+                        <Alert
+                            type="warning"
+                            showIcon
+                            message={t("skills.gallery.agentsReference", {count: usedBy.length})}
+                        />
                     ) : null}
                     {archiveError ? (
-                        <p className="m-0 text-xs text-[var(--ag-colorError)]">{archiveError}</p>
+                        <p className="m-0 text-label font-normal text-destructive">
+                            {archiveError}
+                        </p>
                     ) : null}
                     <AlertDialogFooter>
                         <AlertDialogCancel asChild>
@@ -596,7 +567,7 @@ const UsedBy = ({
                     onClick={show}
                     onMouseEnter={show}
                     onMouseLeave={scheduleHide}
-                    className="box-border inline-flex shrink-0 cursor-default items-center border-0 bg-transparent p-0 font-[inherit] text-[12px] font-normal text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorTextSecondary)]"
+                    className="box-border inline-flex shrink-0 cursor-default items-center border-0 bg-transparent p-0 font-[inherit] text-meta font-normal text-muted-foreground hover:text-muted-foreground"
                 >
                     {t("skills.gallery.usedBy", {count: usedBy.length})}
                 </button>
@@ -619,7 +590,7 @@ const UsedBy = ({
                             <span className="min-w-0 flex-1 truncate">
                                 {agent.name || t("skills.gallery.unknownAgent")}
                             </span>
-                            <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                            <span className="shrink-0 text-caption text-muted-foreground">
                                 {agent.mode === "pinned"
                                     ? t("skills.gallery.pinned", {
                                           version: agent.pinnedVersion ?? "",

@@ -7,7 +7,6 @@
     "noSkillsYet": "スキルはまだありません",
     "newSkill": "新しいスキル",
     "locked": "ロック済み",
-    "remove": "削除",
     "wordCount_other": "{{count}} 語",
     "empty": "空",
     "entriesOpenIntegration": "{{count}} 件のエントリ。インテグレーションを開いてください。",
@@ -50,7 +49,8 @@
     "countServer_other": "{{count}} 件のサーバー",
     "countSkill_other": "{{count}} 件のスキル",
     "countTool_other": "{{count}} 件のツール",
-    "change": "変更",
-    "policyHint": "エージェントが確認なしで実行できること",
-    "modelVia": "{{harness}} 経由"
+    "removeName": "{{name}} を削除",
+    "groupSetup": "モデルと指示",
+    "groupUses": "使えるもの",
+    "groupMore": "その他の設定"
 }

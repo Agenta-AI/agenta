@@ -5,6 +5,7 @@
  */
 import type {ReactNode} from "react"
 
+import {Badge, Button, SimpleTooltip} from "@agenta/ui/ui"
 import {X} from "@phosphor-icons/react"
 import clsx from "clsx"
 
@@ -44,41 +45,37 @@ export const SetupCardFrame = ({
         className={clsx(
             "flex flex-col",
             variant === "card"
-                ? "rounded-xl border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)]"
+                ? "rounded-lg border border-solid border-border-muted bg-background"
                 : // Docked: the host's frame is the frame; only a bottom divider separates
                   // the step from the editor beneath it.
-                  "border-x-0 border-b border-t-0 border-solid border-[var(--ag-colorSplit)]",
+                  "border-x-0 border-b border-t-0 border-solid border-border-muted",
             className,
         )}
     >
-        <div className="flex items-center gap-2 border-x-0 border-t-0 border-b border-solid border-[var(--ag-colorSplit)] px-4 py-3">
-            <span className="flex-1 truncate text-xs font-semibold text-[var(--ag-colorText)]">
+        <div className="flex items-center gap-2 border-x-0 border-t-0 border-b border-solid border-border-muted px-4 py-3">
+            <span className="flex-1 truncate text-label font-semibold text-foreground">
                 {title}
             </span>
             {badge ? (
-                <span
-                    className={clsx(
-                        "shrink-0 rounded-full border border-solid px-2 py-0.5 text-[10px] font-medium",
-                        badge.tone === "warning"
-                            ? "border-[var(--ag-colorWarningBorder)] text-[var(--ag-colorWarning)]"
-                            : badge.tone === "success"
-                              ? "border-[var(--ag-colorSuccessBorder)] text-[var(--ag-colorSuccess)]"
-                              : "border-[var(--ag-colorBorderSecondary)] text-[var(--ag-colorTextSecondary)]",
-                    )}
+                <Badge
+                    variant={badge.tone === "neutral" ? "default" : badge.tone}
+                    className="shrink-0"
                 >
                     {badge.text}
-                </span>
+                </Badge>
             ) : null}
             {onDismiss ? (
-                <button
-                    type="button"
-                    onClick={onDismiss}
-                    aria-label={dismissLabel}
-                    title={dismissLabel}
-                    className="-mr-1 flex shrink-0 cursor-pointer items-center rounded border-0 bg-transparent p-1 text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)]"
-                >
-                    <X size={13} />
-                </button>
+                <SimpleTooltip title={dismissLabel}>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={onDismiss}
+                        aria-label={dismissLabel}
+                        className="-mr-1 shrink-0"
+                    >
+                        <X />
+                    </Button>
+                </SimpleTooltip>
             ) : null}
         </div>
 
@@ -87,9 +84,9 @@ export const SetupCardFrame = ({
         {/* The footer exists only for what it carries: an empty bordered strip under the rows
             says nothing. */}
         {footnote || action ? (
-            <div className="flex flex-wrap items-center justify-end gap-3 border-x-0 border-b-0 border-t border-solid border-[var(--ag-colorSplit)] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-end gap-3 border-x-0 border-b-0 border-t border-solid border-border-muted px-4 py-3">
                 {footnote ? (
-                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">{footnote}</span>
+                    <span className="text-meta text-muted-foreground">{footnote}</span>
                 ) : null}
                 {action}
             </div>

@@ -57,16 +57,12 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
         <div ref={rootRef} className="flex flex-col gap-3">
             <button
                 type="button"
-                className="flex items-center gap-1 border-0 bg-transparent p-0 text-left text-[var(--ag-rgba-051729-45)] cursor-pointer"
+                className="flex items-center gap-1 border-0 bg-transparent p-0 text-left text-muted-foreground cursor-pointer"
                 onClick={() => setIsAdvancedOpen((prev) => !prev)}
                 disabled={disabled}
             >
-                {isAdvancedOpen ? (
-                    <CaretDown size={14} weight="bold" />
-                ) : (
-                    <CaretRight size={14} weight="bold" />
-                )}
-                <span className="font-medium text-xs">
+                {isAdvancedOpen ? <CaretDown size={14} /> : <CaretRight size={14} />}
+                <span className="font-medium text-label">
                     {t("entityUi.playgroundConfig.advanced")}
                 </span>
             </button>
@@ -160,15 +156,15 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
     return (
         <div className="flex flex-col gap-1">
             <div className="flex flex-col gap-0.5">
-                <span className="font-medium text-xs">{label}</span>
-                <span className="text-xs leading-snug text-colorTextDescription">
+                <span className="font-medium text-label">{label}</span>
+                <span className="text-meta leading-snug text-muted-foreground">
                     {richText(t("entityUi.playgroundConfig.chatTemplateKwargs"), {
                         link: (text) => (
                             <a
                                 href="https://agenta.ai/docs/prompt-engineering/playground/chat-template-kwargs"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-gray-500 underline decoration-dotted underline-offset-2"
+                                className="text-muted-foreground underline decoration-dotted underline-offset-2"
                             >
                                 {text}
                             </a>
@@ -184,7 +180,7 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
                 handleChange={validateAndEmit}
                 disabled={disabled}
                 disableDebounce
-                className="min-h-[96px] overflow-hidden"
+                className="min-h-24 overflow-hidden"
                 editorProps={{
                     codeOnly: true,
                     language: "json",

@@ -7,7 +7,6 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    PHONE_TOUCH_TARGET_CLASS,
 } from "@agenta/ui/ui"
 import {
     Archive,
@@ -92,12 +91,11 @@ export const AgentActionsMenu = ({
                     // ::after hit extender: 28px is under the touch guideline. 40px on a desktop,
                     // 44px on a phone.
                     className={cn(
-                        "relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary after:absolute after:content-[''] hover:bg-colorFillTertiary hover:text-colorText md:after:-inset-1.5",
-                        PHONE_TOUCH_TARGET_CLASS,
+                        "relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground after:absolute after:content-[''] hover:bg-accent hover:text-foreground md:after:-inset-1.5",
                         className,
                     )}
                 >
-                    <DotsThree size={16} weight="bold" />
+                    <DotsThree size={16} />
                 </button>
             </DropdownMenuTrigger>
             {/* Sized to its longest verb rather than to a number: at a fixed 180 "Open
@@ -170,7 +168,7 @@ export const AgentActionsMenu = ({
                         {/* Archive, not Delete: the verb behind it has always been
                             `archiveWorkflow`, and the modal it opens is already titled "Archive". */}
                         <DropdownMenuItem
-                            className="!text-colorError"
+                            className="!text-destructive"
                             onSelect={onDelete ?? (() => actions.remove(agent))}
                         >
                             <Archive size={16} />

@@ -97,7 +97,7 @@ export const CommitTestsetDialog = ({
                         This will create a new revision of your test set.
                     </DialogDescription>
                 </DialogHeader>
-                <div className={`flex flex-col gap-4 text-sm ${preview ? "md:flex-row" : ""}`}>
+                <div className={`flex flex-col gap-4 text-body ${preview ? "md:flex-row" : ""}`}>
                     <div className={`flex flex-col gap-3 ${preview ? "md:w-80 md:shrink-0" : ""}`}>
                         {isNew ? null : (
                             <p className="m-0">
@@ -126,10 +126,10 @@ export const CommitTestsetDialog = ({
                     {preview ? (
                         <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border">
                             <div className="flex items-center justify-between border-b px-3 py-2">
-                                <p className="m-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                <p className="m-0 text-meta text-muted-foreground">
                                     Changes preview
                                 </p>
-                                <p className="m-0 text-xs text-muted-foreground">
+                                <p className="m-0 text-meta text-muted-foreground">
                                     {preview.count} {preview.count === 1 ? "change" : "changes"}
                                 </p>
                             </div>

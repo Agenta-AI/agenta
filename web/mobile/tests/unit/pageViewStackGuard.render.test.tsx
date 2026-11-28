@@ -37,6 +37,8 @@ const router = vi.hoisted(() => {
 vi.mock("next/router", () => ({useRouter: () => router}))
 
 const {PageViewStackGuard} = await import("@/features/agent-pages/PageViewStackGuard")
+type PageViewStackGuardApi =
+    import("@/features/agent-pages/PageViewStackGuard").PageViewStackGuardApi
 
 const Chrome = ({children}: ViewChromeProps) => <div>{children}</div>
 const DirtyBody = () => {
@@ -73,6 +75,7 @@ const button = (text: string) =>
 
 let host: HTMLDivElement
 let root: Root
+let guardRef: {current: PageViewStackGuardApi | null}
 beforeEach(async () => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     router.handlers.clear()
@@ -81,7 +84,7 @@ beforeEach(async () => {
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
-    const guardRef = {current: null}
+    guardRef = {current: null}
     await act(async () =>
         root.render(
             <ViewStackHost chrome={Chrome}>
@@ -137,5 +140,16 @@ describe("PageViewStackGuard", () => {
             undefined,
             {shallow: true},
         )
+    })
+
+    it("lets the page's own navigation through after allowNext", async () => {
+        guardRef.current?.allowNext()
+        let aborted = true
+        await act(async () => {
+            aborted = start("/m/agents/a?view=configuration&tab=agent", true)
+        })
+        expect(aborted).toBe(false)
+        expect(router.push).not.toHaveBeenCalled()
+        expect(router.replace).not.toHaveBeenCalled()
     })
 })

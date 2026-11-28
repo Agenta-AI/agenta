@@ -82,7 +82,7 @@ export function EntityEvaluatorSelector({
                 </div>
                 {metricSummary ? (
                     <span
-                        className={`truncate text-xs ${textColors.muted}`}
+                        className={`truncate text-meta ${textColors.muted}`}
                         title={metrics.map(formatHumanMetricLabel).join(", ")}
                     >
                         {metricSummary}

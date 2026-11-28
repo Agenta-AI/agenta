@@ -54,16 +54,16 @@ export const BuilderTabButton = ({
                 }
             }}
             className={cn(
-                "flex h-7 min-w-[7.5rem] max-w-[200px] shrink-0 cursor-pointer items-center gap-1.5 rounded-[4px] pl-2 pr-1 text-[12px] leading-5",
+                "focus-ring flex h-control-sm min-w-30 max-w-50 shrink-0 cursor-pointer items-center gap-1.5 rounded-sm pl-2 pr-1 text-label",
                 active
-                    ? "bg-colorFill font-medium text-colorText"
-                    : "text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText",
+                    ? "bg-selected text-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
         >
             <KindIcon
                 aria-hidden
                 size={14}
-                className={cn("shrink-0", !active && "text-colorTextTertiary")}
+                className={cn("shrink-0", !active && "text-muted-foreground")}
             />
             <span className="min-w-0 flex-1 truncate">{label}</span>
             {tab.kind === "agent" ? <PrivateMark agentId={tab.id} /> : null}
@@ -72,7 +72,7 @@ export const BuilderTabButton = ({
                     data-testid="builder-tab-dot"
                     role="img"
                     aria-label={t("builder.page.changedByBuilder")}
-                    className="size-1.5 shrink-0 rounded-full bg-colorPrimary"
+                    className="size-1.5 shrink-0 rounded-round bg-primary"
                 />
             ) : null}
             <button
@@ -83,7 +83,7 @@ export const BuilderTabButton = ({
                     event.stopPropagation()
                     onClose?.()
                 }}
-                className="flex size-[18px] shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextQuaternary hover:bg-colorFillSecondary hover:text-colorText"
+                className="focus-ring flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground hover:bg-accent hover:text-foreground"
             >
                 <X aria-hidden size={12} />
             </button>

@@ -32,26 +32,24 @@ export const SetupChoiceCard = ({
         disabled={disabled}
         onClick={onClick}
         className={clsx(
-            "box-border flex min-h-[52px] min-w-[148px] shrink-0 cursor-pointer items-center gap-2.5 rounded-[10px] border border-solid bg-transparent px-3 py-2 text-left transition-colors",
-            inUse
-                ? "border-[var(--ag-colorPrimary)]"
-                : "border-[var(--ag-colorBorderSecondary)] hover:border-[var(--ag-colorTextTertiary)]",
+            "box-border flex min-h-13 min-w-[148px] shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-solid bg-transparent px-3 py-2 text-left transition-colors",
+            inUse ? "border-primary" : "border-border-muted hover:bg-accent",
         )}
     >
         {logo ? (
             <Image
                 src={logo}
                 alt=""
-                width={18}
-                height={18}
+                width={16}
+                height={16}
                 unoptimized
                 className="shrink-0 object-contain"
             />
         ) : (
-            <Plugs size={18} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
+            <Plugs size={16} className="shrink-0 text-muted-foreground" />
         )}
         <span className="flex min-w-0 flex-col">
-            <span className="truncate text-xs font-medium text-[var(--ag-colorText)]">{label}</span>
+            <span className="truncate text-label font-medium text-foreground">{label}</span>
             {sublabel}
         </span>
     </button>

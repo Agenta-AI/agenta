@@ -486,6 +486,11 @@ describe("the Connect your accounts card", () => {
         await render({readOnly: viewer, canSend: false, accessPending: false})
         expect(card()).toBeNull()
     })
+
+    it("stays hidden in a view with no composer, such as an automation run", async () => {
+        await render({readOnly: null, canSend: true, hideComposer: true})
+        expect(card()).toBeNull()
+    })
 })
 
 describe("a rewind confirmation open when access goes", () => {

@@ -86,7 +86,7 @@ export const CompareConfigColumn = ({
                             title="Test set"
                             differs={diff?.testset}
                         >
-                            <p className="m-0 text-sm text-muted-foreground">
+                            <p className="m-0 text-body text-muted-foreground">
                                 No linked test sets.
                             </p>
                         </ConfigSection>
@@ -99,7 +99,7 @@ export const CompareConfigColumn = ({
                         />
                     ) : (
                         <ConfigSection id={`config-application${suffix}`} title="Application">
-                            <p className="m-0 text-sm text-muted-foreground">
+                            <p className="m-0 text-body text-muted-foreground">
                                 Application metadata unavailable.
                             </p>
                         </ConfigSection>

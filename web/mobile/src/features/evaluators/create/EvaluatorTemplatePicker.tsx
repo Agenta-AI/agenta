@@ -21,7 +21,7 @@ import {
     TabsList,
     TabsTrigger,
 } from "@agenta/ui/ui"
-import {Search, X} from "lucide-react"
+import {MagnifyingGlassIcon, XIcon} from "@phosphor-icons/react"
 
 import {EvaluatorTemplateRow} from "./EvaluatorTemplateRow"
 import {EvaluatorTemplatesNoMatch} from "./states/EvaluatorTemplatesNoMatch"
@@ -47,7 +47,7 @@ export const EvaluatorTemplatePicker = ({
     onPick: (template: EvaluatorCatalogTemplate) => void
 }) => (
     <Dialog open={open} onOpenChange={(next) => (pendingKey ? undefined : onOpenChange(next))}>
-        <DialogContent className="max-h-[min(720px,calc(100dvh-32px))] max-w-[640px] gap-3 overflow-hidden p-0">
+        <DialogContent className="max-h-[min(720px,calc(100dvh-32px))] max-w-160 gap-3 overflow-hidden p-0">
             <DialogHeader className="px-5 pt-5">
                 <DialogTitle>Create evaluator</DialogTitle>
                 <DialogDescription>
@@ -80,7 +80,7 @@ const PickerBody = ({
             <div className="flex flex-col gap-3 px-5">
                 <InputGroup>
                     <InputGroupAddon>
-                        <Search size={14} aria-hidden />
+                        <MagnifyingGlassIcon size={14} aria-hidden />
                     </InputGroupAddon>
                     <InputGroupInput
                         autoFocus
@@ -101,7 +101,7 @@ const PickerBody = ({
                                 aria-label="Clear search"
                                 onClick={() => setSearch("")}
                             >
-                                <X size={14} aria-hidden />
+                                <XIcon size={14} aria-hidden />
                             </InputGroupButton>
                         </InputGroupAddon>
                     ) : null}

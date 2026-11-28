@@ -2,8 +2,8 @@
  * The state of "Attach a secret", shared by the attach view of the Agent tab and the modal of the
  * chat's secret request dock. The chrome (view or modal) owns the buttons and calls `submit`.
  *
- * The list holds the project secrets (tag "Everyone") and the person's own secrets (tag "Only
- * me"), then "Create new secret". An own secret is attached as `{account_source: "user"}`: each
+ * The list holds the project's and organization's secrets and the person's own secrets, each
+ * with its owner chip, then "Create new secret". An own secret is attached as `{account_source: "user"}`: each
  * person who runs the agent gives their own value, and this person's account choice for the
  * variable points at the picked secret.
  */
@@ -22,6 +22,7 @@ import {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
+import type {OwnerKind} from "@agenta/shared/types"
 import {useAtomValue} from "jotai"
 
 import {ACCOUNT_COPY} from "../../accounts/copy"
@@ -47,12 +48,14 @@ import {
     type SecretChoice,
 } from "./secretChoice"
 
-/** One entry of the "Secret" select: its value, its name, and whose it is (the tag). */
+/** One entry of the "Secret" select: its value, its name, and whose it is. */
 export interface SecretListEntry {
     value: string
     name: string
-    /** "shared": every run uses it ("Everyone"). "user": the person's own ("Only me"). */
+    /** "shared": every run uses it. "user": each person picks their own. */
     owner: "shared" | "user"
+    /** The owner its chip names: Personal, Project or Organization. */
+    ownerKind: OwnerKind
 }
 
 export interface SecretAttachFormOptions {
@@ -80,6 +83,8 @@ export interface SecretAttachFormOptions {
 export interface SecretAttachForm {
     entries: SecretListEntry[]
     loading: boolean
+    /** The opening choice waits for the vault: the skeleton to draw meanwhile, else null. */
+    skeleton: {creating: boolean; owner: boolean; newSecret: boolean} | null
     selected: string
     choice: SecretChoice
     select: (value: string) => void
@@ -167,11 +172,15 @@ export const useSecretAttachForm = ({
                 value: sharedSecretValue(secret.slug ?? ""),
                 name: secret.name ?? secret.slug ?? "",
                 owner: "shared" as const,
+                ownerKind: (secret.ownerKind === "organization"
+                    ? "organization"
+                    : "project") as OwnerKind,
             })),
             ...ownSecrets.map((secret) => ({
                 value: userSecretValue(secret.id as string),
                 name: secret.name ?? "",
                 owner: "user" as const,
+                ownerKind: "user" as OwnerKind,
             })),
         ],
         [allProjectSecrets, ownSecrets],
@@ -388,9 +397,21 @@ export const useSecretAttachForm = ({
         (envTouched && envVar !== initialEnv) ||
         (creating && Boolean(createController.name.trim() || createController.textValue.trim()))
 
+    // With nothing cached to pick from, the opening choice is most likely a new secret.
+    const guessCreating = canCreate && entries.length === 0
+    const skeleton =
+        open && !choiceMade.current && !editingOwn && (loading || !vaultFresh)
+            ? {
+                  creating: guessCreating,
+                  owner: guessCreating && (owners?.length ?? 0) > 1,
+                  newSecret: canCreate,
+              }
+            : null
+
     return {
         entries,
         loading,
+        skeleton,
         selected,
         choice,
         select: (value) => selectValue(value, true),

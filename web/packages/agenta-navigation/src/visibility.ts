@@ -11,4 +11,5 @@ export const filterVisibleItems = (items: SidebarConfig[]): SidebarConfig[] =>
 export const filterVisibleSections = (sections: SidebarSection[]): SidebarSection[] =>
     sections
         .map((section) => ({...section, items: filterVisibleItems(section.items)}))
-        .filter((section) => section.items.length > 0)
+        // An arranged section stays even when every page is in "More": "More" is its only way back.
+        .filter((section) => section.items.length > 0 || section.arrange)

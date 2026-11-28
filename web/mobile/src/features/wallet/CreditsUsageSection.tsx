@@ -111,7 +111,7 @@ export const CreditsUsageSection = ({
                         {rangeLabel}
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[180px]">
+                <DropdownMenuContent align="end" className="w-60">
                     {CREDITS_USAGE_RANGES.map((days) => (
                         <DropdownMenuItem
                             key={days}
@@ -149,16 +149,14 @@ export const CreditsUsageSection = ({
     return (
         <section className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="m-0 text-lg font-semibold tracking-[-0.01em]">
-                    {t("wallet.usage.title")}
-                </h2>
+                <h2 className="m-0 text-title">{t("wallet.usage.title")}</h2>
                 {locked ? null : controls}
             </div>
             {locked ? (
-                <div className="border-border flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-12 text-center">
-                    <LockSimple size={22} className="text-muted-foreground" />
+                <div className="border-border flex flex-col items-center gap-2 rounded-lg border border-dashed px-6 py-12 text-center">
+                    <LockSimple size={20} className="text-muted-foreground" />
                     <span className="font-medium">{t("wallet.usage.locked")}</span>
-                    <span className="text-muted-foreground text-sm">
+                    <span className="text-muted-foreground text-body">
                         {t("wallet.usage.lockedHint")}
                     </span>
                 </div>

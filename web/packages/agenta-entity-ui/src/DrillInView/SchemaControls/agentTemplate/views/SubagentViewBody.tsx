@@ -2,15 +2,12 @@ import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
-import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import {useDrillInUI} from "@agenta/ui/drill-in"
-import {Button} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ConfigItemRef, type ViewProps} from "@agenta/ui/view-stack"
 
 import {ReferenceToolFormView} from "../../ReferenceToolFormView"
 import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
-import {SubagentRemoveDialog} from "../sections/SubagentsSection"
 import {savedSubagentSlugs, SubagentCurrentName, SubagentOpenAgentButton} from "../SubagentAgent"
 import {
     findSubagentIndex,
@@ -21,6 +18,8 @@ import {
 } from "../subagentReference"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
+import {RemovedItemState} from "./RemovedItemState"
+import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
 import {RemoveFromAgentFooter} from "./RemoveFromAgentFooter"
 import type {SubagentViewParams} from "./subagentView"
 
@@ -35,7 +34,7 @@ const ViewTitle = ({title}: {title: string}) => {
  * list as it is now, so a builder save that changes the list never puts another one here.
  */
 const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) => {
-    const t = useT(configItemsCatalog, integrationViewsCatalog, subagentViewsCatalog)
+    const t = useT(subagentViewsCatalog, configItemsCatalog)
     const {workflowReference} = useDrillInUI()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const tools = toolsOf(writer.agent)
@@ -67,15 +66,13 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
 
     if (!entry) {
         return (
-            <div className="flex flex-col items-start gap-3 px-4 py-6 text-sm">
+            <>
                 <ViewTitle title={params.item.key.replace(/^@slug:/, "")} />
-                <span className="text-colorTextSecondary">
-                    {t("entityUi.subagentViews.removedState")}
-                </span>
-                <Button variant="outline" size="sm" onClick={nav.cancel}>
-                    {t("entityUi.integrationViews.back")}
-                </Button>
-            </div>
+                <RemovedItemState
+                    message={t("entityUi.subagentViews.removedState")}
+                    onBack={nav.cancel}
+                />
+            </>
         )
     }
 
@@ -101,6 +98,7 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
                         setDraft(typeof next.description === "string" ? next.description : "")
                     }
                     disabled={writer.readOnly}
+                    name={name}
                     configurationAction={
                         workflowReference ? (
                             <SubagentOpenAgentButton bridge={workflowReference} slug={slug} />
@@ -109,13 +107,13 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
                 />
             </div>
             {writer.readOnly ? null : <RemoveFromAgentFooter onClick={() => setConfirming(true)} />}
-            {confirming ? (
-                <SubagentRemoveDialog
-                    name={name}
-                    onRemove={remove}
-                    onClose={() => setConfirming(false)}
-                />
-            ) : null}
+            <RemoveFromAgentDialog
+                open={confirming}
+                name={name}
+                body={t("entityUi.subagentViews.agentStays")}
+                onConfirm={remove}
+                onCancel={() => setConfirming(false)}
+            />
         </div>
     )
     return workflowReference ? (

@@ -1,5 +1,6 @@
 import {
     useCallback,
+    useEffect,
     useMemo,
     useRef,
     useState,
@@ -7,6 +8,20 @@ import {
     type KeyboardEvent,
     type ReactNode,
 } from "react"
+
+import {useT} from "@agenta/i18n"
+import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
+
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "../components/ui/alert-dialog"
+import {Button} from "../components/ui/button"
+import {cn} from "../components/ui/utils"
 
 import {
     ViewEntryContext,
@@ -25,7 +40,9 @@ import type {
     ViewStack,
     ViewTarget,
 } from "./types"
-import {UnsavedChangesDialog, type LeaveAnswer} from "./UnsavedChangesDialog"
+import {viewEnterClass, type ViewDirection} from "./ViewStep"
+
+export type LeaveAnswer = "keep" | "discard" | "save"
 
 interface Entry {
     /** Unique per open; a new key remounts the view, which drops its local form. */
@@ -33,14 +50,25 @@ interface Entry {
     view: ViewDef<unknown>
     params: unknown
     target: ViewTarget
+    /** What had focus when the view opened; it gets focus back when the view leaves. */
+    returnFocus: HTMLElement | null
 }
 
 interface PendingQuestion {
-    description: string
+    title?: string
+    description?: string
     canSave: boolean
+    offerSave: boolean
     saveFailed: boolean
     resolve: (answer: LeaveAnswer) => void
 }
+
+/**
+ * Whether leaving `entry` can lose edits: an "on_save" view whose form differs from what it
+ * loaded. An "immediate" view has written its edits already, so it never asks.
+ */
+const hasUnsavedEdits = (entry: Entry, forms: Record<number, ViewForm>): boolean =>
+    entry.view.apply === "on_save" && Boolean(forms[entry.key]?.dirty)
 
 /** How a dirty form was settled before an action: nothing to settle, dropped, or saved. */
 type Settled = "clean" | "discarded" | "saved"
@@ -49,12 +77,25 @@ const MENU_SELECTOR = '[role="dialog"],[role="alertdialog"],[role="menu"],[role=
 
 // Unique per open across hosts, so a reopened view mounts fresh. Never stored.
 let lastEntryKey = 0
-const newEntry = (view: ViewDef<unknown>, params: unknown, target: ViewTarget): Entry => ({
+const newEntry = (
+    view: ViewDef<unknown>,
+    params: unknown,
+    target: ViewTarget,
+    returnFocus: HTMLElement | null,
+): Entry => ({
     key: ++lastEntryKey,
     view,
     params,
     target,
+    returnFocus,
 })
+/** What opens a view: the focused element, or the trigger of the menu that holds it. */
+const focusedElement = (): HTMLElement | null => {
+    if (typeof document === "undefined") return null
+    const active = document.activeElement as HTMLElement | null
+    const triggerId = active?.closest?.('[role="menu"]')?.getAttribute("aria-labelledby")
+    return (triggerId && document.getElementById(triggerId)) || active
+}
 /** The same view under a new key: it mounts again from the saved data, with no local edits. */
 const remount = (entry: Entry): Entry => ({...entry, key: ++lastEntryKey})
 
@@ -68,6 +109,7 @@ export const ViewStackHost = ({
     rootTitle,
     onEscapeAtRoot,
     phone = false,
+    confirmLeave = true,
     children,
 }: {
     chrome: ComponentType<ViewChromeProps>
@@ -80,6 +122,8 @@ export const ViewStackHost = ({
      * and the browser back closes the top view. The container still picks its chrome.
      */
     phone?: boolean
+    /** False: leaving a dirty form drops the edits without asking (a dialog's Cancel and close). */
+    confirmLeave?: boolean
     children: ReactNode
 }) => {
     const [entries, setEntries] = useState<Entry[]>([])
@@ -90,6 +134,12 @@ export const ViewStackHost = ({
     const [saving, setSaving] = useState(false)
     const [failedKey, setFailedKey] = useState<number | null>(null)
     const [question, setQuestion] = useState<PendingQuestion | null>(null)
+    const t = useT(viewStackCatalog)
+    // The root animates only when a view gives it back its place, not on the first paint.
+    const [viewOpened, setViewOpened] = useState(false)
+    if (entries.length > 0 && !viewOpened) setViewOpened(true)
+    // Which way the last navigation went: the view that shows enters from that side.
+    const [direction, setDirection] = useState<ViewDirection>("forward")
 
     // Refs mirror the state for the async actions, which must read the latest values.
     const entriesRef = useRef(entries)
@@ -103,6 +153,8 @@ export const ViewStackHost = ({
     // once that ends, if it is still on top.
     const deferredCancelRef = useRef<number | null>(null)
     const hostRef = useRef<HTMLDivElement>(null)
+    // Set when the top view leaves: where focus goes once the view below shows.
+    const pendingFocusRef = useRef<HTMLElement | null | undefined>(undefined)
 
     /** Navigation waits for a save in flight to resolve. */
     const waitForSave = useCallback(async () => {
@@ -141,8 +193,10 @@ export const ViewStackHost = ({
         (form: ViewForm, saveFailed: boolean) =>
             new Promise<LeaveAnswer>((resolve) => {
                 setQuestion({
+                    title: form.leaveTitle,
                     description: form.leaveDescription,
                     canSave: form.valid,
+                    offerSave: form.leaveCanSave !== false,
                     saveFailed,
                     resolve: (answer) => {
                         setQuestion(null)
@@ -160,8 +214,9 @@ export const ViewStackHost = ({
      */
     const settle = useCallback(
         async (scope: Entry[]): Promise<Settled | false> => {
-            const dirty = scope.find((entry) => formsRef.current[entry.key]?.dirty)
+            const dirty = scope.find((entry) => hasUnsavedEdits(entry, formsRef.current))
             if (!dirty) return "clean"
+            if (!confirmLeave) return "discarded"
             let saveFailed = false
             for (;;) {
                 const form = formsRef.current[dirty.key]
@@ -177,7 +232,7 @@ export const ViewStackHost = ({
                 saveFailed = true
             }
         },
-        [ask, runSave],
+        [ask, confirmLeave, runSave],
     )
 
     /** Set the whole stack. Forms and titles of views that leave go with them. */
@@ -192,6 +247,12 @@ export const ViewStackHost = ({
         }
         setForms(keep)
         setTitles(keep)
+        const prev = entriesRef.current
+        // Going back: focus returns to the opener of the lowest view that leaves.
+        const goingBack =
+            next.length < prev.length && next.every((entry, index) => entry === prev[index])
+        if (goingBack) pendingFocusRef.current = prev[next.length].returnFocus
+        setDirection(goingBack ? "back" : "forward")
         entriesRef.current = next
         setEntries(next)
         setFailedKey(null)
@@ -225,12 +286,14 @@ export const ViewStackHost = ({
     )
 
     const open = useCallback(
-        <P,>(view: ViewDef<P>, params: P, target: ViewTarget) =>
-            exclusive(async () => {
+        <P,>(view: ViewDef<P>, params: P, target: ViewTarget) => {
+            const opener = focusedElement()
+            return exclusive(async () => {
                 if (!(await settle(entriesRef.current))) return false
-                setStack([newEntry(view as ViewDef<unknown>, params, target)])
+                setStack([newEntry(view as ViewDef<unknown>, params, target, opener)])
                 return true
-            }),
+            })
+        },
         [exclusive, settle, setStack],
     )
 
@@ -285,15 +348,17 @@ export const ViewStackHost = ({
     )
 
     const push = useCallback(
-        <C,>(parentKey: number, view: ViewDef<C>, params: C, target: ViewTarget) =>
-            exclusive(async () => {
+        <C,>(parentKey: number, view: ViewDef<C>, params: C, target: ViewTarget) => {
+            const opener = focusedElement()
+            return exclusive(async () => {
                 const current = entriesRef.current
                 if (current.length !== 1 || current[0].key !== parentKey) return false
                 const parent = await parentForChild(current[0], view as ViewDef<unknown>)
                 if (!parent) return false
-                setStack([parent, newEntry(view as ViewDef<unknown>, params, target)])
+                setStack([parent, newEntry(view as ViewDef<unknown>, params, target, opener)])
                 return true
-            }),
+            })
+        },
         [exclusive, parentForChild, setStack],
     )
 
@@ -313,7 +378,9 @@ export const ViewStackHost = ({
                     if (!parent) return false
                     parents.push(parent)
                 }
-                setStack([...parents, newEntry(view as ViewDef<unknown>, params, target)])
+                // The new view takes the place, and the opener, of the one it replaces.
+                const opener = current.at(-1)?.returnFocus ?? null
+                setStack([...parents, newEntry(view as ViewDef<unknown>, params, target, opener)])
                 return true
             }),
         [exclusive, settle, parentForChild, setStack],
@@ -322,7 +389,8 @@ export const ViewStackHost = ({
     const save = useCallback(async () => {
         const top = entriesRef.current.at(-1)
         if (!top || navigatingRef.current) return
-        if ((await runSave(top.key, true)) === true) {
+        const closes = formsRef.current[top.key]?.closeOnSave !== false
+        if ((await runSave(top.key, true)) === true && closes) {
             deferredCancelRef.current = null
             setStack(entriesRef.current.filter((entry) => entry.key !== top.key))
             return
@@ -333,7 +401,7 @@ export const ViewStackHost = ({
     // On a phone each open view is a level of the browser back, guarded like the back arrow.
     useSystemBack(phone ? entries.length : 0, "view", back)
 
-    const dirty = saving || Object.values(forms).some((form) => form.dirty)
+    const dirty = saving || entries.some((entry) => hasUnsavedEdits(entry, forms))
     const depth = entries.length as 0 | 1 | 2
     useReportOpenViewItem(entries, titles)
 
@@ -348,9 +416,23 @@ export const ViewStackHost = ({
         // Escape. A dialog or drawer that holds the whole host does not count.
         const layer = (event.target as HTMLElement | null)?.closest?.(MENU_SELECTOR)
         if (layer && !(hostRef.current && layer.contains(hostRef.current))) return
-        if (entriesRef.current.length > 0) {
+        const top = entriesRef.current.at(-1)
+        if (top) {
             event.preventDefault()
-            void back()
+            // Like the header: a step inside the view goes back first.
+            const stepBack = formsRef.current[top.key]?.back
+            if (!stepBack) {
+                void back()
+                return
+            }
+            stepBack()
+            // The step that had focus may be gone; the view keeps it so the next Escape works.
+            requestAnimationFrame(() => {
+                const host = hostRef.current
+                if (host && !host.contains(document.activeElement)) {
+                    host.querySelector<HTMLElement>("[data-view-top]")?.focus({preventScroll: true})
+                }
+            })
             return
         }
         if (onEscapeAtRoot) {
@@ -358,6 +440,17 @@ export const ViewStackHost = ({
             onEscapeAtRoot()
         }
     }
+
+    // After a back, focus returns to what opened the view that left, else to the view now on top.
+    useEffect(() => {
+        const target = pendingFocusRef.current
+        if (target === undefined) return
+        pendingFocusRef.current = undefined
+        const host = hostRef.current
+        if (target?.isConnected && host?.contains(target)) target.focus({preventScroll: true})
+        if (target && document.activeElement === target) return
+        host?.querySelector<HTMLElement>("[data-view-top]")?.focus({preventScroll: true})
+    }, [entries])
 
     const top = entries.at(-1)
     const topForm = top ? forms[top.key] : undefined
@@ -372,7 +465,13 @@ export const ViewStackHost = ({
     return (
         <ViewStackContext.Provider value={stack}>
             <div ref={hostRef} className="contents" onKeyDown={onKeyDown}>
-                <div style={{display: top ? "none" : "contents"}}>{children}</div>
+                {/* Back at the root, its body enters from the left (MOTION-01). */}
+                <div
+                    className={viewOpened ? "ag-view-root-back" : undefined}
+                    style={{display: top ? "none" : "contents"}}
+                >
+                    {children}
+                </div>
                 {top ? (
                     <Chrome
                         crumbs={crumbs}
@@ -382,12 +481,12 @@ export const ViewStackHost = ({
                             top.view.actionRow === false ||
                             topForm?.actionRow === false
                         }
-                        showWiden={top.view.widenButton !== false}
+                        showBack={Boolean(topForm?.back)}
                         form={
                             topForm ? {...topForm, saving, saveFailed: failedKey === top.key} : null
                         }
                         footerStartRef={setFooterStart}
-                        onBack={() => void back()}
+                        onBack={topForm?.back ?? (() => void back())}
                         onCancel={topForm?.cancel ?? cancel}
                         onSave={() => void save()}
                     >
@@ -396,6 +495,7 @@ export const ViewStackHost = ({
                                 key={entry.key}
                                 entry={entry}
                                 isTop={entry === top}
+                                direction={direction}
                                 saving={saving}
                                 depth={(index + 1) as 1 | 2}
                                 readOnly={phone && Boolean(entry.view.readOnlyOnPhone)}
@@ -412,13 +512,56 @@ export const ViewStackHost = ({
                     </Chrome>
                 ) : null}
             </div>
-            <UnsavedChangesDialog
+            {/* The generic unsaved-changes question; the dirty view gives the description. */}
+            <AlertDialog
                 open={question !== null}
-                description={question?.description ?? ""}
-                canSave={question?.canSave ?? false}
-                saveFailed={question?.saveFailed ?? false}
-                onAnswer={(answer) => question?.resolve(answer)}
-            />
+                onOpenChange={(next) => (next ? undefined : question?.resolve("keep"))}
+            >
+                <AlertDialogContent data-testid="unsaved-changes-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {question?.title ?? t("ui.viewStack.unsavedChanges")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {question?.description ?? ""}
+                        </AlertDialogDescription>
+                        {question?.saveFailed ? (
+                            <span role="alert" className="text-body text-destructive">
+                                {t("ui.viewStack.saveFailed")}
+                            </span>
+                        ) : null}
+                    </AlertDialogHeader>
+                    {/* In a narrow pane the three answers wrap rather than overflow. */}
+                    <AlertDialogFooter className="sm:flex-wrap">
+                        <Button variant="ghost" onClick={() => question?.resolve("keep")}>
+                            {t("ui.viewStack.keepEditing")}
+                        </Button>
+                        {(question?.offerSave ?? true) ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => question?.resolve("discard")}
+                                >
+                                    {t("ui.viewStack.discard")}
+                                </Button>
+                                <Button
+                                    disabled={!question?.canSave}
+                                    onClick={() => question?.resolve("save")}
+                                >
+                                    {t("ui.viewStack.saveChanges")}
+                                </Button>
+                            </>
+                        ) : (
+                            <Button
+                                variant="destructive"
+                                onClick={() => question?.resolve("discard")}
+                            >
+                                {t("ui.viewStack.discard")}
+                            </Button>
+                        )}
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </ViewStackContext.Provider>
     )
 }
@@ -426,6 +569,7 @@ export const ViewStackHost = ({
 const MountedView = ({
     entry,
     isTop,
+    direction,
     saving,
     depth,
     readOnly,
@@ -440,6 +584,7 @@ const MountedView = ({
 }: {
     entry: Entry
     isTop: boolean
+    direction: ViewDirection
     saving: boolean
     depth: 1 | 2
     readOnly: boolean
@@ -492,10 +637,26 @@ const MountedView = ({
         [depth, key, push, replace, back, cancel, save],
     )
     const Component = entry.view.Component
+    const ref = useRef<HTMLDivElement>(null)
+    const openedOnTop = useRef(isTop)
+    // A new view takes focus, so Escape works at once; a field that autofocused keeps it.
+    useEffect(() => {
+        const node = ref.current
+        if (openedOnTop.current && node && !node.contains(document.activeElement)) {
+            node.focus({preventScroll: true})
+        }
+    }, [])
     return (
         <div
+            ref={ref}
+            tabIndex={-1}
             data-testid={isTop ? "panel-view" : undefined}
-            className="flex min-h-0 min-w-0 flex-1 flex-col"
+            data-view-top={isTop ? "" : undefined}
+            // From the right when it opens; from the left when a child gives back its place.
+            className={cn(
+                isTop && viewEnterClass(direction),
+                "flex min-h-0 min-w-0 flex-1 flex-col outline-none",
+            )}
             style={isTop ? undefined : {display: "none"}}
             // While its Save runs the view takes no input: an edit made then would not be in the
             // request, and success closes the view.

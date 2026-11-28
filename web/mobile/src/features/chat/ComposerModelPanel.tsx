@@ -115,9 +115,7 @@ export const ComposerModelPanel = ({
             // An open layer for the chat's shortcuts (`isOverlayOpen`), as a Radix popover is.
             data-state="open"
             aria-label={t("chat.mobileComposer.searchModels")}
-            // The canvas popover: radius 12 and a 1px ring in its shadow. The dark shadow token
-            // already draws its own ring.
-            className="bg-popover text-popover-foreground shadow-overlay ring-foreground/10 flex outline-none max-h-[min(540px,60dvh)] flex-col rounded-[12px] p-1.5 ring-1 dark:ring-0"
+            className="bg-popover text-popover-foreground shadow-overlay flex outline-none max-h-[min(540px,60dvh)] flex-col rounded-lg p-1"
         >
             <ModelPickerList
                 options={groups}
@@ -135,7 +133,7 @@ export const ComposerModelPanel = ({
                     <button
                         type="button"
                         onClick={onBackToCommands}
-                        className="text-muted-foreground cursor-pointer border-none bg-transparent p-0 text-[10.5px]"
+                        className="text-muted-foreground cursor-pointer border-none bg-transparent p-0 text-meta"
                     >
                         {t("chat.mobileComposer.backToCommands")}
                     </button>

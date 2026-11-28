@@ -40,7 +40,7 @@ const TouchSheet = ({
 const Excerpt = ({quote}: {quote: Quote}) => (
     <div className="flex gap-2.5 rounded-lg bg-foreground/5 px-3.5 py-3">
         <Quotes size={14} weight="fill" className="mt-[3px] shrink-0 text-muted-foreground" />
-        <p className="m-0 line-clamp-3 text-[13px] leading-5 text-muted-foreground">
+        <p className="m-0 line-clamp-3 text-label leading-5 text-muted-foreground">
             {truncateQuoteText(readableQuoteText(quote), 220)}
         </p>
     </div>
@@ -73,7 +73,7 @@ export const QuoteNoteSheet = ({
                 onFocus={(e) => e.currentTarget.setSelectionRange(note.length, note.length)}
                 rows={2}
                 placeholder={t("ui.quoteSelection.askAboutThis")}
-                className="min-h-11 w-full resize-none rounded-lg border border-solid border-border bg-transparent px-3 py-2.5 font-[inherit] text-[15px] leading-6 text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground focus:border-ring"
+                className="min-h-11 w-full resize-none rounded-lg border border-solid border-border bg-transparent px-3 py-2.5 font-[inherit] text-label leading-6 text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground focus-ring-field"
             />
             {onSend ? (
                 <div className="grid grid-cols-2 gap-2">
@@ -109,7 +109,7 @@ export const CommentSheet = ({
     return (
         <TouchSheet title={t("ui.quoteSelection.comment")} onClose={onClose}>
             {quote.note ? (
-                <p className="m-0 whitespace-pre-wrap text-[15px] leading-6 text-foreground">
+                <p className="m-0 whitespace-pre-wrap text-body leading-6 text-foreground">
                     {quote.note}
                 </p>
             ) : null}
@@ -118,7 +118,7 @@ export const CommentSheet = ({
                 <Button variant="outline" className="h-11" onClick={onEdit}>
                     {t("common.edit")}
                 </Button>
-                <Button variant="destructive" className="h-11" onClick={onDelete}>
+                <Button variant="destructive-ghost" className="h-11" onClick={onDelete}>
                     {t("common.delete")}
                 </Button>
             </div>

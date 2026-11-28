@@ -27,7 +27,7 @@ const VISIBILITY_KEYS = {
 } as const
 
 const SectionLabel = ({children}: {children: ReactNode}) => (
-    <span className="block px-3 pt-2 pb-1 text-xs font-medium uppercase tracking-wider text-colorTextTertiary">
+    <span className="block px-3 pt-2 pb-1 text-meta font-medium text-muted-foreground">
         {children}
     </span>
 )
@@ -71,7 +71,7 @@ const TraceTreeSettings = ({
                             role="menuitemradio"
                             aria-checked={visibility === option.value}
                             tabIndex={0}
-                            className="flex items-center justify-between gap-3 px-3 py-1.5 cursor-pointer rounded-sm hover:bg-colorFillSecondary"
+                            className="flex items-center justify-between gap-3 px-3 py-1.5 cursor-pointer rounded-sm hover:bg-accent"
                             onClick={() => setVisibility(option.value)}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {
@@ -86,7 +86,7 @@ const TraceTreeSettings = ({
                                         ? t(VISIBILITY_KEYS[option.value].label)
                                         : option.label}
                                 </span>
-                                <span className="text-xs leading-tight text-colorTextTertiary">
+                                <span className="text-meta text-muted-foreground">
                                     {Object.hasOwn(VISIBILITY_KEYS, option.value)
                                         ? t(VISIBILITY_KEYS[option.value].hint)
                                         : option.hint}
@@ -94,8 +94,7 @@ const TraceTreeSettings = ({
                             </div>
                             <Check
                                 size={14}
-                                weight="bold"
-                                className={clsx("shrink-0 text-colorPrimary", {
+                                className={clsx("shrink-0 text-primary", {
                                     invisible: visibility !== option.value,
                                 })}
                             />

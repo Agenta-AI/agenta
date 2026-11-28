@@ -1,5 +1,4 @@
 {
-    "add": "Add",
     "addProviderOrSubscription": "Add a provider or subscription",
     "agenta": "Agenta",
     "apiKeys": "API keys",
@@ -9,7 +8,5 @@
     "providedByAgenta": "Provided by Agenta",
     "saveConnection": "Save connection",
     "signInNeeded": "Sign in needed",
-    "subscriptions": "Subscriptions",
-    "useApiKey": "Use an API key",
-    "useSubscription": "Use a subscription"
+    "subscriptions": "Subscriptions"
 }

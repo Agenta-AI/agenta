@@ -84,11 +84,11 @@ export const LicenseSummary = ({
                 ) : null}
             </div>
             {!key ? (
-                <p className="text-muted-foreground m-0 text-[13px]">
+                <p className="text-muted-foreground m-0 text-body-sm">
                     {t("settings.license.communitySummary")}
                 </p>
             ) : registered ? (
-                <p className="text-muted-foreground m-0 text-[13px]">
+                <p className="text-muted-foreground m-0 text-body-sm">
                     {t("settings.license.registeredSummary", {email: key.customer})}
                 </p>
             ) : null}

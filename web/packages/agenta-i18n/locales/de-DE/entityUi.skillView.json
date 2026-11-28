@@ -33,6 +33,5 @@
     "expandEditor": "Editor vergrößern",
     "shrinkEditor": "Editor verkleinern",
     "removedState": "Dieser Skill ist nicht mehr im Agent.",
-    "registryLeaveDescription": "Änderungen an diesem Skill in der Skill-Registry speichern oder verwerfen?",
-    "back": "Zurück"
+    "registryLeaveDescription": "Änderungen an diesem Skill in der Skill-Registry speichern oder verwerfen?"
 }

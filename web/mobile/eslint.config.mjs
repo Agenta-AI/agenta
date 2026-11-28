@@ -39,7 +39,7 @@ const config = [
                         {
                             group: ["@ant-design/*"],
                             message:
-                                "@ant-design/* is banned in web/mobile. Use shadcn/ui + lucide-react instead.",
+                                "@ant-design/* is banned in web/mobile. Use the shadcn kit in @agenta/ui/ui and @phosphor-icons/react instead.",
                         },
                         {
                             group: ["lexical", "lexical/*", "@lexical/*"],

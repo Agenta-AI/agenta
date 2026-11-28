@@ -30,7 +30,7 @@ export const SessionTurnList = ({
         <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             {stats ? <SessionSummary stats={stats} /> : null}
             {truncated ? (
-                <p className="m-0 text-sm text-muted-foreground">
+                <p className="m-0 text-body text-muted-foreground">
                     {t("observability.sessionDrawer.showingTraces", {count: traces.length})}
                 </p>
             ) : null}

@@ -9,6 +9,7 @@ import {type DriveDrop} from "@agenta/entities/drive"
 import {type DriveTreePaneState} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import {ResizeEdgeLine} from "@agenta/ui/ui"
 import {motion} from "motion/react"
 
 export function DriveTreePane({
@@ -59,7 +60,7 @@ export function DriveTreePane({
                     a drag writes it per pointer move — either way motion updates the DOM directly,
                     no React render per frame. */}
             <motion.div
-                className={`min-h-0 shrink-0 overflow-hidden border-0 border-solid border-colorBorderSecondary ${
+                className={`min-h-0 shrink-0 overflow-hidden border-0 border-solid border-border-muted ${
                     mirrored ? "border-l" : "border-r"
                 }`}
                 style={{width: paneW}}
@@ -69,11 +70,11 @@ export function DriveTreePane({
                     reflowing as the pane narrows. `box-border` keeps `h-full`+padding inside the box
                     (preflight is off → content-box by default). */}
                 <motion.div
-                    className="box-border flex h-full min-h-0 flex-col overflow-hidden bg-colorBgLayout"
+                    className="box-border flex h-full min-h-0 flex-col overflow-hidden bg-muted"
                     style={{width: innerW}}
                 >
                     {railHeader ? (
-                        <div className="flex h-9 shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary px-2">
+                        <div className="flex h-9 shrink-0 items-center border-0 border-b border-solid border-border-muted px-2">
                             {railHeader}
                         </div>
                     ) : null}
@@ -91,7 +92,7 @@ export function DriveTreePane({
                 </motion.div>
             </motion.div>
             {/* Resize handle — a WIDE invisible hit target straddling the tree's right edge, with a
-                    thin 1px line that only lights up on hover/drag (the tree's own border is the resting
+                    shared 2px resize line that shows on hover/drag (the tree's own border is the resting
                     divider). Only while the tree is shown (nothing to resize when collapsed). */}
             {treeVisible ? (
                 <div
@@ -103,9 +104,7 @@ export function DriveTreePane({
                     onPointerUp={onTreeHandleUp}
                     className="group relative z-10 -mx-1 w-2 shrink-0 cursor-col-resize touch-none"
                 >
-                    <div
-                        className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${treeDragging ? "bg-colorPrimary" : "bg-transparent group-hover:bg-colorPrimary"}`}
-                    />
+                    <ResizeEdgeLine active={treeDragging} />
                 </div>
             ) : null}
             {/* The content column is the reading surface; the rail sits on the layout tone. */}

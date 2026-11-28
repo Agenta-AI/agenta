@@ -22,7 +22,7 @@
 
 import React from "react"
 
-import {ChevronRight} from "lucide-react"
+import {CaretRightIcon} from "@phosphor-icons/react"
 
 import {cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
 
@@ -152,10 +152,7 @@ export function ListItem({
         }
     }
 
-    // Hover/selected use overlay tokens (--ag-rgba-051729-*: dark-alpha in light mode,
-    // white-alpha in dark mode) rather than bgColors.subtle (bg-zinc-1). In dark mode
-    // zinc-1 maps to the elevated surface color (== popover/drawer bg), so a row inside a
-    // popover got no visible hover/selected highlight. Overlays stay visible on any surface.
+    // Hover is the translucent `accent`, so it shows on any surface; selection is `selected`.
     const baseClasses = cn(
         flexLayouts.rowCenter,
         justifyClasses.between,
@@ -167,12 +164,12 @@ export function ListItem({
         : isSelected
           ? cn(
                 "cursor-pointer",
-                "bg-[var(--ag-rgba-051729-06)] hover:bg-[var(--ag-rgba-051729-08)]",
+                "bg-selected hover:bg-[image:linear-gradient(var(--accent),var(--accent))]",
                 textColors.primary,
             )
           : isHovered
-            ? cn("cursor-pointer", "bg-[var(--ag-rgba-051729-06)]", textColors.primary)
-            : cn("cursor-pointer", "hover:bg-[var(--ag-rgba-051729-04)]", textColors.iconHover)
+            ? cn("cursor-pointer", "bg-selected", textColors.primary)
+            : cn("cursor-pointer", "hover:bg-accent", textColors.iconHover)
 
     return (
         <div
@@ -209,7 +206,7 @@ export function ListItem({
             {/* Show chevron for items with children (indicates popover/drill-down available) */}
             {hasChildren && (
                 <div className="flex-shrink-0 ml-2">
-                    <ChevronRight className={cn("w-3 h-3", textColors.quaternary)} />
+                    <CaretRightIcon className={cn("w-3 h-3", textColors.quaternary)} />
                 </div>
             )}
         </div>

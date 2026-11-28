@@ -76,12 +76,12 @@ export const FolderNameDialog = ({
                         />
                     </Field>
                     {trimmed ? (
-                        <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                        <div className="flex flex-col gap-1 text-body text-muted-foreground">
                             <span>{copy.slug(folderSlug(trimmed))}</span>
                             <span className="break-all">{copy.path(pathFor(trimmed))}</span>
                         </div>
                     ) : null}
-                    {error ? <p className="m-0 text-sm text-destructive">{error}</p> : null}
+                    {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
                     <DialogFooter>
                         <Button
                             type="button"

@@ -37,11 +37,6 @@ export interface ViewDef<P> {
      * keeps the row.
      */
     actionRow?: false
-    /**
-     * False: a panel container draws no "Widen the panel" button for this view (a short form, such
-     * as Connect or Attach a secret). Absent keeps the button.
-     */
-    widenButton?: false
     /** The body. Use a `next/dynamic` component so the code loads on first open. */
     Component: ComponentType<ViewProps<P>>
 }
@@ -98,6 +93,10 @@ export type ViewSaveResult = boolean | "stay"
 
 /** What an "on_save" view reports. An "immediate" view reports nothing. */
 export interface ViewForm {
+    /**
+     * True only when the form differs from what the view loaded. Opening a view and leaving it
+     * with no change, or with a change undone, must not count: leaving a dirty form asks.
+     */
     dirty: boolean
     valid: boolean
     /**
@@ -112,7 +111,9 @@ export interface ViewForm {
      */
     save: () => Promise<ViewSaveResult>
     /** Text of the unsaved-changes dialog for this view (it names what Save writes). */
-    leaveDescription: string
+    leaveDescription?: string
+    /** Why Save is disabled while the form is invalid ("Add a client ID"), as Save's tooltip. */
+    invalidReason?: string
     /** The Save button's label when the view names its action (for example "Connect"). */
     saveLabel?: string
     /** The Save button's label while the save runs (for example "Checking…"). */
@@ -127,6 +128,18 @@ export interface ViewForm {
      * that Cancel closes (an upload step goes back to the file).
      */
     cancel?: () => void
+    /** What the header's Back does for now: a step inside the view goes to the step before. */
+    back?: () => void
+    /** The name of the step that `back` returns to, for the phone's back label. */
+    backTitle?: string
+    /** The unsaved-changes dialog's title, in place of the generic one. */
+    leaveTitle?: string
+    /** `false`: the unsaved-changes dialog offers only Keep editing and Discard. */
+    leaveCanSave?: false
+    /** Save stays enabled while the form is clean (a "Done" that only closes). */
+    saveWhenClean?: true
+    /** `false`: the view stays open after its Save lands. "Save changes" in the dialog still leaves. */
+    closeOnSave?: false
 }
 
 /** For the container's root and for the container itself. */
@@ -160,8 +173,8 @@ export interface ViewChromeProps {
      * (`ViewDef.actionRow: false`).
      */
     hideActionRow: boolean
-    /** The container may offer to widen itself for the top view (`ViewDef.widenButton`). */
-    showWiden: boolean
+    /** The top view is on a step after its first (`ViewForm.back`): the header shows Back. */
+    showBack?: boolean
     form: ViewChromeForm | null
     /** The slot at the left of the action row, where the top view's `ViewFooterStart` renders. */
     footerStartRef: (element: HTMLElement | null) => void

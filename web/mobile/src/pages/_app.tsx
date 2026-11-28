@@ -4,10 +4,13 @@ import "@/lib/prismManualMode"
 import {registerDriveMarkdown} from "@agenta/entity-ui/drive"
 import {DEFAULT_PAGE_TITLE} from "@agenta/shared/utils"
 import AppMessageContext from "@agenta/ui/app-message"
+import {iconStrokeAttr, iconWeight} from "@agenta/ui/design/icons"
 import {useVisualViewportHeight} from "@agenta/ui/hooks"
+import {IconContext} from "@phosphor-icons/react"
 import type {AppProps} from "next/app"
 import Head from "next/head"
 
+import {AppFonts} from "@/features/app/AppFonts"
 import {AppProviders} from "@/features/app/AppProviders"
 import {BareProviders} from "@/features/app/BareProviders"
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
@@ -15,6 +18,7 @@ import {TabRunFavicon} from "@/features/app/TabRunFavicon"
 import {DriveMarkdownRenderer} from "@/features/chat/DriveMarkdownRenderer"
 import {isEmbedPath} from "@/features/embed/embedRoute"
 import {MaintenanceNoticeBar} from "@/features/maintenance/MaintenanceNoticeBar"
+import {useIsIos} from "@/lib/useIsIos"
 
 // Side effect: binds projectIdAtom from the URL before React renders. See the module.
 import "@/lib/seedProjectContext"
@@ -24,6 +28,10 @@ import "@/styles/globals.css"
 // The drive's rendered markdown (quick look, previews) uses the chat's renderer — by injection,
 // so the package never depends on a host's markdown stack.
 registerDriveMarkdown(DriveMarkdownRenderer)
+
+// Every Phosphor icon draws at the design system weight (ICON-01). One stable object, so the
+// context never changes identity between renders.
+const ICON_DEFAULTS = {weight: iconWeight, [iconStrokeAttr]: ""}
 
 // Deliberately minimal: no provider fleet (the desktop _app's ~10 providers
 // are the reason this app exists as a separate bundle). AppProviders holds
@@ -35,18 +43,25 @@ export default function App({Component, pageProps, router}: AppProps) {
     // `--ag-viewport-height`, which ScreenScaffold, AppShell and SessionWorkspace read with a
     // `100dvh` fallback. One mount here covers every screen. Idle when no keyboard is open.
     useVisualViewportHeight()
+    // iOS zooms the page when a field gets focus with text under 16px. `maximum-scale=1` stops
+    // that; iOS still allows pinch zoom with it (TOUCH-01). Other browsers do not zoom on focus.
+    const ios = useIsIos()
 
     // The embed widget runs inside other websites without an Agenta login: the data layer only.
     if (isEmbedPath(router.pathname)) {
         return (
-            <BareProviders>
-                <Component {...pageProps} />
-            </BareProviders>
+            <IconContext.Provider value={ICON_DEFAULTS}>
+                <BareProviders>
+                    <AppFonts />
+                    <Component {...pageProps} />
+                </BareProviders>
+            </IconContext.Provider>
         )
     }
 
     return (
-        <>
+        <IconContext.Provider value={ICON_DEFAULTS}>
+            <AppFonts />
             <Head>
                 {/* `interactive-widget=resizes-content` makes the on-screen keyboard shrink
                     the LAYOUT viewport, so every `dvh` frame below stops hiding its bottom edge —
@@ -55,7 +70,7 @@ export default function App({Component, pageProps, router}: AppProps) {
                     `viewport-fit=cover` stays: this app draws real safe-area insets. */}
                 <meta
                     name="viewport"
-                    content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+                    content={`width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content${ios ? ", maximum-scale=1" : ""}`}
                 />
                 {/* App-wide default: a route that names no title shows this, not the URL. */}
                 <title>{DEFAULT_PAGE_TITLE}</title>
@@ -71,6 +86,6 @@ export default function App({Component, pageProps, router}: AppProps) {
                 <GlobalDrawers />
                 <TabRunFavicon />
             </AppProviders>
-        </>
+        </IconContext.Provider>
     )
 }

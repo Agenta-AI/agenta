@@ -489,7 +489,7 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
                 containerRef.current = node
                 refs.setFloating(node)
             }}
-            className="bg-[var(--ag-c-FFFFFF)] border border-solid border-gray-100 rounded drop-shadow-xl max-h-[200px] w-[200px] overflow-y-auto outline-none"
+            className="bg-popover rounded-lg shadow-overlay max-h-50 w-[200px] overflow-y-auto outline-none"
             style={{
                 ...floatingStyles,
                 zIndex: 1050,
@@ -504,13 +504,13 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
                         e.stopPropagation()
                         selectOption(suggestion)
                     }}
-                    className={`flex items-center justify-between gap-2 px-2 py-1.5 cursor-pointer font-mono text-[12px] ${
-                        index === selectedIndex ? "bg-blue-100 text-blue-800" : "hover:bg-gray-100"
+                    className={`flex items-center justify-between gap-2 px-2 py-1.5 cursor-pointer font-mono text-meta ${
+                        index === selectedIndex ? "bg-accent text-foreground" : "hover:bg-accent"
                     }`}
                 >
                     <span className="truncate">{suggestion.label}</span>
                     {suggestion.hint ? (
-                        <span className="text-[9px] uppercase tracking-wide text-gray-400 shrink-0">
+                        <span className="text-caption uppercase tracking-wide text-muted-foreground shrink-0">
                             {suggestion.hint}
                         </span>
                     ) : null}

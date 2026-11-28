@@ -37,10 +37,14 @@ export const usePersonalSetupStep = (sessionId: string, revisionId: string): Per
     const [closed, setClosed] = useState(false)
 
     useEffect(() => {
-        setLatched([])
-        setPendingKeys(NONE)
         setClosed(false)
     }, [sessionId])
+    // The chat stays mounted when it moves to a new revision, and that revision can need other
+    // items, so its rows are taken again from its own answer.
+    useEffect(() => {
+        setLatched([])
+        setPendingKeys(NONE)
+    }, [sessionId, revisionId])
 
     // `null` is "not answered", not "nothing missing", so it keeps the last answer.
     const current = useMemo(
@@ -51,8 +55,9 @@ export const usePersonalSetupStep = (sessionId: string, revisionId: string): Per
         if (!current) return
         setPendingKeys(new Set(current.map((item) => item.key)))
         setLatched((rows) => (rows.length === 0 && current.length > 0 ? current : rows))
-        // `sessionId`: the reset above empties the rows, and the same answer must fill them again.
-    }, [current, sessionId])
+        // `sessionId`, `revisionId`: the reset above empties the rows, and the same answer must
+        // fill them again.
+    }, [current, sessionId, revisionId])
 
     return {
         open: !closed && access === "on" && latched.length > 0 && Boolean(workflowId),

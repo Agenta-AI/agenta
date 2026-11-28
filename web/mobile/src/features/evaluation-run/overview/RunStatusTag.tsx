@@ -1,22 +1,15 @@
-import {humanizeRunStatus, runStatusTone, type RunStatusTone} from "@agenta/entities/evaluationRun"
+import {humanizeRunStatus, runStatusTone} from "@agenta/entities/evaluationRun"
+import {Badge, statusBadgeVariant} from "@agenta/ui/ui"
 
-import {StatusTag, type StatusTone} from "@/components/StatusTag"
+const DOT = <span aria-hidden className="size-1.5 rounded-round bg-current" />
 
-const TAG_TONE: Record<RunStatusTone, StatusTone> = {
-    success: "live",
-    processing: "running",
-    error: "failed",
-    warning: "attention",
-    default: "muted",
-}
-
-/** A run status as a tag: "evaluation_finished" reads "Evaluation Finished". */
+/** A run status as a badge: "evaluation_finished" reads "Evaluation Finished". */
 export const RunStatusTag = ({status}: {status: string | null}) => {
     if (!status) return <span className="text-muted-foreground">—</span>
-    const tone = TAG_TONE[runStatusTone(status)]
+    const tone = runStatusTone(status)
     return (
-        <StatusTag tone={tone} dot={tone === "running"}>
+        <Badge variant={statusBadgeVariant(tone)} icon={tone === "processing" ? DOT : undefined}>
             {humanizeRunStatus(status)}
-        </StatusTag>
+        </Badge>
     )
 }

@@ -7,8 +7,15 @@ import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {SidebarLayoutContext, SidebarShell} from "@agenta/navigation-ui"
 import {SidebarSheet, useIsPhone} from "@agenta/ui/phone"
-import {Button, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@agenta/ui/ui"
-import {ListBullets} from "@phosphor-icons/react"
+import {
+    Button,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -20,6 +27,7 @@ import {
 import {usePageAgentId} from "../agent-sidebar/useAgentSidebarSync"
 import {liveChatOpenAtom} from "../support/crispChat"
 
+import {MenuIcon} from "./MenuIcon"
 import {useRailScope} from "./railScope"
 
 /**
@@ -35,9 +43,9 @@ const showAgentSidebar = (agentId: string) => {
 }
 
 /**
- * The app drawer: the SAME `SidebarShell` the lg+ NavRail docks, inside a sheet. Below 768 px
- * it is the phone's 300 px sidebar sheet with 44 px rows; up to lg it is sized to the rail's own
- * width. The hamburger hides at lg where the rail takes over, so a viewport never shows both
+ * The app drawer: the SAME `SidebarShell` the lg+ NavRail docks, inside a sheet. On a phone it
+ * is the phone sidebar sheet, with the rail's own row sizes (SIZE-02); up to lg it is sized to
+ * the rail's own width. The hamburger hides at lg where the rail takes over, so a viewport never shows both
  * entries to the same nav.
  */
 export const NavDrawer = ({
@@ -53,7 +61,7 @@ export const NavDrawer = ({
     const t = useT(navigationCatalog)
     const tPhone = useT(phoneCatalog)
     const [open, setOpen] = useState(false)
-    // A phone gets the 300 px sidebar sheet with 44 px rows; wider windows keep the rail's sheet.
+    // A phone gets the phone sidebar sheet; wider windows keep the rail's sheet.
     const phone = useIsPhone()
     // The search palette is a dialog of its own, mounted outside this sheet: opening it from the
     // rail inside the sheet closes the sheet, or the pick would land under it.
@@ -118,12 +126,9 @@ export const NavDrawer = ({
             variant="ghost"
             size="icon-compact"
             aria-label={label}
-            // The canvas menu button (M01, M02, M13): a list glyph in secondary text, 44 x 44 with
-            // radius 8 and a 20 px glyph on a phone (the size gives it). From md, where it is
-            // 28 px, the ::after reaches 8 px past each edge for the touch target.
-            className="relative md:after:absolute md:after:-inset-2 md:after:content-[''] lg:hidden"
+            className="relative lg:hidden"
         >
-            <ListBullets />
+            <MenuIcon aria-hidden className="size-5" />
         </Button>
     )
 
@@ -136,9 +141,6 @@ export const NavDrawer = ({
                 title={t("navigation.chrome.navigationTitle")}
                 showHeader={false}
                 trigger={menuButton(tPhone("ui.phone.openSidebar"))}
-                // Every small button and link of the sidebar (group +, row ⋯, search, help) is 44 x 44 px
-                // here, so a finger reaches it; the icons keep their size.
-                className="[&_a]:min-h-11 [&_a]:min-w-11 [&_button]:min-h-11 [&_button]:min-w-11"
             >
                 <SidebarLayoutContext.Provider value="phone">{shell}</SidebarLayoutContext.Provider>
             </SidebarSheet>
@@ -147,12 +149,18 @@ export const NavDrawer = ({
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>{menuButton(t("navigation.chrome.openNavigation"))}</SheetTrigger>
+            <SimpleTooltip title={t("navigation.chrome.openNavigation")}>
+                <span className="inline-flex lg:hidden">
+                    <SheetTrigger asChild>
+                        {menuButton(t("navigation.chrome.openNavigation"))}
+                    </SheetTrigger>
+                </span>
+            </SimpleTooltip>
             {/* Flush to the viewport's left edge, unlike the kit's floating panel: a nav drawer
                 reads as the rail sliding in, so only its open side is rounded. */}
             <SheetContent
                 side="left"
-                className="inset-y-0 left-0 w-[236px] gap-0 rounded-none rounded-r-xl p-0"
+                className="inset-y-0 left-0 w-60 gap-0 rounded-none rounded-r-xl p-0"
             >
                 {/* The sheet's own X is off: the rail's header already has the button, and
                     `onDismiss` turns it into this sheet's close. */}

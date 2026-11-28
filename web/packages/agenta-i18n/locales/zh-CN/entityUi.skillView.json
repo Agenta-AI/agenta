@@ -31,6 +31,5 @@
     "expandEditor": "展开编辑器",
     "shrinkEditor": "缩小编辑器",
     "removedState": "这个 Skill 已不在 Agent 中。",
-    "registryLeaveDescription": "将对这个 Skill 的更改保存到 Skill 注册表，还是放弃？",
-    "back": "返回"
+    "registryLeaveDescription": "将对这个 Skill 的更改保存到 Skill 注册表，还是放弃？"
 }

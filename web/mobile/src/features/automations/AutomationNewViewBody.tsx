@@ -9,8 +9,8 @@ import {useAtomValue} from "jotai"
 import type {AutomationNewViewParams} from "./automationView"
 
 /**
- * The body of "New automation": the create form of the chosen kind, bound to the open agent, with
- * no switch between kinds. "Create automation" is the view's Save; a press with something missing
+ * The body of "New automation": the create form, bound to the open agent. It opens as the kind
+ * the opener passes and offers the switch to the other kind. "Create automation" is the view's Save; a press with something missing
  * creates nothing and marks the missing fields.
  */
 const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => {
@@ -26,8 +26,9 @@ const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => 
         defaultReferences: params.references.application?.id ? params.references : undefined,
     })
     useViewForm({
-        // An open form counts as edits: leaving it asks first.
-        dirty: true,
+        // Leaving asks only after a change; Create works on the untouched form too.
+        dirty: state.dirty,
+        saveWhenClean: true,
         valid: true,
         save: async () => {
             // Missing fields show their own errors, so the stack adds no failure line.
@@ -44,7 +45,6 @@ const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => 
                 state={state}
                 // The panel binds the agent; the field shows only when its id did not resolve.
                 showAgentField={!params.references.application?.id}
-                fixedKind
             />
         </div>
     )

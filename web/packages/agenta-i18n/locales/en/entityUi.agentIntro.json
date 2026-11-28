@@ -10,5 +10,7 @@
     "eventAutomation": "Event automation",
     "onEvent": "on event",
     "firesOn": "Fires on {{eventKey}}",
-    "firesWhenEventArrives": "Fires when its event arrives"
+    "firesWhenEventArrives": "Fires when its event arrives",
+    "mcpCount_one": "{{count}} MCP server",
+    "mcpCount_other": "{{count}} MCP servers"
 }

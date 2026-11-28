@@ -47,7 +47,7 @@ const SetUpProvidersButton = ({onClick}: {onClick: () => void}) => {
         <button
             type="button"
             onClick={onClick}
-            className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-colorTextSecondary hover:border-colorPrimary hover:text-colorText"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-muted-foreground hover:border-primary hover:text-foreground"
         >
             <Plus size={14} className="shrink-0" />
             {t("entityUi.providerDrawer.setUpProviders")}

@@ -21,7 +21,7 @@ import {
 } from "./useSubmitAnnotations"
 
 const PanelMessage = ({children}: {children: string}) => (
-    <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-muted-foreground">
+    <div className="flex flex-1 items-center justify-center p-4 text-center text-body text-muted-foreground">
         {children}
     </div>
 )
@@ -137,7 +137,7 @@ export const AnnotationFormPanel = ({
                                         {evaluator.name ?? evaluator.slug}
                                     </span>
                                     <span
-                                        className="min-w-0 max-w-[40%] truncate text-xs text-muted-foreground"
+                                        className="min-w-0 max-w-[40%] truncate text-meta text-muted-foreground"
                                         title={evaluator.slug}
                                     >
                                         {evaluator.slug}

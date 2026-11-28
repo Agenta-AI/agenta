@@ -2,11 +2,11 @@
     "cancel": "Cancelar",
     "close": "Fechar",
     "discard": "Descartar",
-    "done": "Concluir",
     "keepEditing": "Continuar editando",
     "save": "Salvar",
     "saveChanges": "Salvar alterações",
     "saveFailed": "Não foi possível salvar a alteração. Tente novamente.",
     "saving": "Salvando…",
+    "widen": "Alargar o painel",
     "unsavedChanges": "Você tem alterações não salvas"
 }

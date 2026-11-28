@@ -81,7 +81,7 @@ export function JsonArrayField({
             />
 
             {arrayItems.length === 0 && (
-                <div className="text-sm text-gray-400">{t("ui.drillIn.emptyArray")}</div>
+                <div className="text-body text-muted-foreground">{t("ui.drillIn.emptyArray")}</div>
             )}
         </div>
     )

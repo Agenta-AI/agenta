@@ -65,12 +65,8 @@ export const LockedEnterpriseFeatures = ({
                 </div>
                 <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
                     {present.map((feature) => (
-                        <li key={feature} className="flex items-start gap-2 text-[13px]">
-                            <Check
-                                size={14}
-                                weight="bold"
-                                className="text-success mt-[3px] shrink-0"
-                            />
+                        <li key={feature} className="flex items-start gap-2 text-body-sm">
+                            <Check size={14} className="text-success mt-[3px] shrink-0" />
                             <span>{richText(t(LINES[feature]), strong)}</span>
                         </li>
                     ))}
@@ -87,7 +83,7 @@ export const LockedEnterpriseFeatures = ({
                         <h3 className="text-foreground m-0 text-sm font-semibold">{t(row.name)}</h3>
                         <Badge variant="blue">{t("settings.license.lockedBadge")}</Badge>
                     </div>
-                    <p className="text-muted-foreground m-0 text-[13px]">{t(row.line)}</p>
+                    <p className="text-muted-foreground m-0 text-body-sm">{t(row.line)}</p>
                 </section>
             ))}
         </div>

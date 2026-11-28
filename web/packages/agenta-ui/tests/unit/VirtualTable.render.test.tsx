@@ -109,13 +109,6 @@ describe("VirtualTable render warnings", () => {
         expect(container.querySelectorAll("[data-table-loading]")).toHaveLength(0)
     })
 
-    it("renders emptyText when there are no rows", () => {
-        const {container} = render(
-            <VirtualTable<Row> {...base} dataSource={[]} emptyText="no traces" />,
-        )
-        expect(container.textContent).toContain("no traces")
-    })
-
     it("gives the header its own chrome, distinct from body cells", () => {
         const {container} = render(<VirtualTable<Row> {...base} dataSource={rows(3)} />)
         const head = container.querySelector(".avt-head-cell")?.className ?? ""
@@ -125,7 +118,7 @@ describe("VirtualTable render warnings", () => {
         // page surface instead (parity pass, §4c), so its chrome is the bottom rule + weight.
         expect(head).toContain("border-b")
         expect(head).toContain("font-medium")
-        expect(cell).not.toContain("bg-colorFillQuaternary")
+        expect(cell).not.toContain("bg-secondary")
     })
 
     it("gives resize handles a grabbable hit area", () => {

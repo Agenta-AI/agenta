@@ -64,7 +64,7 @@ const Body = (props: EndpointsViewProps) => {
 /** What the Endpoints page shows under its title, for every state it can be in. */
 export const EndpointsView = (props: EndpointsViewProps) => (
     <div className="flex min-w-0 flex-col gap-5" data-testid="endpoints-view">
-        <p className="m-0 text-[13px] text-muted-foreground">
+        <p className="m-0 text-label text-muted-foreground">
             Select an environment then use this endpoint to send requests to the LLM app.
         </p>
         {props.state === "loading" || !props.onPickApp ? null : (

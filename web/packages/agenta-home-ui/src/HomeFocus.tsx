@@ -167,7 +167,7 @@ export const HomeFocus = ({
         <div
             className={`flex w-full flex-1 flex-col overflow-y-auto overflow-x-hidden ${className ?? ""}`}
         >
-            <div className="mx-auto flex w-full max-w-[620px] flex-col gap-[26px]">
+            <div className="mx-auto flex w-full max-w-[620px] flex-col gap-6">
                 <HomeGreeting title={title ?? t("home.focus.title")} />
 
                 {/* Home's send is the primary, not the composer accent — the page has one thing to
@@ -178,9 +178,9 @@ export const HomeFocus = ({
                     className="relative box-border"
                     style={
                         {
-                            "--ag-composer-send-bg": "var(--ag-colorPrimary)",
-                            "--ag-composer-send-fg": "var(--ag-colorBgContainer)",
-                            "--ag-composer-send-hover-bg": "var(--ag-colorPrimaryHover)",
+                            "--ag-composer-send-bg": "var(--primary)",
+                            "--ag-composer-send-fg": "var(--background)",
+                            "--ag-composer-send-hover-bg": "var(--primary-hover)",
                         } as CSSProperties
                     }
                 >

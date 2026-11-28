@@ -117,7 +117,7 @@ export const DrillInBreadcrumb = memo(
         )
 
         return (
-            <div className="drill-in-breadcrumb flex items-center gap-1 min-h-[32px] sticky top-0 bg-[var(--ag-c-FFFFFF)] z-10 py-2">
+            <div className="drill-in-breadcrumb flex items-center gap-1 min-h-8 sticky top-0 bg-background z-10 py-2">
                 {/* Fixed prefix (span navigation) - doesn't scroll */}
                 {prefix && <div className="flex-shrink-0 flex items-center">{prefix}</div>}
 
@@ -139,7 +139,7 @@ export const DrillInBreadcrumb = memo(
                         <button
                             type="button"
                             onClick={() => onNavigateToIndex(0)}
-                            className={`px-2 py-1 rounded hover:bg-gray-100 transition-colors bg-transparent border-none cursor-pointer whitespace-nowrap flex-shrink-0 ${currentPath.length === 0 ? "font-semibold text-gray-900" : "text-gray-500"}`}
+                            className={`px-2 py-1 rounded hover:bg-accent transition-colors bg-transparent border-none cursor-pointer whitespace-nowrap flex-shrink-0 ${currentPath.length === 0 ? "font-semibold text-foreground" : "text-muted-foreground"}`}
                         >
                             {rootTitle}
                         </button>
@@ -148,14 +148,14 @@ export const DrillInBreadcrumb = memo(
                     {/* Ellipsis dropdown for hidden segments - shown right after root */}
                     {showEllipsis && hiddenSegments.length > 0 && (
                         <div className="flex items-center flex-shrink-0">
-                            <CaretRight size={12} className="text-gray-400" />
+                            <CaretRight size={12} className="text-muted-foreground" />
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <button
                                         type="button"
-                                        className="box-border px-2 py-1 rounded hover:bg-controlItemBgHover transition-colors bg-transparent border-none cursor-pointer text-colorTextSecondary"
+                                        className="box-border px-2 py-1 rounded hover:bg-accent transition-colors bg-transparent border-none cursor-pointer text-muted-foreground"
                                     >
-                                        <DotsThree size={16} weight="bold" />
+                                        <DotsThree size={16} />
                                     </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start">
@@ -176,11 +176,11 @@ export const DrillInBreadcrumb = memo(
                         const displaySegment = formatSegment(segment, parentSegment)
                         return (
                             <div key={originalIndex} className="flex items-center flex-shrink-0">
-                                <CaretRight size={12} className="text-gray-400" />
+                                <CaretRight size={12} className="text-muted-foreground" />
                                 <button
                                     type="button"
                                     onClick={() => onNavigateToIndex(originalIndex + 1)}
-                                    className={`px-2 py-1 rounded hover:bg-gray-100 transition-colors bg-transparent border-none cursor-pointer whitespace-nowrap ${originalIndex === currentPath.length - 1 ? "font-semibold text-gray-900" : "text-gray-500"}`}
+                                    className={`px-2 py-1 rounded hover:bg-accent transition-colors bg-transparent border-none cursor-pointer whitespace-nowrap ${originalIndex === currentPath.length - 1 ? "font-semibold text-foreground" : "text-muted-foreground"}`}
                                 >
                                     {displaySegment}
                                 </button>

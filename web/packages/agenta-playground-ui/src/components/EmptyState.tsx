@@ -4,6 +4,7 @@
  * Displayed when no runnable has been added to the playground yet.
  */
 
+import {IconTile} from "@agenta/ui/ui"
 import {Play, Lightning} from "@phosphor-icons/react"
 import {Button, Empty, Space, Typography} from "antd"
 
@@ -17,9 +18,9 @@ export function EmptyState({onAddRunnable}: EmptyStateProps) {
     return (
         <Empty
             image={
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
-                    <Play size={32} weight="light" className="text-gray-400" />
-                </div>
+                <IconTile size={40} className="mx-auto">
+                    <Play />
+                </IconTile>
             }
             description={
                 <Space orientation="vertical" size="small">

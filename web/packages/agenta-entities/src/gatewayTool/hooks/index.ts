@@ -39,5 +39,5 @@ export {
     toolIntegrationCatalogQueryFamily,
     useToolIntegrationCatalog,
 } from "./useToolIntegrationCatalog"
-export {buildToolSlug, useToolExecution} from "./useToolExecution"
+export {buildToolSlug} from "./buildToolSlug"
 export {useToolsConnections, type CreateConnectionInput} from "./useToolsConnections"

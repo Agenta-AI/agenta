@@ -115,7 +115,7 @@ export const TurnFooter = ({
             {showCopy ? (
                 <ChatActionIconButton
                     label={copied ? t("chat.turnFooter.copied") : t("chat.turnFooter.copy")}
-                    icon={copied ? <Check size={12} /> : <Copy size={12} />}
+                    icon={copied ? <Check size={14} /> : <Copy size={14} />}
                     onClick={handleCopy}
                     // The check that replaces the icon is the feedback; a tooltip only repeats it.
                     tooltip={false}
@@ -124,7 +124,7 @@ export const TurnFooter = ({
             {onRetry ? (
                 <ChatActionIconButton
                     label={t("chat.turnFooter.tryAgain")}
-                    icon={<ArrowClockwise size={12} />}
+                    icon={<ArrowClockwise size={14} />}
                     onClick={onRetry}
                 />
             ) : null}
@@ -133,14 +133,14 @@ export const TurnFooter = ({
                     label={
                         isUser ? t("chat.turnFooter.editAndRerun") : t("chat.turnFooter.rerunTurn")
                     }
-                    icon={<ArrowClockwise size={12} />}
+                    icon={<ArrowClockwise size={14} />}
                     onClick={onRewind}
                 />
             ) : null}
             {showTrace ? (
                 <ChatActionIconButton
                     label={t("chat.turnFooter.viewTrace")}
-                    icon={<TreeStructure size={12} />}
+                    icon={<TreeStructure size={14} />}
                     onClick={() => onViewTrace?.(traceId as string)}
                 />
             ) : null}

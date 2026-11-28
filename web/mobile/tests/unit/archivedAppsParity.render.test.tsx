@@ -163,15 +163,23 @@ describe("Archived apps list, matching the classic app", () => {
     it("The back arrow goes to Prompts in beta developer mode", async () => {
         store.set(betaDeveloperModeActiveAtom as never, true as never)
         await mountWithViews("archived-apps")
-        const back = document.querySelector<HTMLAnchorElement>('a[aria-label="Back to prompts"]')
+        const back = [...document.querySelectorAll<HTMLAnchorElement>("a[aria-label]")].find(
+            (a) => a.getAttribute("aria-label")?.toLowerCase() === "back to prompts",
+        )
         expect(back?.getAttribute("href")).toBe("/w/ws/p/pr/prompts")
     })
 
     it("Without beta developer mode the back arrow goes home, even with the Prompts page on", async () => {
         await mountWithViews("archived-apps,prompts")
-        const back = document.querySelector<HTMLAnchorElement>('a[aria-label="Back to home"]')
+        const back = [...document.querySelectorAll<HTMLAnchorElement>("a[aria-label]")].find(
+            (a) => a.getAttribute("aria-label")?.toLowerCase() === "back to home",
+        )
         expect(back?.getAttribute("href")).toBe("/w/ws/p/pr/apps")
-        expect(document.querySelector('a[aria-label="Back to prompts"]')).toBeNull()
+        expect(
+            [...document.querySelectorAll<HTMLAnchorElement>("a[aria-label]")].find(
+                (a) => a.getAttribute("aria-label")?.toLowerCase() === "back to prompts",
+            ) ?? null,
+        ).toBeNull()
     })
 
     it("Created at and Archived at show the date with the time", async () => {

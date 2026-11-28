@@ -25,14 +25,9 @@ describe("isDescriptionTruncatable", () => {
     })
 
     it("never offers a toggle with no description, whatever the last measurement said", () => {
+        // A row that `withStaleTools` replaced with a description-less entry keeps its last
+        // measurement.
         expect(isDescriptionTruncatable(undefined, true)).toBe(false)
         expect(isDescriptionTruncatable("", true)).toBe(false)
-    })
-
-    it("does not offer a toggle for a stale row that used to overflow", () => {
-        // The row's state before the catalog dropped the key.
-        expect(isDescriptionTruncatable("a very long single line", true)).toBe(true)
-        // The same row after `withStaleTools` replaced it with a description-less entry.
-        expect(isDescriptionTruncatable(undefined, true)).toBe(false)
     })
 })

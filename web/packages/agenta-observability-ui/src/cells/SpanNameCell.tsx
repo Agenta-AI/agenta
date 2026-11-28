@@ -25,6 +25,24 @@ const ArtifactNameCell = ({
     return <NodeNameCell name={artifactName || name} type={type} />
 }
 
+const ArtifactName = ({entityId, name}: {entityId: string; name?: string | null}) => {
+    const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
+    return <>{artifactName || name}</>
+}
+
+/** The span's name as text: an SDK placeholder ("_agent") reads as the app or agent it runs. */
+export const SpanDisplayName = ({
+    name,
+    references,
+}: {
+    name?: string | null
+    references?: SpanReference[] | null
+}) => {
+    const entityId = name?.startsWith("_") ? appReferenceId(references) : undefined
+    if (!entityId) return <>{name}</>
+    return <ArtifactName entityId={entityId} name={name} />
+}
+
 /** A span's name; an SDK placeholder ("_agent") shows the referenced app or agent name. */
 export const SpanNameCell = memo(
     ({

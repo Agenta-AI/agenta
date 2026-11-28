@@ -51,7 +51,7 @@ export const ExampleRun = ({
             <div className="flex min-h-6 items-center justify-between gap-2">
                 <SectionLabel>{t("marketplace.page.exampleRun")}</SectionLabel>
                 {example.status ? (
-                    <span className="text-muted-foreground text-xs">{example.status}</span>
+                    <span className="text-muted-foreground text-meta">{example.status}</span>
                 ) : null}
             </div>
             <motion.div
@@ -64,7 +64,7 @@ export const ExampleRun = ({
                 <p
                     className={cn(
                         "m-0 font-medium text-foreground",
-                        compact ? "text-xs" : "text-sm",
+                        compact ? "text-label" : "text-body",
                     )}
                 >
                     {example.prompt}
@@ -78,12 +78,12 @@ export const ExampleRun = ({
                             transition={presets.crossfadeTransition}
                             className={cn(
                                 "text-muted-foreground grid grid-cols-[16px_minmax(0,1fr)] gap-x-2.5",
-                                compact ? "text-xs leading-4" : "text-sm leading-5",
+                                compact ? "text-meta" : "text-body",
                             )}
                         >
                             <span aria-hidden className="flex flex-col items-center">
-                                <span className="box-border flex size-4 shrink-0 items-center justify-center rounded-full border border-solid border-border bg-background text-foreground">
-                                    <CheckIcon weight="bold" className="size-2.5" />
+                                <span className="box-border flex size-4 shrink-0 items-center justify-center rounded-sm border border-solid border-border bg-background text-foreground">
+                                    <CheckIcon className="size-2.5" />
                                 </span>
                                 {index < example.steps.length - 1 ? (
                                     <span className="w-px flex-1 bg-border" />
@@ -99,7 +99,7 @@ export const ExampleRun = ({
                     transition={presets.crossfadeTransition}
                     className={cn(
                         "m-0 mt-1 border-x-0 border-b-0 border-t border-dashed border-border pt-2 text-foreground",
-                        compact ? "line-clamp-2 text-xs" : "text-sm leading-relaxed",
+                        compact ? "line-clamp-2 text-meta" : "text-body",
                     )}
                 >
                     {example.reply}
@@ -118,7 +118,7 @@ export const ExampleRun = ({
                 </ul>
             ) : null}
             {compact ? null : (
-                <span className="text-muted-foreground text-xs">
+                <span className="text-muted-foreground text-meta">
                     {t("marketplace.page.exampleNote")}
                 </span>
             )}

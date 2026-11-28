@@ -5,10 +5,11 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {CopyButton, getInitials} from "@agenta/ui/components/presentational"
 import {Alert, Button, Input, LoadingButton, Segmented, Textarea} from "@agenta/ui/ui"
+import {PaneFooter} from "@agenta/ui/view-stack"
 import {useMutation, useQuery, useQueryClient, type QueryKey} from "@tanstack/react-query"
 
 import {CodeBlock} from "../channels/CodeBlock"
-import {PanelFooter} from "../channels/PanelFooter"
+import {BLOCK_TITLE} from "../channels/helpers"
 
 import type {AgentEmbedPanelProps} from "./AgentEmbedPanel"
 import {
@@ -30,7 +31,7 @@ import {EmbedDomainsField} from "./EmbedDomainsField"
 import {EmbedSection} from "./EmbedSection"
 
 export const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; htmlFor?: string}) => (
-    <label htmlFor={htmlFor} className="text-[13px] font-semibold text-foreground">
+    <label htmlFor={htmlFor} className={BLOCK_TITLE}>
         {children}
     </label>
 )
@@ -44,7 +45,7 @@ const THEMES: {
     {value: "dark", label: "common.dark"},
 ]
 
-const HINT = "text-[12.5px] text-muted-foreground"
+const HINT = "text-label text-muted-foreground"
 
 const padStarters = (starters: string[]) =>
     Array.from({length: MAX_STARTERS}, (_, index) => starters[index] ?? "")
@@ -142,7 +143,7 @@ export const EmbedSettingsForm = ({
                     <CodeBlock
                         label="embed.html"
                         code={snippet.data}
-                        maxHeightClass="max-h-[320px]"
+                        maxHeightClass="max-h-80"
                         actions={
                             <CopyButton
                                 text={embedAssistantPrompt(snippet.data)}
@@ -198,12 +199,12 @@ export const EmbedSettingsForm = ({
                                 src={avatarUrl}
                                 alt=""
                                 referrerPolicy="no-referrer"
-                                className="size-8 flex-none rounded-full object-cover"
+                                className="size-8 flex-none rounded-md object-cover"
                                 data-testid="agent-embed-avatar-preview"
                             />
                         ) : (
                             <span
-                                className="flex size-8 flex-none items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
+                                className="flex size-8 flex-none items-center justify-center rounded-md bg-primary text-label font-semibold text-primary-foreground"
                                 style={accent ? {backgroundColor: accent} : undefined}
                                 data-testid="agent-embed-avatar-preview"
                             >
@@ -291,17 +292,17 @@ export const EmbedSettingsForm = ({
                     key={previewKey}
                     title={t("publish.preview")}
                     src={widgetUrl(embed.embedId)}
-                    className="h-[600px] w-full max-w-[400px] rounded-lg border border-solid border-border bg-background"
+                    className="h-150 w-full max-w-[400px] rounded-lg border border-solid border-border bg-background"
                     data-testid="agent-embed-preview"
                 />
             </EmbedSection>
 
             {error ? <Alert type="error" showIcon message={error} /> : null}
 
-            <PanelFooter>
+            <PaneFooter>
                 {confirming ? (
                     <div className="flex w-full flex-col gap-2.5">
-                        <span className="text-[13px] text-foreground">
+                        <span className="text-label text-foreground">
                             {t("publish.archiveConfirm")}
                         </span>
                         <div className="flex justify-end gap-2">
@@ -313,7 +314,7 @@ export const EmbedSettingsForm = ({
                                 {t("common.cancel")}
                             </Button>
                             <LoadingButton
-                                variant="destructive"
+                                variant="destructive-ghost"
                                 loading={archive.isPending}
                                 onClick={() => archive.mutate()}
                                 data-testid="agent-embed-archive-confirm"
@@ -325,8 +326,7 @@ export const EmbedSettingsForm = ({
                 ) : (
                     <div className="flex w-full items-center justify-between gap-2">
                         <Button
-                            variant="ghost"
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            variant="destructive-ghost"
                             onClick={() => setConfirming(true)}
                             data-testid="agent-embed-archive"
                         >
@@ -342,7 +342,7 @@ export const EmbedSettingsForm = ({
                         </LoadingButton>
                     </div>
                 )}
-            </PanelFooter>
+            </PaneFooter>
         </div>
     )
 }

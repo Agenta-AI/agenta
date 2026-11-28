@@ -14,8 +14,8 @@ import {useMemo, useState, type ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
 import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardStates"
-import {Button} from "@agenta/ui/ui"
-import {Check, CircleNotch, Lock, Warning, X} from "@phosphor-icons/react"
+import {Button, Spinner} from "@agenta/ui/ui"
+import {Check, Lock, Warning, X} from "@phosphor-icons/react"
 
 import {useAgentDisplayName} from "../hooks/useAgentDisplayName"
 import {useChangeVersions} from "../hooks/useChangeVersions"
@@ -55,10 +55,10 @@ const Mark = ({tone, children}: {tone: "plain" | "added" | "removed"; children: 
         // A 16 px tile, radius 4 (C01 status rows).
         className={`flex size-4 shrink-0 items-center justify-center rounded ${
             tone === "added"
-                ? "bg-colorSuccessBg text-colorSuccess"
+                ? "bg-success/10 text-success"
                 : tone === "removed"
-                  ? "bg-colorErrorBg text-colorError"
-                  : "bg-colorSplit text-colorTextSecondary"
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-border-muted text-muted-foreground"
         }`}
     >
         {children}
@@ -129,7 +129,7 @@ export const ChangeResultRow = ({
     autoApproved = false,
     onTurnOff,
     touch = false,
-    className = "px-3 py-[7px]",
+    className = "px-3 py-2",
 }: ChangeResultRowProps) => {
     const t = useT(chatChangeCardStatesCatalog)
     const tChange = useT(chatChangeCardCatalog)
@@ -144,7 +144,7 @@ export const ChangeResultRow = ({
         case "waiting":
             mark = (
                 <Mark tone="plain">
-                    <CircleNotch size={12} className="animate-spin" />
+                    <Spinner className="size-3" />
                 </Mark>
             )
             title = t("chat.changeCardStates.waiting")
@@ -155,7 +155,7 @@ export const ChangeResultRow = ({
         case "saved":
             mark = (
                 <Mark tone="added">
-                    <Check size={12} weight="bold" />
+                    <Check size={12} />
                 </Mark>
             )
             title = state.version
@@ -190,7 +190,7 @@ export const ChangeResultRow = ({
         case "denied":
             mark = (
                 <Mark tone="plain">
-                    <X size={12} weight="bold" />
+                    <X size={12} />
                 </Mark>
             )
             title = t("chat.changeCardStates.denied")
@@ -199,7 +199,7 @@ export const ChangeResultRow = ({
         case "not_saved":
             mark = (
                 <Mark tone="removed">
-                    <Warning size={12} weight="bold" />
+                    <Warning size={12} />
                 </Mark>
             )
             title = t("chat.changeCardStates.notSaved")
@@ -219,7 +219,7 @@ export const ChangeResultRow = ({
         case "read_only":
             mark = (
                 <Mark tone="plain">
-                    <Lock size={12} weight="bold" />
+                    <Lock size={12} />
                 </Mark>
             )
             title = t("chat.changeCardStates.readOnly")
@@ -286,20 +286,13 @@ const ResultRowFrame = ({
     >
         {mark}
         <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-[13px] font-medium text-colorText">{title}</span>
+            <span className="truncate text-label font-medium text-foreground">{title}</span>
             {detail ? (
-                <span
-                    className="truncate text-[12px] leading-4 text-colorTextSecondary"
-                    title={detail}
-                >
+                <span className="truncate text-meta text-muted-foreground" title={detail}>
                     {detail}
                 </span>
             ) : null}
-            {note ? (
-                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
-                    {note}
-                </span>
-            ) : null}
+            {note ? <span className="truncate text-meta text-muted-foreground">{note}</span> : null}
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
     </div>
@@ -314,7 +307,7 @@ const AutoApprovedCallRow = ({
     call,
     onTurnOff,
     touch = false,
-    className = "px-3 py-[7px]",
+    className = "px-3 py-2",
 }: {
     call: AutoApprovedCall
     onTurnOff?: () => Promise<unknown>
@@ -337,7 +330,7 @@ const AutoApprovedCallRow = ({
         <ResultRowFrame
             mark={
                 <Mark tone="added">
-                    <Check size={12} weight="bold" />
+                    <Check size={12} />
                 </Mark>
             }
             title={preview.sentence}
@@ -438,7 +431,7 @@ export const ChangeResultRows = ({
     actions,
     finished = false,
     touch = false,
-    className = "border border-solid border-colorBorderSecondary bg-colorBgContainer shadow-[var(--ag-surface-card-shadow)]",
+    className = "border border-solid border-border-muted bg-background",
 }: {
     parts: readonly unknown[] | undefined
     actions?: ChangeResultActions
@@ -462,7 +455,7 @@ export const ChangeResultRows = ({
     return (
         <div
             // One stacked status card (C01): rows split by a hairline.
-            className={`flex min-w-0 flex-col divide-y divide-solid divide-colorSplit rounded-[10px] py-1 ${className}`}
+            className={`flex min-w-0 flex-col divide-y divide-solid divide-border-muted rounded-lg py-1 ${className}`}
             data-testid="change-results"
         >
             {calls.map((call, index) => (

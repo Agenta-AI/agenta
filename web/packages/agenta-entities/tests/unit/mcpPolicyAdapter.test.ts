@@ -13,7 +13,6 @@ import {
     fromGatewayPermissions,
     isAskWritesPolicy,
     isAskWritesShape,
-    MCP_SUPPORTS_INHERIT,
     toGatewayPermissions,
 } from "../../src/mcpEndpoint/core/policyAdapter"
 import type {McpServerPolicy} from "../../src/mcpEndpoint/core/toolPolicy"
@@ -260,10 +259,6 @@ describe("the round trip", () => {
 })
 
 describe("MCP_SUPPORTS_INHERIT", () => {
-    it("says inherit is available, because absence expresses it", () => {
-        expect(MCP_SUPPORTS_INHERIT).toBe(true)
-    })
-
     it("does not promise inherit beside a declared table, which MCP cannot say", () => {
         // Declaring a table raises the floor to ask so a human sees a tool nobody has looked at.
         // An inherit default written against one therefore reads back as ask, deliberately.

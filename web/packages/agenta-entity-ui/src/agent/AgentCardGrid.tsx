@@ -45,7 +45,7 @@ export const AgentCardGrid = ({
         return (
             <div className={GRID_CLASS}>
                 {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <SkeletonBlock key={i} active className="h-[148px] w-full rounded-xl" />
+                    <SkeletonBlock key={i} active className="h-37 w-full rounded-xl" />
                 ))}
             </div>
         )
@@ -62,11 +62,11 @@ export const AgentCardGrid = ({
                 <button
                     type="button"
                     onClick={onCreate}
-                    className="box-border flex h-full min-h-[148px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-colorBorder bg-transparent p-5 text-center transition-colors hover:border-colorPrimary"
+                    className="box-border flex h-full min-h-37 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-transparent p-5 text-center transition-colors hover:border-primary"
                 >
-                    <PlusIcon size={18} className="text-colorTextTertiary" />
-                    <span className="text-sm text-colorText">{createLabel}</span>
-                    <span className="text-xs text-colorTextTertiary">{createHint}</span>
+                    <PlusIcon size={18} className="text-muted-foreground" />
+                    <span className="text-label text-foreground">{createLabel}</span>
+                    <span className="text-meta text-muted-foreground">{createHint}</span>
                 </button>
             ) : null}
 
@@ -74,7 +74,7 @@ export const AgentCardGrid = ({
                 <div className="col-span-full">
                     <EmptyState
                         image="simple"
-                        description={<span className="text-xs">{emptyText}</span>}
+                        description={<span className="text-meta">{emptyText}</span>}
                     />
                 </div>
             ) : null}

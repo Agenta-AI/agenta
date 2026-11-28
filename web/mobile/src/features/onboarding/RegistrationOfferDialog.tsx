@@ -33,14 +33,14 @@ export const RegistrationOfferDialog = ({projectId}: {projectId: string}) => {
                 aria-describedby={undefined}
                 onEscapeKeyDown={(event) => event.preventDefault()}
                 onInteractOutside={(event) => event.preventDefault()}
-                className="max-h-[calc(100dvh-32px)] overflow-y-auto sm:max-w-[560px]"
+                className="max-h-[calc(100dvh-32px)] overflow-y-auto sm:max-w-content-sm"
             >
                 <RegistrationOffer
                     projectId={projectId}
                     email={user?.email ?? null}
                     largeCompany={false}
                     renderTitle={(title) => (
-                        <DialogTitle className="m-0 text-[26px] font-semibold leading-8 tracking-[-0.02em]">
+                        <DialogTitle className="m-0 text-display font-semibold leading-8 tracking-[-0.02em]">
                             {title}
                         </DialogTitle>
                     )}

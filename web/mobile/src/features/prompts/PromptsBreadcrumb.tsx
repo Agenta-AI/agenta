@@ -31,7 +31,7 @@ import {promptsCopy} from "./promptsCopy"
 import type {NewPromptAction} from "./useCreatePrompt"
 
 const CRUMB_BUTTON =
-    "flex min-h-7 max-w-[40vw] cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+    "flex min-h-7 max-w-[40vw] cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 text-label text-muted-foreground hover:bg-accent hover:text-foreground"
 
 const SiblingItems = ({
     siblings,
@@ -93,7 +93,7 @@ export const PromptsBreadcrumb = ({
                         className={CRUMB_BUTTON}
                         onClick={() => onOpenFolder(null)}
                     >
-                        <HouseIcon size={16} weight={atRoot ? "fill" : "regular"} />
+                        <HouseIcon size={16} weight={atRoot ? "fill" : undefined} />
                     </button>
                 </BreadcrumbItem>
                 {chain.map((folder, index) => {
@@ -143,10 +143,7 @@ export const PromptsBreadcrumb = ({
                                                 <CaretDownIcon size={14} />
                                             </button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent
-                                            align="start"
-                                            className="min-w-[180px]"
-                                        >
+                                        <DropdownMenuContent align="start" className="min-w-45">
                                             {siblings.length > 1 ? (
                                                 <SiblingItems
                                                     siblings={siblings}

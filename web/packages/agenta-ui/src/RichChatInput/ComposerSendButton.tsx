@@ -5,7 +5,6 @@ import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
 import {ArrowUp, CircleNotch} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
-import {PHONE_TOUCH_TARGET_CLASS} from "../components/ui/touch-target"
 import {cn} from "../components/ui/utils"
 
 import type {ComposerSurface} from "./RichChatInput"
@@ -22,7 +21,9 @@ export interface ComposerSendButtonProps {
      * that has not committed. The arrow becomes a spinner and the button refuses a second press.
      */
     sending?: boolean
-    /** `canvas`: a round dark 28 px button (36 px on a phone), dark even with nothing to send. */
+    /** The composer cannot send at all (not just empty): drawn inert on every surface. */
+    blocked?: boolean
+    /** `canvas`: a dark 28 px kit icon button; inert grey with nothing to send. */
     surface?: ComposerSurface
 }
 
@@ -41,11 +42,13 @@ export function ComposerSendButton({
     icon,
     sending,
     surface,
+    blocked,
 }: ComposerSendButtonProps) {
     const t = useT(uiChatInputCatalog)
     return (
         <Button
-            size="icon"
+            // The kit sizes it, the same on every window and on touch (SIZE-01, SIZE-02).
+            size={surface === "canvas" ? "icon-sm" : "icon"}
             variant="default"
             aria-label={sending ? t("ui.chatInput.sending") : (ariaLabel ?? t("ui.chatInput.send"))}
             aria-busy={sending || undefined}
@@ -56,35 +59,26 @@ export function ComposerSendButton({
             // editor has already emptied under it: a spinner on the inert grey said "nothing to
             // do" and "working" at once.
             className={cn(
-                // The control radius, not a circle: the composer is a rounded rectangle and every
-                // other control on it follows that radius — a puck was the one round thing on it.
-                // The canvas surface draws the round one.
-                surface === "canvas" ? "size-7 rounded-full" : "rounded-control",
-                // A phone: 36 px drawn and a 44 px area (4 px reach), as the design canvas.
-                "max-md:size-9",
-                PHONE_TOUCH_TARGET_CLASS,
-                surface === "canvas"
-                    ? "!border-[var(--ag-colorText)] !bg-[var(--ag-colorText)] !text-[var(--ag-colorBgContainer)] disabled:!opacity-100 hover:!opacity-90"
-                    : disabled && !sending
-                      ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
+                // The kit's control radius, never a circle (SHAPE-01).
+                // Inert grey until there is something to send, on every surface.
+                (disabled || blocked) && !sending
+                    ? "!border-secondary !bg-secondary !text-muted-foreground disabled:!opacity-100"
+                    : surface === "canvas"
+                      ? "!border-[var(--ag-composer-send-bg,var(--foreground))] !bg-[var(--ag-composer-send-bg,var(--foreground))] !text-[var(--ag-composer-send-fg,var(--background))] disabled:!opacity-100 hover:!opacity-90"
                       : // Re-toned by its CONTAINER, not by a prop: the button sits five levels below
                         // any host that might want a different fill, and threading a colour down
-                        // that chain is how one control becomes two. Defaults to the brand accent.
-                        "!border-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !bg-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !text-[var(--ag-composer-send-fg,#191a0d)] hover:!border-[var(--ag-composer-send-hover-bg,#b8cb3f)] hover:!bg-[var(--ag-composer-send-hover-bg,#b8cb3f)]",
+                        // that chain is how one control becomes two. Defaults to `primary`.
+                        "!border-[var(--ag-composer-send-bg,var(--primary))] !bg-[var(--ag-composer-send-bg,var(--primary))] !text-[var(--ag-composer-send-fg,var(--background))] hover:!border-[var(--ag-composer-send-hover-bg,var(--primary-hover))] hover:!bg-[var(--ag-composer-send-hover-bg,var(--primary-hover))]",
             )}
         >
             {sending ? (
                 // The ring the rest of the chat surfaces load with, not the antd four-dot
                 // spinner: one glyph swaps for another at the same weight on the same button.
-                <CircleNotch size={16} weight="bold" className="animate-spin" />
+                <CircleNotch size={16} className="animate-spin" />
             ) : (
                 (icon ?? (
-                    // The canvas draws a 14 px arrow, on a phone too (S03, M01).
-                    <ArrowUp
-                        size={16}
-                        weight="bold"
-                        className={surface === "canvas" ? "size-3.5" : undefined}
-                    />
+                    // The kit's icon size for the button: 14 px in the 28 px canvas button.
+                    <ArrowUp size={16} />
                 ))
             )}
         </Button>

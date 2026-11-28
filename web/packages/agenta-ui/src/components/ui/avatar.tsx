@@ -19,13 +19,11 @@ import {cn} from "./utils"
  *    `border: 1px solid transparent` (avatar/style/index.js L61) — it insets the image by
  *    1px and shrinks the content box the initials centre in.
  *  - radius: 25% of the box (small 6 / default 7 / large 8.5px), never a circle.
- *  - fill: antd default avatar bg = `colorTextPlaceholder` (#bdc7d1 light /
- *    rgba(255,255,255,.38) dark — matches both). text = `colorTextLightSolid` (white both).
- *  - font: antd base per size then a scale-to-fit; string 12/18/20 (numeric→18), icon
- *    12/16/20 (numeric→size/2). String children get antd's ResizeObserver shrink
+ *  - fill: neutral like a Mark: `secondary` with `muted-foreground` text (COLOR-05).
+ *  - font: base per size then a scale-to-fit; string 12/13/16 (numeric→18), icon
+ *    12/14/16 (numeric→size/2). String children get antd's ResizeObserver shrink
  *    (`scale = min(1,(width-gap*2)/textWidth)`, gap 4) so long/large initials fit.
- * Arbitrary `text-[Npx]` is used for the font ramp (no control-scale key maps to
- * avatar's 18/20px glyph sizes); `box-border` is required (preflight OFF). `font-portal`
+ * The string ramp uses the text styles (meta / label / title); `box-border` is required (preflight OFF). `font-portal`
  * keeps initials in Inter even if the avatar is portaled (menus/tooltips).
  */
 
@@ -35,15 +33,15 @@ const avatarVariants = cva(
     // `border-solid` is load-bearing (preflight OFF): without it the width computes to 0 and
     // the 1px inset antd gets from `border: 1px solid transparent` disappears.
     // 25% radius keeps every box square-ish; a fixed px radius turns boxes under ~20px into circles.
-    "relative box-border inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-[25%] border border-solid border-transparent bg-colorTextPlaceholder text-colorTextLightSolid font-portal leading-[1.6666666666666667]",
+    "relative box-border inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-[25%] border border-solid border-transparent bg-secondary text-muted-foreground font-portal leading-[1.6666666666666667]",
     {
         variants: {
             // Dims + default string font per size (AvatarBox overrides font inline for
-            // icon/numeric precision). Arbitrary px: no control-scale font key fits.
+            // icon/numeric precision).
             size: {
-                small: "size-avatar-sm text-[12px]",
-                default: "size-avatar text-[18px]",
-                large: "size-avatar-lg text-[20px]",
+                small: "size-avatar-sm text-meta",
+                default: "size-avatar text-label",
+                large: "size-avatar-lg text-title",
             },
         },
         defaultVariants: {size: "default"},
@@ -153,8 +151,8 @@ export interface AvatarBoxProps extends Omit<AvatarProps, "size" | "children"> {
 }
 
 // antd base font-size per preset, split by content (icon default 16 ≠ string default 18).
-const STRING_FONT: Record<AvatarSize, number> = {small: 12, default: 18, large: 20}
-const ICON_FONT: Record<AvatarSize, number> = {small: 12, default: 16, large: 20}
+const STRING_FONT: Record<AvatarSize, number> = {small: 12, default: 13, large: 16}
+const ICON_FONT: Record<AvatarSize, number> = {small: 12, default: 14, large: 16}
 
 /**
  * antd-shaped convenience Avatar: one tag with `src`/`alt`/`icon`/children + `size`.
@@ -214,7 +212,7 @@ function AvatarBox({
         >
             {src ? <AvatarImage src={src} alt={alt} /> : null}
             <AvatarFallback
-                className={cn(src && "bg-colorTextPlaceholder")}
+                className={cn(src && "bg-border-strong")}
                 delayMs={src ? fallbackDelayMs : 0}
             >
                 {fallback}

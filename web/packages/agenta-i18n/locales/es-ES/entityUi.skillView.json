@@ -35,6 +35,5 @@
     "expandEditor": "Ampliar el editor",
     "shrinkEditor": "Reducir el editor",
     "removedState": "Esta skill ya no está en el agente.",
-    "registryLeaveDescription": "¿Guardar los cambios de esta skill en el registro de skills o descartarlos?",
-    "back": "Atrás"
+    "registryLeaveDescription": "¿Guardar los cambios de esta skill en el registro de skills o descartarlos?"
 }

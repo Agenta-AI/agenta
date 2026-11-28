@@ -96,7 +96,7 @@ describe("build kit permission panel", () => {
             "Allow all",
             "Ask all",
             "Allow reads",
-            "Deactivate",
+            "Off",
             "Custom · 2 overrides",
         ])
         await pick("ask_writes")
@@ -118,7 +118,7 @@ describe("build kit permission panel", () => {
             permissionDefault: "allow",
         })
     })
-    it("sets per-tool Ask or Deactivate and disables rows while the kit is off", async () => {
+    it("sets per-tool Ask or Off and disables rows while the kit is off", async () => {
         await act(async () => root.render(<Harness initial={{enabled: true, disabledOps: []}} />))
         const row = host.querySelector<HTMLSelectElement>(
             '[aria-label="Permission for create_schedule"]',
@@ -126,7 +126,7 @@ describe("build kit permission panel", () => {
         expect([...row.options].map((option) => option.textContent)).toEqual([
             "Allow",
             "Ask",
-            "Deactivate",
+            "Off",
         ])
         await act(async () => {
             row.value = "ask"

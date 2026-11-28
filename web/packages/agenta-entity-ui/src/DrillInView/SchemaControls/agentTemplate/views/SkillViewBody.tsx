@@ -5,7 +5,6 @@ import agentTemplateCatalog from "@agenta/i18n/catalogs/entityUi.agentTemplate"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import {useDrillInUI} from "@agenta/ui/drill-in"
-import {Button} from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {UploadSimple} from "@phosphor-icons/react"
 
@@ -17,6 +16,7 @@ import {SkillViewHeader, useSkillDownloadAction, type SkillAction} from "../../S
 import {isEmbedRefSkill, isStaticSkill, staticEmbedSlug} from "../itemDescriptors"
 import {useAgentConfigWriter, type AgentConfigWriter} from "../useAgentConfigWriter"
 
+import {RemovedItemState} from "./RemovedItemState"
 import {findSkillByKey, isAgentOnlySkillWithKey, type SkillViewParams} from "./skillView"
 
 type Skill = Record<string, unknown>
@@ -45,11 +45,14 @@ const AgentOnlySkillBody = ({
     entry,
     writer,
     nav,
+    viewReadOnly,
 }: {
     skillKey: string
     entry: Skill
     writer: AgentConfigWriter
     nav: ViewProps<SkillViewParams>["nav"]
+    /** The host shows the view read only (a phone): no edit, no Save, no upload. */
+    viewReadOnly: boolean
 }) => {
     const t = useT(skillViewCatalog, configItemsCatalog, agentTemplateCatalog)
     const {skills: bridge} = useDrillInUI()
@@ -58,7 +61,9 @@ const AgentOnlySkillBody = ({
     const [draft, setDraft] = useState(original)
     const [publishing, setPublishing] = useState(false)
     const [publishError, setPublishError] = useState<string | null>(null)
-    const readOnly = writer.readOnly || isStaticSkill(entry)
+    // Values as text: the host or the editor gives no edit right.
+    const asText = viewReadOnly || writer.readOnly
+    const readOnly = asText || isStaticSkill(entry)
     const dirty = JSON.stringify(draft) !== JSON.stringify(original)
     const invalid =
         skillDraftError(draft) !== undefined || firstBadFile(skillFilesOf(draft)) !== undefined
@@ -129,8 +134,9 @@ const AgentOnlySkillBody = ({
                     baseline={original}
                     downloadable
                     disabled={readOnly || publishing}
-                    valuesAsText={writer.readOnly}
-                    onUploadControl={onUploadControl}
+                    valuesAsText={asText}
+                    // Read only, the step never opens; without the view's row it would lose Upload.
+                    onUploadControl={readOnly ? undefined : onUploadControl}
                     // Save is off while the draft is invalid, so there is no press to wait for: an
                     // edited draft that misses a required field says so in the fields.
                     showMissing={dirty && invalid}
@@ -161,6 +167,7 @@ const SkillViewBody = ({params, target, nav, readOnly}: ViewProps<SkillViewParam
                 entry={entry}
                 writer={writer}
                 nav={nav}
+                viewReadOnly={Boolean(readOnly)}
             />
         )
     }
@@ -170,14 +177,7 @@ const SkillViewBody = ({params, target, nav, readOnly}: ViewProps<SkillViewParam
 const RemovedSkill = ({title, onBack}: {title: string; onBack: () => void}) => {
     const t = useT(skillViewCatalog)
     useViewTitle(title)
-    return (
-        <div className="flex flex-col items-start gap-3 px-4 py-6 text-sm">
-            <span className="text-colorTextSecondary">{t("entityUi.skillView.removedState")}</span>
-            <Button variant="outline" size="sm" onClick={onBack}>
-                {t("entityUi.skillView.back")}
-            </Button>
-        </div>
-    )
+    return <RemovedItemState message={t("entityUi.skillView.removedState")} onBack={onBack} />
 }
 
 export default SkillViewBody

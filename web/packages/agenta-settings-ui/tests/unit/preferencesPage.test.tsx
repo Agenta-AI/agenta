@@ -43,8 +43,6 @@ let root: Root
 let host: HTMLDivElement
 
 beforeEach(() => {
-    // The deployment offers beta developer mode (`AGENTA_BETA_DEVELOPER_MODE=true`).
-    vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -84,7 +82,10 @@ describe("PreferencesPage", () => {
     it("shows Feature Flags then Debugging, in the shared order", () => {
         renderBound()
         expect(structure()).toEqual([
-            {title: "Feature Flags", rows: ["Developer Mode", "Use new beta developer mode"]},
+            {
+                title: "Feature flags",
+                rows: ["Developer mode", "Use classic app (will be deprecated)"],
+            },
             {
                 title: "Debugging",
                 rows: ["Playground inspector", "Channel debug", "Agenta channel probe"],
@@ -133,11 +134,11 @@ describe("PreferencesPage", () => {
     })
 })
 
-describe("beta developer mode on the desktop", () => {
-    const BETA = "Use new beta developer mode"
+describe("the classic app switch on the desktop", () => {
+    const CLASSIC_APP = "Use classic app (will be deprecated)"
     const replace = vi.fn()
-    const betaSwitch = () =>
-        host.querySelector<HTMLButtonElement>(`[role=switch][aria-label="${BETA}"]`)
+    const classicAppSwitch = () =>
+        host.querySelector<HTMLButtonElement>(`[role=switch][aria-label="${CLASSIC_APP}"]`)
     const readGateCookie = () =>
         document.cookie
             .split("; ")
@@ -159,32 +160,45 @@ describe("beta developer mode on the desktop", () => {
         document.cookie = `${CLASSIC_MODE_COOKIE}=; path=/; max-age=0`
     })
 
-    it("is hidden when the deployment does not offer beta developer mode", () => {
-        vi.stubGlobal("__env", {})
+    it("replaces the old beta developer mode switch and is off by default", () => {
         localStorage.setItem("agenta:settings:u1:beta-developer-mode", "true")
         renderBound({developerMode: true})
-        expect(betaSwitch()).toBeNull()
-        expect(host.querySelector('[role=switch][aria-label="Developer Mode"]')).not.toBeNull()
+        expect(
+            host.querySelector('[role=switch][aria-label="Use new beta developer mode"]'),
+        ).toBeNull()
+        expect(classicAppSwitch()!.getAttribute("aria-checked")).toBe("false")
+        expect(host.textContent).toContain(
+            "Developer mode opens the classic app instead of the Developer section.",
+        )
     })
 
     it("shows only while Developer Mode is on", () => {
         renderBound({developerMode: false})
-        expect(betaSwitch()).toBeNull()
+        expect(classicAppSwitch()).toBeNull()
 
         const developerMode = host.querySelector<HTMLButtonElement>(
-            '[role=switch][aria-label="Developer Mode"]',
+            '[role=switch][aria-label="Developer mode"]',
         )!
         act(() => developerMode.click())
-        expect(betaSwitch()).not.toBeNull()
+        expect(classicAppSwitch()).not.toBeNull()
         expect(replace).not.toHaveBeenCalled()
     })
 
-    it("turning it on sends the user to /m and clears the cookie, so /m does not send them back", () => {
-        document.cookie = `${CLASSIC_MODE_COOKIE}=1; path=/`
+    it("turning it on keeps the user here with Developer Mode on as a choice", () => {
         renderBound({developerMode: true})
-        act(() => betaSwitch()!.click())
+        act(() => classicAppSwitch()!.click())
+        expect(replace).not.toHaveBeenCalled()
+        expect(localStorage.getItem("agenta:onboarding:u1:nav-simplified-override")).toBe("false")
+        expect(localStorage.getItem("agenta:settings:u1:classic-app")).toBe("true")
+    })
 
-        expect(localStorage.getItem("agenta:settings:u1:beta-developer-mode")).toBe("true")
+    it("turning it off sends the user to /m and clears the cookie, so /m does not send them back", () => {
+        document.cookie = `${CLASSIC_MODE_COOKIE}=1; path=/`
+        localStorage.setItem("agenta:settings:u1:classic-app", "true")
+        renderBound({developerMode: true})
+        act(() => classicAppSwitch()!.click())
+
+        expect(localStorage.getItem("agenta:settings:u1:classic-app")).toBe("false")
         expect(readGateCookie()).toBeUndefined()
         const target: string = replace.mock.calls[0][0]
         expect(target.startsWith("/m/")).toBe(true)
@@ -199,14 +213,5 @@ describe("beta developer mode on the desktop", () => {
                 cookie: (name) => (name === CLASSIC_MODE_COOKIE ? readGateCookie() : undefined),
             }),
         ).toEqual({kind: "pass"})
-    })
-
-    it("turning it off keeps the user here with Developer Mode on as a choice", () => {
-        localStorage.setItem("agenta:settings:u1:beta-developer-mode", "true")
-        renderBound({developerMode: true})
-        act(() => betaSwitch()!.click())
-        expect(replace).not.toHaveBeenCalled()
-        expect(localStorage.getItem("agenta:onboarding:u1:nav-simplified-override")).toBe("false")
-        expect(localStorage.getItem("agenta:settings:u1:beta-developer-mode")).toBe("false")
     })
 })

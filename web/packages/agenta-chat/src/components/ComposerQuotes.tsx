@@ -64,20 +64,20 @@ const QuoteTile = ({
     const face = (
         <>
             <span className="flex w-full items-center gap-1">
-                <Icon size={12} className="shrink-0 text-colorTextTertiary" />
+                <Icon size={12} className="shrink-0 text-muted-foreground" />
                 {origin ? (
-                    <span className="min-w-0 truncate font-mono text-[9px] leading-3 text-colorTextTertiary">
+                    <span className="min-w-0 truncate font-mono text-caption leading-3 text-muted-foreground">
                         {origin.fileName}
                     </span>
                 ) : null}
                 {quote.stale ? (
-                    <span className="truncate rounded bg-colorWarning/20 px-1 text-[9px] font-medium leading-3 text-colorWarning">
+                    <span className="truncate rounded bg-warning/20 px-1 text-caption font-medium leading-3 text-warning">
                         {t("chat.composerQuotes.changed")}
                     </span>
                 ) : null}
             </span>
             <span
-                className={`w-full overflow-hidden text-left text-[11px] leading-3 text-colorText ${
+                className={`w-full overflow-hidden text-left text-caption leading-3 text-foreground ${
                     origin ? "line-clamp-3" : "line-clamp-4"
                 }`}
             >
@@ -86,7 +86,7 @@ const QuoteTile = ({
             {origin?.location ? (
                 <span
                     data-quote-range
-                    className="mt-auto w-full truncate font-mono text-[9px] leading-3 text-colorTextTertiary"
+                    className="mt-auto w-full truncate font-mono text-caption leading-3 text-muted-foreground"
                 >
                     {origin.location}
                 </span>
@@ -103,7 +103,7 @@ const QuoteTile = ({
     return (
         <div
             className={`group/attachment ${TILE} ${
-                quote.stale ? "!border-colorWarningBorder !bg-colorWarningBg" : ""
+                quote.stale ? "!border-warning/30 !bg-warning/10" : ""
             }`}
         >
             {preview && onOpen ? (
@@ -127,7 +127,7 @@ const QuoteTile = ({
                 onClick={onRemove}
                 className={CORNER_BUTTON}
             >
-                <X size={10} weight="bold" />
+                <X size={10} />
             </button>
         </div>
     )

@@ -10,7 +10,7 @@ import {useAtomValue} from "jotai"
 import {
     advancedNavHiddenAtom,
     betaDeveloperModeActiveAtom,
-    betaDeveloperModeFlagAtom,
+    classicAppFlagAtom,
     readSettledAdvancedNavHidden,
     readSettledBetaDeveloperModeCookie,
     readSettledClassicModeCookie,
@@ -54,8 +54,8 @@ export const writeClassicModeCookie = (classicModeEnabled: boolean) => {
 }
 
 /**
- * Withdraw the published preference now, for a switch that leaves for `/m` under beta developer
- * mode. A stale "1" would make `/m`'s gate send the user straight back.
+ * Withdraw the published preference now, for a switch that leaves for `/m` in Developer Mode.
+ * A stale "1" would make `/m`'s gate send the user straight back.
  */
 export const clearClassicModeCookie = () => {
     if (typeof document === "undefined") return
@@ -89,7 +89,7 @@ const useSettledAdvancedNavHidden = (): boolean | null => {
 export const useClassicModeCookieSync = () => {
     useAtomValue(activeUserIdAtom)
     useAtomValue(advancedNavHiddenAtom)
-    useAtomValue(betaDeveloperModeFlagAtom)
+    useAtomValue(classicAppFlagAtom)
     const user = useAtomValue(userAtom)
     // A primitive, so the effect still runs only when the answer actually changes.
     const value = readSettledClassicModeCookie(user)
@@ -107,8 +107,8 @@ export const useClassicModeCookieSync = () => {
         writeCookie(CLASSIC_MODE_COOKIE, value)
     }, [value])
 
-    // Alongside the preference, and cleared whenever beta is not active, so a stale cookie
-    // cannot outlive the switch or the deployment's env var.
+    // Alongside the preference, and cleared whenever Developer Mode does not open in `/m`, so a
+    // stale cookie cannot outlive the switch.
     const beta = readSettledBetaDeveloperModeCookie(user)
     useEffect(() => {
         if (typeof document === "undefined" || beta === undefined) return
@@ -118,8 +118,8 @@ export const useClassicModeCookieSync = () => {
 }
 
 /**
- * Desktop-only: send a Classic-mode-off user, or a beta developer mode user, to `/m`, for the
- * pages `/m` has.
+ * Desktop-only: send a Classic-mode-off user, or a Developer Mode user without the classic app,
+ * to `/m`, for the pages `/m` has.
  *
  * Only covers the FIRST visit — once {@link useClassicModeCookieSync} has published the
  * preference, the middleware does this before anything renders. Pass `enabled: false` while a
@@ -146,8 +146,7 @@ export const useClassicModeRedirect = (
 ) => {
     const userId = useAtomValue(activeUserIdAtom)
     const advancedNavHidden = useSettledAdvancedNavHidden()
-    // Reads false until storage hydrates, never true by mistake: it needs the stored beta switch,
-    // and a user with that switch belongs in `/m` whether Developer Mode is on or off.
+    // Reads false until the user is known and from storage after that, never true by mistake.
     const betaDeveloperModeActive = useAtomValue(betaDeveloperModeActiveAtom)
 
     useEffect(() => {
@@ -192,13 +191,13 @@ export const desktopEscapeHref = (): string => {
 }
 
 /**
- * Desktop-only: the `/m` page matching wherever the user is standing, for the beta developer
- * mode switch to send them to. The same map the gate uses for a Classic-mode-off user, falling
+ * Desktop-only: the `/m` page matching wherever the user is standing, for the "Use classic app"
+ * switch to send them to when it is turned off. The same map the gate uses for a Classic-mode-off user, falling
  * back to the `/m` root.
  */
 export const mobileEscapeHref = (): string => {
     if (typeof window === "undefined") return "/m/"
     const {pathname, search} = window.location
-    // Only the beta switch leaves for `/m` from here, so the developer views are on there.
+    // Only that switch leaves for `/m` from here, so the developer views are on there.
     return mapDesktopToMobile(pathname, search, {developerViews: true})
 }

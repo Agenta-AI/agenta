@@ -5,7 +5,7 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {deriveMountRows, mountBreadcrumbs} from "../../src/session/core/mountBrowser"
+import {deriveMountRows} from "../../src/session/core/mountBrowser"
 import type {MountFile} from "../../src/session/core/schema"
 
 const listing: MountFile[] = [
@@ -57,15 +57,5 @@ describe("deriveMountRows", () => {
 
     it("returns nothing for an unknown directory", () => {
         expect(deriveMountRows(listing, "nope")).toEqual([])
-    })
-})
-
-describe("mountBreadcrumbs", () => {
-    it("splits a path into cumulative segments; root is empty", () => {
-        expect(mountBreadcrumbs("")).toEqual([])
-        expect(mountBreadcrumbs("memory/archive")).toEqual([
-            {name: "memory", path: "memory"},
-            {name: "archive", path: "memory/archive"},
-        ])
     })
 })

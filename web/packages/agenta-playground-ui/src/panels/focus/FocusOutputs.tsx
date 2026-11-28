@@ -20,7 +20,7 @@ export const FocusOutputs = ({rowId, entityId, renderTraceFooter}: FocusOutputsP
     const result = (row.displayResult ?? null) as React.ComponentProps<typeof RunResult>["result"]
     return (
         <div className="flex flex-col">
-            <div className="border-0 border-y border-solid border-border bg-muted px-4 py-2 text-sm font-medium">
+            <div className="border-0 border-y border-solid border-border bg-muted px-4 py-2 text-label">
                 {t("playground.runs.outputs")}
             </div>
             <div className="px-4 pb-4 pt-3">

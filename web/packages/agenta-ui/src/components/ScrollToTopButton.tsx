@@ -33,7 +33,7 @@ export default function ScrollToTopButton({scrollRef}: ScrollToTopButtonProps) {
                 size="icon"
                 variant="outline"
                 aria-label={t("ui.controls.scrollToTop")}
-                className="rounded-control-round pointer-events-auto shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
+                className="rounded-control-round pointer-events-auto shadow-overlay"
                 onClick={() => scrollRef.current?.scrollTo({top: 0, behavior: "smooth"})}
             >
                 {<ArrowUp size={16} />}

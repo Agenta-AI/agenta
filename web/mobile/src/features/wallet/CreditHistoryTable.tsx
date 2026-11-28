@@ -101,7 +101,7 @@ export const CreditHistoryTable = ({
                         type="button"
                         disabled={portal.opening}
                         onClick={portal.open}
-                        className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[13px] disabled:cursor-default disabled:opacity-60"
+                        className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-label disabled:cursor-default disabled:opacity-60"
                     >
                         {portal.opening
                             ? t("wallet.history.opening")
@@ -111,7 +111,7 @@ export const CreditHistoryTable = ({
                 ) : null}
             </div>
             {portal.error ? (
-                <span className="text-destructive text-[13px]">{portal.error}</span>
+                <span className="text-destructive text-label">{portal.error}</span>
             ) : null}
             <ListTable<WalletCredit>
                 columns={columns(t)}
@@ -121,7 +121,7 @@ export const CreditHistoryTable = ({
                 hideHeader={rows.length === 0}
                 wrapRow={(_credit, row) => <div className="[&>*:hover]:bg-accent/60">{row}</div>}
                 empty={
-                    <p className="text-muted-foreground border-border/50 m-0 border-0 border-t border-solid py-3 text-[13px]">
+                    <p className="text-muted-foreground border-border/50 m-0 border-0 border-t border-solid py-3 text-label">
                         {t("wallet.history.empty")}
                     </p>
                 }
@@ -131,7 +131,7 @@ export const CreditHistoryTable = ({
                     return (
                         <>
                             <span className="truncate font-medium">{kind.label}</span>
-                            <span className="text-muted-foreground truncate text-[13px]">
+                            <span className="text-muted-foreground truncate text-label">
                                 {credit.created_at ? formatDate(credit.created_at) : "—"}
                             </span>
                             <span className="text-right tabular-nums">
@@ -140,7 +140,7 @@ export const CreditHistoryTable = ({
                             <span className="text-muted-foreground text-right tabular-nums">
                                 {paidOf(credit, t)}
                             </span>
-                            <span className="text-muted-foreground whitespace-nowrap pl-6 text-[13px]">
+                            <span className="text-muted-foreground whitespace-nowrap pl-6 text-label">
                                 {credit.end_time
                                     ? formatDate(credit.end_time)
                                     : t("wallet.history.never")}

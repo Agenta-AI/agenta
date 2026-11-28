@@ -170,7 +170,7 @@ export function useFieldSlots({
             return (
                 <div
                     className={clsx(
-                        "flex items-center justify-between w-full px-3 py-2 bg-[var(--ag-surface-section-header)] border-0 border-b border-solid border-colorBorderSecondary cursor-pointer select-none sticky z-[2]",
+                        "flex items-center justify-between w-full px-3 py-2 bg-muted border-0 border-b border-solid border-border-muted cursor-pointer select-none sticky z-[2]",
                         // Space above the code/hook section when params precede it.
                         isSibling && hasParameters(activeData) && "mt-4",
                     )}
@@ -178,14 +178,10 @@ export function useFieldSlots({
                     onClick={() => toggleSection(fieldKey)}
                 >
                     <div className="flex items-center gap-1">
-                        <span className="text-[var(--ag-rgba-051729-45)] flex items-center">
-                            {isCollapsed ? (
-                                <CaretRight size={14} weight="bold" />
-                            ) : (
-                                <CaretDown size={14} weight="bold" />
-                            )}
+                        <span className="text-muted-foreground flex items-center">
+                            {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
                         </span>
-                        <span className="capitalize font-medium text-sm">{displayLabel}</span>
+                        <span className="capitalize font-medium text-label">{displayLabel}</span>
                     </div>
 
                     {isPromptWithPopover && promptModelInfo && (
@@ -292,7 +288,7 @@ export function useFieldSlots({
                                     setFeedbackMode(feedbackMode === "basic" ? "advanced" : "basic")
                                 }
                                 disabled={disabled}
-                                className="text-xs text-gray-500"
+                                className="text-meta text-muted-foreground"
                             >
                                 {feedbackMode === "basic"
                                     ? tNow("entityUi.playgroundConfig.advanced")

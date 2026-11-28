@@ -28,5 +28,6 @@
     "bedrockAccessKeys": "アクセスキー",
     "bedrockAccessKeysHint": "アクセスキー ID とシークレットアクセスキー。",
     "secretAccessKey": "シークレットアクセスキー",
-    "apiKeyOptional": "API キー（任意）"
+    "apiKeyOptional": "API キー（任意）",
+    "theCustomEndpoint": "OpenAI 互換エンドポイント"
 }

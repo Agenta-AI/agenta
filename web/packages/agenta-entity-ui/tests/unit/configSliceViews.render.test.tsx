@@ -222,12 +222,12 @@ describe("Instructions view", () => {
 })
 
 describe("Model view", () => {
-    it("a pick changes the configuration at once; the view has Done and no Save", async () => {
+    it("a pick changes the configuration at once; the view has no Save and no Done", async () => {
         await openIn(modelView, {}, AGENT)
         expect(byText("Save")).toBeUndefined()
-        await click(byText("Claude Opus 5.5"))
+        await click(await findByText("Claude Opus 5.5"))
         expect(writer.agent.llm).toEqual({model: "claude-opus-5-5"})
-        expect(byText("Done")).toBeTruthy()
+        expect(byText("Done")).toBeUndefined()
     })
 })
 
@@ -287,23 +287,33 @@ describe("Connect view", () => {
         expect(writer.update).not.toHaveBeenCalled()
     })
 
-    it("in a drawer, the guarded back asks when the name field has text", async () => {
-        const Host = () => {
-            const [open, setOpen] = useState(true)
-            return open ? (
-                <ViewDrawerHost
-                    request={{
-                        view: integrationConnectView,
-                        params: {integrationKey: "github"},
-                        target: PROJECT,
-                    }}
-                    onClosed={() => setOpen(false)}
-                />
-            ) : (
-                <span>closed</span>
-            )
-        }
-        await mount(<Host />)
+    const DrawerHost = () => {
+        const [open, setOpen] = useState(true)
+        return open ? (
+            <ViewDrawerHost
+                request={{
+                    view: integrationConnectView,
+                    params: {integrationKey: "github"},
+                    target: PROJECT,
+                }}
+                onClosed={() => setOpen(false)}
+            />
+        ) : (
+            <span>closed</span>
+        )
+    }
+
+    it("in a drawer, back with the filled-in name untouched closes without asking", async () => {
+        await mount(<DrawerHost />)
+        const name = await findByText("", 'input[placeholder="e.g. My GitHub Account"]')
+        await keyDown(name, "Escape")
+        await waitFor(() => expect(byText("closed")).toBeTruthy(), 2000)
+        expect(document.querySelector('[data-testid="unsaved-changes-dialog"]')).toBeNull()
+        expect(created.calls).toEqual([])
+    })
+
+    it("in a drawer, back after the name was changed asks; Discard closes and creates nothing", async () => {
+        await mount(<DrawerHost />)
         const name = await findByText("", 'input[placeholder="e.g. My GitHub Account"]')
         await change(name, "Work GitHub")
         await keyDown(name, "Escape")

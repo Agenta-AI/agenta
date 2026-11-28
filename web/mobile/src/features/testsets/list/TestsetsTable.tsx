@@ -1,6 +1,8 @@
 import {useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {
     ListTable,
@@ -8,7 +10,18 @@ import {
     type ListTableColumn,
     type ListTableSelection,
 } from "@agenta/ui/list-table"
-import {Button, Spinner} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    Spinner,
+} from "@agenta/ui/ui"
 
 import {useConfirmModal} from "../../settings/useConfirmModal"
 
@@ -132,7 +145,9 @@ export const TestsetsTable = ({
 }: TestsetsTableProps) => {
     // Asked as "wide?" because the shared hook starts false before it reads the viewport.
     const narrow = !useMediaQuery(WIDE_QUERY)
-    const {confirm, modal} = useConfirmModal()
+    const t = useT(commonCatalog)
+    const confirmDialog = useConfirmModal()
+    const {confirm} = confirmDialog
 
     const groups = useMemo(() => [{key: "all", label: null, rows: [...rows]}], [rows])
     const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -230,7 +245,53 @@ export const TestsetsTable = ({
                     </Button>
                 </div>
             ) : null}
-            {modal}
+            <AlertDialog
+                open={Boolean(confirmDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !confirmDialog.pending) confirmDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{confirmDialog.request?.title ?? ""}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {confirmDialog.error ? (
+                        <p className="m-0 text-body text-destructive">{confirmDialog.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={confirmDialog.close}
+                                disabled={confirmDialog.pending}
+                            >
+                                {confirmDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    confirmDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={confirmDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void confirmDialog.runConfirm()
+                                }}
+                            >
+                                {confirmDialog.pending
+                                    ? t("common.working")
+                                    : (confirmDialog.request?.okText ?? t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }
