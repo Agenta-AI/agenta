@@ -1,0 +1,256 @@
+---
+slug: "ai-agent-architecture"
+title: "AI Agent Architecture: Core Components, Execution Loop, and Production Patterns"
+description: "Learn how modern AI agent architecture works in production: the 7 core layers, how the agent harness runs the execution loop, 3-tier context design, isolated cloud sandboxes, and runtime permission gates."
+category: "Article"
+date: 2026-10-25
+readingTime: "15 min read"
+heroImage: "/blog/ai-agent-architecture/hero.webp"
+ogImage: "/blog/ai-agent-architecture/hero.webp"
+author: "mahmoud-mabrouk"
+featured: false
+tags:
+  [
+    "AI agents",
+    "AI agent architecture",
+    "AI coworkers",
+    "agent harness",
+    "open source",
+    "developer tools",
+  ]
+faq:
+  - question: "What is AI agent architecture?"
+    answer: "AI agent architecture is the structural blueprint that combines a stateless language model with a stateful runtime program (the agent harness), tiered context and persistent files, external tools and Model Context Protocol (MCP) servers, an isolated execution sandbox, deterministic permission gates, and interactive or scheduled entry surfaces so an AI system can plan, execute, verify, and complete multi-step goals."
+  - question: "What are the core components of an AI agent?"
+    answer: "A production AI agent consists of seven layers: (1) the language model as the stateless reasoning engine, (2) the agent harness that drives the multi-turn execution loop, (3) a three-tier context and memory system (standing instructions, on-demand reusable skills, and session plus persistent shared agent files), (4) the tool and MCP integration layer, (5) an isolated cloud computer and browser sandbox, (6) deterministic runtime permission gates (Allow, Ask, Deny), and (7) entry surfaces, unattended triggers, and trace observability."
+  - question: "What is the difference between a language model and an agent harness?"
+    answer: "A language model only accepts a list of messages and returns a single message or structured tool request; it cannot read files, execute code, or send emails on its own. The agent harness (such as Claude Code, Codex, or Pi) is the stateful runtime software that wraps the model in a loop, injects instructions and skill summaries, enforces permission rules, runs tools inside a sandbox, feeds observations back to the model, and compacts long conversations."
+  - question: "How do you prevent context rot in an AI agent architecture?"
+    answer: "Context rot happens when teams stuff every SOP, API schema, and reference document into one giant system prompt. Production architectures prevent this through progressive disclosure across three tiers: short standing instructions sent on every turn, reusable skills where only names and descriptions load upfront and full procedures open on demand, and persistent shared agent files on AI Drive that cost zero tokens until the agent opens a file."
+  - question: "When should you use a single-agent vs. a multi-agent architecture?"
+    answer: "Start with a single agent equipped with modular reusable skills and a real execution harness whenever one coherent context and toolset can finish the job. Move to a multi-agent topology (such as a Router/Handoff pattern, an Orchestrator-Workers fan-out, or an Evaluator-Optimizer loop) only when subtasks require strict permission boundaries, parallel isolated context windows, or an independent verification rubric."
+  - question: "How does an AI agent architecture differ from a deterministic AI workflow?"
+    answer: "In an AI workflow, pre-written application code or a fixed node graph decides the exact sequence of steps before the run begins. In an AI agent architecture, the model and harness decide the next action dynamically at runtime based on live tool outputs, errors, and intermediate files until the goal is verified complete."
+---
+
+**AI agent architecture** is the system design that turns a stateless language model into a reliable software worker capable of planning, using tools, writing and running code, inspecting its own output, and finishing multi-step jobs. A raw language model can only take a list of messages and return a single reply. To do real work across your apps, repositories, and team channels, that model must sit inside a stateful runtime architecture that manages context, executes tools safely, enforces human approval boundaries, and remembers what happened across sessions.
+
+Most architectural diagrams stop at an abstract academic triangle of "Brain + Memory + Tools." That mental model is helpful for a weekend prototype, but it leaves out the exact layers where production systems break: context windows that degrade as instructions grow, unverified tool calls that mutate live customer data, shell scripts that need an isolated computer, and jobs that must run both interactively in Slack and unattended at 6:00 AM on a schedule.
+
+This guide breaks down the seven concrete layers of a production AI agent architecture, walks step-by-step through the runtime execution loop, compares single-agent and multi-agent topologies, and shows how to avoid the five most common architectural failure modes.
+
+## AI Agent Architecture at a Glance: Prototype vs. Production
+
+Before diving into individual layers, it helps to see why a notebook demo ("an LLM in a `while` loop") fails when handed to a real operations, engineering, or marketing team.
+
+| Architectural Dimension         | Naive Prototype (`while` Loop + Prompt)                                       | Production AI Agent Architecture                                                                                                                                                                                                                          |
+| :------------------------------ | :---------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Core Runtime Formula**        | `Agent = LLM + System Prompt + Tool Functions`                                | `Agent = Stateless Model + Stateful Harness + Tiered Context + Isolated Sandbox + Permission Gates`                                                                                                                                                       |
+| **Execution Loop & Compaction** | Raw API loop that crashes when the conversation hits the token limit          | Battle-tested harness ([Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), or [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)) with automatic context compaction and retries |
+| **Context & Memory Design**     | Every SOP, rule, and reference doc pasted into one bloated system prompt      | **Progressive disclosure:** lean standing instructions + on-demand reusable skills + session files and persistent shared agent files                                                                                                                      |
+| **Code & Browser Execution**    | Runs on the host server (high security risk) or has no computer access at all | Isolated [Daytona](https://www.daytona.io/) cloud container per run with bash, Python, Node.js, git, and headless Chromium                                                                                                                                |
+| **Safety & Governance**         | Prompt instructions asking the model "please do not delete data"              | Deterministic runtime middleware enforcing `Allow reads`, `Ask` (human approval cards), or `Deny` before any tool executes                                                                                                                                |
+| **Deployment Surfaces**         | Single local CLI or custom test page                                          | One configuration running across Slack, Telegram, WhatsApp, Discord, MS Teams, web embeds, UTC cron schedules, and app events                                                                                                                             |
+
+## Why `Model ≠ Agent`: Decoupling the Model, the Harness, and the Credential
+
+The most important boundary in modern AI agent architecture is separating **what thinks** from **what acts**.
+
+A large language model does only one thing: you send it a conversation, and it returns a message. A model cannot open a spreadsheet, query a database, run a test suite, or post a Slack update. When it needs one of those actions, all it can do is emit a structured request asking for a tool call.
+
+The **agent harness** is the stateful runtime program that wraps the model and acts on that request. In a well-designed architecture, [setting up an agent's runtime](https://agenta.ai/docs/concepts/harnesses-and-models) separates three decisions that often get tangled together in code:
+
+1. **The Harness (how the loop runs):** The execution engine that manages the multi-turn loop, loads instructions and skills, dispatches tool calls to the sandbox, and compacts long conversations.
+2. **The Model (which reasoning engine answers):** The specific language model (such as Claude Opus or Sonnet, OpenAI GPT and o-series models, Google Gemini, or open-weight models) that evaluates the current state and chooses the next step.
+3. **The Credential (where the model is billed and routed):** Whether model calls run on included cloud credits, your own provider API keys (BYOK), an enterprise cloud gateway such as AWS Bedrock or Google Vertex AI, or an existing personal Claude Pro/Max or ChatGPT subscription.
+
+Because these three parts are decoupled, changing any one of them is a configuration switch rather than an application rewrite. When a faster or cheaper model launches, you swap the model while keeping your harness, standing instructions, reusable skills, persistent files, and tool permissions intact.
+
+## The 7 Core Layers of a Production AI Agent Architecture
+
+A dependable AI agent architecture is organized into seven distinct layers. Layers 1 and 2 form the runtime core, while Layers 3 through 7 govern how the agent remembers, acts, stays within bounds, and meets your team where they work.
+
+![The 7-Layer AI Agent Architecture in Production](/blog/ai-agent-architecture/agent-architecture-layers.webp)
+
+### Layer 1: The Reasoning Engine (Stateless Language Model)
+
+At the center sits the language model. On each turn of the execution loop, the model receives the current conversation history, active instructions, available tool schemas, and recent observations. It performs three cognitive jobs:
+
+- **Goal decomposition:** Breaking an ambiguous user request (for example, _"Audit our last 7 days of search traffic and open a brief for the fastest-growing query cluster"_) into concrete intermediate steps.
+- **Tool and skill selection:** Deciding which reusable skill handbook to open or which integration tool to call next, along with its exact arguments.
+- **Self-correction and verification:** Reading error messages, empty search results, or failed test outputs from previous steps and adjusting its plan before replying to the user.
+
+Because the model itself is stateless between API calls, every piece of continuity comes from the harness surrounding it.
+
+### Layer 2: The Agent Harness (Stateful Execution Loop)
+
+If the model is the engine, the **agent harness** is the drivetrain, transmission, and chassis. Rather than writing brittle custom loop code for every project, production platforms run proven coding and work harnesses under the hood. For example, in an [open-source AI coworker platform](https://agenta.ai) like Agenta, you can choose among three production harnesses per agent:
+
+| Agent Harness                                                                 | Primary Model Ecosystem                                                                                                                             | Architectural Strengths & Runtime Behavior                                                                                                                                                                      |
+| :---------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[Claude Code](https://code.claude.com/docs/en/overview)**                   | Anthropic Claude models (direct API, AWS Bedrock, Google Vertex AI, custom gateways, or connected Claude Pro/Max subscription)                      | Deep multi-step reasoning, disciplined file and shell manipulation, native [MCP](https://modelcontextprotocol.io) tool pagination, and structured context compaction for long engineering and research sessions |
+| **[Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)** | Multi-provider (OpenAI, Anthropic, Google Gemini, Mistral, Groq, MiniMax, Together AI, OpenRouter, xAI, Ollama, and any OpenAI-compatible endpoint) | Provider-agnostic flexibility; lets teams benchmark or switch model vendors freely while preserving identical tool execution, skill loading, and MCP pagination                                                 |
+| **[Codex](https://developers.openai.com/codex)**                              | OpenAI models (direct OpenAI API or mounted ChatGPT login on self-hosted runners)                                                                   | Fast, lightweight execution loop tuned for OpenAI's reasoning models, rapid code generation, and direct tool invocation                                                                                         |
+
+All three harnesses run the same core contract: they assemble the prompt, expose the agent's tools and MCP servers, execute requested commands inside the sandbox, feed results back into the conversation, and automatically summarize older turns (**context compaction**) when a task stretches across dozens of steps.
+
+### Layer 3: Three-Tier Context and Memory Architecture (Preventing Context Rot)
+
+One of the fastest ways to break an AI agent is **context rot**: stuffing every company policy, edge-case instruction, style guide, and historical example into a single 15,000-token system prompt. As the prompt bloats, token costs spike on every turn, latency climbs, and the model begins ignoring rules buried in the middle of the window.
+
+Production agent architecture solves context rot through **progressive disclosure** across three distinct tiers:
+
+| Context Tier                                           | What Lives Here                                                                                                                                                                | When It Enters the Context Window                                                                                                                          | Token Cost Profile                                           |
+| :----------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------- |
+| **1. Standing Instructions**                           | The agent's core role, audience, tone, standing guardrails, and durable learned preferences                                                                                    | Loaded automatically at the start of every session                                                                                                         | Small, fixed baseline on every turn                          |
+| **2. Reusable Skills**                                 | Step-by-step playbooks, domain checklists, and helper scripts for repeatable tasks (such as running a technical SEO audit or triaging a support ticket)                        | Only the skill's **name and short description** load upfront; the full skill body is read on demand when the task matches                                  | Near-zero idle cost; full tokens paid only on matching tasks |
+| **3. Two-Tier File System (Session Files + AI Drive)** | **Session files** for today's uploads and scratch work, plus **persistent shared agent files** (home drive and shared team drives) for reference docs, wikis, and past outputs | [Files cost zero tokens until opened](https://agenta.ai/docs/concepts/files-and-knowledge); the agent lists and reads only the specific files a task needs | Zero tokens at rest, even across hundreds of stored files    |
+
+This three-tier design mirrors how a human colleague works. A coworker does not memorize every page of the company handbook before answering a question; they know their role (standing instructions), know which playbook binder to pull off the shelf for a specialized procedure (reusable skills), and open reference documents or save finished reports in a shared folder (persistent shared agent files on AI Drive) only when needed. Better yet, multiple agents can attach the same shared drive with `Read` or `Read-write` access so a research agent and a drafting agent stay synchronized without duplicating files.
+
+### Layer 4: The Tool, Integration, and MCP Layer
+
+An agent creates business value when it can read from and act on the systems your team already uses. In a clean architecture, tools are exposed to the harness through three mechanisms:
+
+- **Pre-built app integrations:** Managed OAuth and API connectors for CRMs, issue trackers, analytics suites, email, and calendars (for example, GitHub, HubSpot, Linear, Notion, Google Search Console, and Slack).
+- **[Model Context Protocol (MCP)](https://modelcontextprotocol.io) servers:** Standardized tool servers that expose internal databases, documentation indexes, or third-party APIs through a uniform schema. Because the harness speaks MCP natively, you can wire an MCP server once and use its tools across `Claude Code`, `Pi`, or `Codex`.
+- **Platform build-kit and coordination tools:** Built-in tools that let an agent inspect its own schedules, check channel destinations, or update its own instructions and skills when you give it feedback in chat.
+
+### Layer 5: Isolated Cloud Computer and Execution Sandbox
+
+Many real-world tasks cannot be finished with rigid JSON API calls alone. If you ask an agent to clean a 50,000-row CSV, clone a git repository to open a pull request, render a chart, or verify how a web page looks on mobile, the agent needs a real computer.
+
+Running model-generated shell commands or Python scripts directly on your application server is a severe security hazard. Production agent architectures isolate code and browser execution inside a dedicated cloud container, such as an isolated **[Daytona](https://www.daytona.io/) sandbox**, provisioned for the session:
+
+- **Full Linux userland:** Pre-installed `git`, `gh`, `python3`, `uv`, `node`, `pnpm`, `jq`, `ripgrep`, `ffmpeg`, PDF utilities, and `sqlite3`.
+- **Headless browser automation:** Playwright with headless Chromium so the agent can render live pages, inspect DOM layout, and capture verification screenshots.
+- **Strict blast-radius boundaries:** Scoped credential variables, configurable network access policies, and no `sudo` or host-machine access.
+
+### Layer 6: Deterministic Runtime Permission Gates
+
+Prompt-level rules like _"Never send an email without asking me first"_ are helpful guidance, but they are not security boundaries. A confused model or a prompt injection inside an untrusted webpage can bypass a polite sentence in the system prompt.
+
+In a production architecture, [tool permissions](https://agenta.ai/docs/concepts/permissions) are enforced by deterministic middleware inside the harness **before** the tool call ever reaches the external API:
+
+- **`Allow reads` (Default for interactive coworkers):** The agent can search, read files, and fetch analytics autonomously at full speed, but any action that writes data, modifies a record, or sends a message pauses immediately.
+- **`Ask` (Human-in-the-loop approval gate):** Execution halts mid-turn and renders an interactive approval card in Slack or the web chat showing the exact tool, target recipient, and payload. Once a human clicks **Approve**, the harness resumes from the exact step where it paused.
+- **`Allow all` (Scoped for trusted unattended automations):** Every configured tool runs without pausing, which is essential for a 6:00 AM scheduled run where nobody is in chat to click an approval card.
+- **`Deny all`:** Blocks a tool or action outright at the runtime layer.
+
+### Layer 7: Entry Surfaces, Unattended Triggers, and Trace Observability
+
+Finally, an agent should not be trapped inside a developer's localhost terminal. Layer 7 decouples the agent's core configuration from how a run starts and where the output lands:
+
+- **Interactive chat channels:** Colleagues collaborate with the agent in Slack threads, Telegram groups, WhatsApp, Discord, or Microsoft Teams.
+- **Embeddable web chat widgets:** Product and operations teams publish the same agent into internal dashboards or client portals via **Publish > Embed**.
+- **Unattended automations:** [Cron schedules and app event subscriptions](https://agenta.ai/docs/concepts/automations) wake the exact same agent up at set times or when a webhook arrives (such as a new GitHub issue or CRM row) and deliver the finished report to a designated channel or shared drive.
+- **Run history and observability:** Every interactive chat and unattended automation run records its full conversation, tool calls, execution status, latency, and token/credit consumption so engineers and team leads can audit exactly why the agent made a decision.
+
+## Inside the Runtime: How the 6-Step Agent Execution Loop Works
+
+Static layer diagrams show _what_ an agent is made of, but reliability comes from _how_ those layers interact at runtime. Unlike a deterministic workflow where step A always leads to step B, an agent runs an iterative **Observe -> Plan -> Gate -> Act -> Verify** loop until the goal is verified complete.
+
+![Inside the Production AI Agent Execution Loop](/blog/ai-agent-architecture/agent-execution-loop.webp)
+
+Here is what happens under the hood during a single production run:
+
+1. **Step 1: Intake (Message or Trigger Starts the Session).** A teammate mentions the agent in a Slack thread with a screenshot attached, or a UTC cron schedule fires with a task prompt and event payload. The platform routes the request into an active session bound to the agent's versioned configuration.
+2. **Step 2: Lean Context and Skill Index Assembly.** The harness initializes the turn by loading the agent's standing instructions, the schemas for its connected tools, and a compact index containing only the **name and one-line description** of each installed reusable skill. Heavy skill handbooks and persistent shared agent files remain on disk so the initial prompt stays fast and lean.
+3. **Step 3: Model Reasoning and Progressive Disclosure.** The language model evaluates the user's goal against the current conversation. Recognizing that the request matches an installed skill (for example, `editorial-seo-review` or `technical-seo-audit`), the model emits a read call to load that skill's full Markdown procedure and opens any relevant reference notes from its persistent shared agent files.
+4. **Step 4: Deterministic Permission Gate Check.** When the model proposes an external tool call, the harness intercepts the call and checks the agent's permission posture. Read-only lookups pass straight through. If the model wants to post a message to `#team-marketing`, update a production CRM record, or open a pull request, and that tool is set to `Ask`, the harness pauses the turn and presents an approval card to the user.
+5. **Step 5: Isolated Sandbox and MCP Tool Execution.** Once permitted, the harness executes the action inside the isolated [Daytona](https://www.daytona.io/) cloud sandbox or dispatches the request to the target [MCP](https://modelcontextprotocol.io) server or app integration. Shell outputs, HTTP status codes, generated charts, or API error payloads are captured as structured observations.
+6. **Step 6: Observation, Verification, and Context Compaction.** The harness appends the tool output to the message history and loops back to **Step 3**. If a command failed or a layout check revealed horizontal overflow on mobile, the model sees the evidence immediately and fixes it in the next iteration. If the conversation grows near the model's context window limit, the harness compacts older tool logs while keeping durable outputs saved in the agent's persistent shared files. Once every deliverable is verified, the model emits its final response and ends the turn.
+
+## 4 Architectural Patterns: Single-Agent vs. Multi-Agent Topologies
+
+A common mistake in AI engineering is jumping straight to a complex swarm of ten talking agents when one well-structured agent with modular skills would run faster, cost a third of the tokens, and fail far less often. If you are weighing deterministic pipelines against dynamic loops, see our deep dive on [AI workflows vs. AI agents](/blog/ai-workflows-vs-ai-agents).
+
+When designing your agent architecture, choose the simplest topology from these four proven patterns that satisfies your security and context boundaries:
+
+| Architecture Pattern                  | How Control Flows                                                                                                         | Best Use Cases                                                                                        | Key Trade-Off                                                                                                    |
+| :------------------------------------ | :------------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
+| **1. Single Agent + Modular Skills**  | One harness and model dynamically load specialized skills and persistent files on demand                                  | 80% of business coworkers: SEO ops, support triage, release QA, campaign reporting, PR review         | Simplest to debug and lowest token overhead; shares one permission boundary per agent                            |
+| **2. Router / Handoff Topology**      | A lightweight intake agent classifies intent and transfers the thread to a specialist agent with its own tools            | Customer-facing portals where billing, technical support, and sales require separate tool permissions | Adds one routing hop, but cleanly isolates sensitive credentials and permissions                                 |
+| **3. Orchestrator-Workers (Fan-Out)** | A lead agent breaks a large job into subtasks, delegates them to parallel worker runs, and synthesizes the results        | Multi-competitor research, large-scale codebase migrations, auditing 50 URLs simultaneously           | Higher total token usage; requires shared drives so workers do not overwrite each other's files                  |
+| **4. Evaluator-Optimizer Loop**       | A generator agent produces an artifact (copy, code, SQL), and a separate reviewer rubric checks it and requests revisions | High-stakes publishing, compliance-checked outbound emails, automated visual QA                       | Increases latency by 2x to 3x per revision cycle, but catches factual and formatting defects before human review |
+
+### Why a Single Agent with Skills Beats a Fragile Multi-Agent Swarm for Most Jobs
+
+In early agent frameworks, developers created separate agents ("Researcher Agent", "Writer Agent", "Editor Agent") primarily because they had no way to keep three long prompts inside one agent without causing context rot.
+
+With **progressive disclosure** (Layer 3), a single agent can hold a dozen specialized reusable skills without paying their token cost until the moment each skill is needed. The agent researches the topic using its research skill, writes the draft using its production skill, and runs the quality checklist using its review skill, all while maintaining full context of the user's original nuance and storing artifacts in one coherent folder. You only need separate agents when different stages of work require **different permission boundaries** (for example, an external-facing support bot that must never hold write credentials to your engineering repo) or **parallel unattended schedules**.
+
+## 5 Common AI Agent Architecture Failure Modes (And How to Fix Them)
+
+When an AI agent fails in production, the root cause is almost always architectural rather than a lack of raw model intelligence. Here are the five failure modes teams hit most often and the structural fixes that eliminate them:
+
+### 1. Context Rot from Monolithic Prompts
+
+- **The symptom:** The agent followed your formatting rules in week one, but after a month of adding edge cases to the instructions, it starts forgetting rules, hallucinating tool parameters, and burning thousands of tokens per turn.
+- **The architectural fix:** Move procedural how-to guides out of standing instructions and into **on-demand reusable skills**. Move reference material, examples, and historical logs into **persistent shared agent files** on AI Drive, and add a single line in the standing instructions pointing the agent to that folder when relevant.
+
+### 2. Unbounded Tool Blast Radius
+
+- **The symptom:** You connect a CRM or Slack integration so the agent can look up customer context, and during an ambiguous conversation the agent sends an unreviewed message to a live client channel or overwrites a deal stage.
+- **The architectural fix:** Never rely on prompt wording alone to restrict write actions. Configure Layer 6 permission gates to **`Allow reads`** by default so lookups run automatically while every write, update, delete, or external message triggers an **`Ask`** approval card.
+
+### 3. Stalled Unattended Automations
+
+- **The symptom:** An agent that works smoothly in interactive playground chat hangs indefinitely when triggered by a 6:00 AM cron schedule.
+- **The architectural fix:** Interactive chats have a human present to answer clarifying questions or click an approval card; [unattended automations](https://agenta.ai/docs/concepts/automations) do not. For scheduled or event-driven agents, define a complete starting brief in the automation message, pre-authorize the exact tools required to deliver the output (`Allow`), and specify a fallback destination in persistent files if a channel post fails.
+
+### 4. Ephemeral State Loss Across Runs
+
+- **The symptom:** Every Monday morning report starts from zero because the agent has no memory of what it recommended last Monday or which tasks the team already completed.
+- **The architectural fix:** Separate scratch **session files** from durable **home drive and shared drive files**. Instruct the agent to read its open-items index and prior reports at the start of each session and write verified decisions and new reports back to its persistent drive before finishing.
+
+### 5. Framework Infrastructure Lock-In
+
+- **The symptom:** Your engineering team spends three weeks wiring custom queue workers, Slack thread listeners, approval webhooks, and Docker sandboxes around a Python agent SDK before a single marketer or operations lead can test the workflow.
+- **The architectural fix:** Distinguish between product-embedded microservice logic (where a code-first SDK belongs) and team coworkers or operational automations (where an integrated runtime workspace lets you ship on day one).
+
+## Choosing Your Stack: Code Frameworks vs. Visual Workflow Builders vs. an Open-Source AI Coworker Platform
+
+Once you understand the seven architectural layers, you have three ways to put them into production: assemble the stack yourself from a code-first SDK, wire a visual node-graph builder, or use an [open-source AI coworker platform](https://agenta.ai) that ships the full runtime out of the box.
+
+| Architectural Layer       | DIY Code Framework ([LangGraph, CrewAI, PydanticAI](/blog/best-ai-agent-frameworks)) | Visual Node Workflow Builder (n8n, Make, Zapier)                   | Open-Source AI Coworker Platform ([Agenta](https://agenta.ai))                                                                                                                                          |
+| :------------------------ | :----------------------------------------------------------------------------------- | :----------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Primary Interface**     | Python or TypeScript code in your IDE                                                | Drag-and-drop node and wire canvas                                 | Plain-language chat builder + direct configuration editor                                                                                                                                               |
+| **Runtime Harness**       | Custom loop or graph state machine you maintain                                      | Rigid step-by-step node runner with optional AI nodes              | Built-in [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), and [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) harnesses |
+| **Context & File System** | DIY vector DB, S3 buckets, and custom prompt templates                               | Ephemeral JSON payloads passed between nodes                       | 3-tier progressive disclosure: instructions, skills, session files, and persistent AI Drive                                                                                                             |
+| **Execution Sandbox**     | DIY container orchestration (Docker, Modal, E2B, Daytona)                            | Limited code nodes; no full persistent Linux computer or browser   | Built-in isolated [Daytona](https://www.daytona.io/) cloud computer and headless browser per agent                                                                                                      |
+| **Permission Gates**      | Custom interrupt checkpoints and webhook UI code                                     | Manual approval email/Slack wait nodes wired per branch            | Built-in runtime permissions (`Allow reads`, `Ask`, `Allow all`, `Deny`)                                                                                                                                |
+| **Channels & Triggers**   | Build your own Slack Bolt app, cron workers, and web widget                          | Strong webhook and cron triggers; limited conversational thread UX | Native [Slack](/blog/how-to-build-an-ai-agent-for-slack), Telegram, WhatsApp, Discord, MS Teams, **Publish > Embed** widget, cron, and app events                                                       |
+| **Hosting & Pricing**     | MIT open-source SDKs + cloud observability & hosting costs                           | Per-execution or per-operation cloud tiers                         | MIT open-source self-hosted (`$0` forever) or [Agenta Cloud](https://agenta.ai/pricing) (`$0` Hobby, `$29/mo` Starter with unlimited seats)                                                             |
+
+### When to Choose Each Approach
+
+- **Use a code-first framework** when you are building custom agent logic embedded directly inside your own SaaS product's backend microservice and need low-level control over custom database transactions and internal RPC calls.
+- **Use a visual node workflow builder** when the process is a deterministic, rule-based data pipeline (for example, syncing every Stripe invoice to an accounting sheet) where the control flow never needs to improvise.
+- **Use Agenta** when you want production-ready AI coworkers and recurring automations that already include the seven-layer architecture: swappable harnesses (`Claude Code`, `Codex`, and `Pi`), three-tier context and AI Drive files, isolated Daytona sandboxes, runtime approval gates, multi-channel deployment, and full run logs without building the surrounding infrastructure yourself. You can [self-host Agenta for free](https://github.com/Agenta-AI/agenta) with Docker Compose or start on [Agenta Cloud](https://cloud.agenta.ai/) (`$0` forever on Hobby with 500 signup bonus credits plus 75 daily free credits on up to 10 days a month, or `$29/month` on Starter with unlimited team members and unlimited agents).
+
+## Frequently Asked Questions
+
+### What is AI agent architecture?
+
+AI agent architecture is the structural blueprint that combines a stateless language model with a stateful runtime program (the agent harness), tiered context and persistent files, external tools and [Model Context Protocol (MCP)](https://modelcontextprotocol.io) servers, an isolated execution sandbox, deterministic permission gates, and interactive or scheduled entry surfaces so an AI system can plan, execute, verify, and complete multi-step goals.
+
+### What are the core components of an AI agent?
+
+A production AI agent consists of seven layers: (1) the language model as the stateless reasoning engine, (2) the agent harness that drives the multi-turn execution loop, (3) a three-tier context and memory system (standing instructions, on-demand reusable skills, and session plus persistent shared agent files), (4) the tool and MCP integration layer, (5) an isolated cloud computer and browser sandbox, (6) deterministic runtime permission gates (`Allow`, `Ask`, `Deny`), and (7) entry surfaces, unattended triggers, and trace observability.
+
+### What is the difference between a language model and an agent harness?
+
+A language model only accepts a list of messages and returns a single message or structured tool request; it cannot read files, execute code, or send emails on its own. The [agent harness](https://agenta.ai/docs/concepts/harnesses-and-models) (such as [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), or [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)) is the stateful runtime software that wraps the model in a loop, injects instructions and skill summaries, enforces permission rules, runs tools inside a sandbox, feeds observations back to the model, and compacts long conversations.
+
+### How do you prevent context rot in an AI agent architecture?
+
+Context rot happens when teams stuff every SOP, API schema, and reference document into one giant system prompt. Production architectures prevent this through progressive disclosure across three tiers: short standing instructions sent on every turn, reusable skills where only names and descriptions load upfront and full procedures open on demand, and [persistent shared agent files on AI Drive](https://agenta.ai/docs/concepts/files-and-knowledge) that cost zero tokens until the agent opens a file.
+
+### When should you use a single-agent vs. a multi-agent architecture?
+
+Start with a single agent equipped with modular reusable skills and a real execution harness whenever one coherent context and toolset can finish the job. Move to a multi-agent topology (such as a Router/Handoff pattern, an Orchestrator-Workers fan-out, or an Evaluator-Optimizer loop) only when subtasks require strict permission boundaries, parallel isolated context windows, or an independent verification rubric.
+
+### How does an AI agent architecture differ from a deterministic AI workflow?
+
+In an [AI workflow vs. AI agent](/blog/ai-workflows-vs-ai-agents) comparison, pre-written application code or a fixed node graph decides the exact sequence of steps in a workflow before the run begins. In an AI agent architecture, the model and harness decide the next action dynamically at runtime based on live tool outputs, errors, and intermediate files until the goal is verified complete.
