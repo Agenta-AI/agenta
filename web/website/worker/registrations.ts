@@ -87,7 +87,12 @@ export interface ContactRecorder {
 
 /** Links the registered instance to the email in analytics. */
 export interface AnalyticsRecorder {
-  record(registration: Registration, registeredAt: Date): Promise<void>;
+  record(
+    registration: Registration,
+    registeredAt: Date,
+    // The two-letter code of the country Cloudflare places the caller in.
+    country?: string,
+  ): Promise<void>;
 }
 
 /** The setup survey answers: the chosen option labels, never typed text. */
@@ -338,15 +343,36 @@ function surveyProperties(survey: RegistrationSurvey): Record<string, string> {
   };
 }
 
+// Cloudflare's codes for an unknown country (`XX`) and for Tor (`T1`).
+const UNKNOWN_COUNTRIES = new Set(["XX", "T1"]);
+
+/**
+ * The two-letter code of the country Cloudflare places the caller in, from
+ * `request.cf.country`, or undefined when Cloudflare does not know it. Only the
+ * country: never the IP address, the region or the city.
+ */
+export function requestCountry(request: Request): string | undefined {
+  const country = (request as Request & { cf?: { country?: unknown } }).cf
+    ?.country;
+  if (typeof country !== "string" || !/^[A-Z]{2}$/.test(country)) {
+    return undefined;
+  }
+  return UNKNOWN_COUNTRIES.has(country) ? undefined : country;
+}
+
 /**
  * The registration in the self-hosted PostHog project: the `instance_registered` event
  * and the `instance` group under the instance id, and the email on the registering
  * admin's person (`<instance_id>:<user_id>`). It runs whatever the instance's own
  * telemetry setting is, because the person asked to register.
+ *
+ * The worker sends the batch, so PostHog would place every event at the worker. Each
+ * event sets `$geoip_disable`, and the registration carries the caller's `country`
+ * instead.
  */
 export function posthogRecorder(): AnalyticsRecorder {
   return {
-    async record(registration, registeredAt) {
+    async record(registration, registeredAt, country) {
       const instanceId = registration.instance_id;
       const timestamp = registeredAt.toISOString();
       const batch: Record<string, unknown>[] = [
@@ -360,7 +386,9 @@ export function posthogRecorder(): AnalyticsRecorder {
             instance_kind: registration.instance_kind,
             plan: REGISTERED_PLAN,
             ...registration.survey,
+            ...(country ? { country } : {}),
             $groups: { instance: instanceId },
+            $geoip_disable: true,
           },
         },
         {
@@ -370,6 +398,7 @@ export function posthogRecorder(): AnalyticsRecorder {
           properties: {
             $group_type: "instance",
             $group_key: instanceId,
+            $geoip_disable: true,
             $group_set: {
               registered_email: registration.email,
               ...(registration.instance_kind
@@ -384,7 +413,10 @@ export function posthogRecorder(): AnalyticsRecorder {
           event: "$set",
           distinct_id: `${instanceId}:${registration.user_id}`,
           timestamp,
-          properties: { $set: { email: registration.email } },
+          properties: {
+            $set: { email: registration.email },
+            $geoip_disable: true,
+          },
         });
       }
       const response = await fetch(POSTHOG_BATCH_URL, {
@@ -642,6 +674,7 @@ async function register(
   // The key already went out, so a failed or slow contact or analytics update must not
   // fail the registration: they run after the answer when the runtime allows it.
   const registeredAt = new Date();
+  const country = requestCountry(request);
   const recorder =
     contactRecorder ??
     (env.LOOPS_API_KEY ? loopsContactRecorder(env.LOOPS_API_KEY) : null);
@@ -651,7 +684,7 @@ async function register(
       ?.record(registration, registeredAt)
       .catch((cause) => console.error("Loops contact update failed", cause)),
     analyticsRecorder
-      .record(registration, registeredAt)
+      .record(registration, registeredAt, country)
       .catch((cause) =>
         console.error("PostHog registration event failed", cause),
       ),
