@@ -110,7 +110,7 @@ function FullPayloadCodeEditor({
     const handleChange = useCallback(
         (sent: string) => {
             if (!editable || !onChange) return
-            const next = withShownEnd(sent, displayValue)
+            const next = withShownEnd(sent, displayValue, format)
             typedText.current = next
             if (format === "json") setJsonText(next)
             const error = codeParseError(next, format)

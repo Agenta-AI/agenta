@@ -29,13 +29,18 @@ export function toCodeString(value: unknown, format: CodeFormat): string {
     return JSON.stringify(value ?? null, null, 2) ?? ""
 }
 
+const lastLine = (text: string) => text.trimEnd().split("\n").pop() ?? ""
+
 /**
- * The text the code editor sends, with the end it drops put back. The editor sends its text
+ * The YAML text the code editor sends, with the end it drops put back. The editor sends its text
  * without the spaces and line breaks at the end, and in YAML they can be part of the last value
- * (a text that keeps its last line breaks, `|+`). `shown` is the text the editor was given.
+ * (a text that keeps its last line breaks, `|+`). `shown` is the text the editor was given. The
+ * end goes back only while the last line is the shown one: an edit of the last value is taken
+ * as sent. JSON text is taken as sent: its end holds no value.
  * Remove this when the shared code editor sends its text as shown (`$getEditorCodeAsString`).
  */
-export function withShownEnd(text: string, shown: string): string {
+export function withShownEnd(text: string, shown: string, format: CodeFormat): string {
+    if (format !== "yaml" || lastLine(text) !== lastLine(shown)) return text
     return text.trimEnd() + shown.slice(shown.trimEnd().length)
 }
 
@@ -59,6 +64,8 @@ class JsonProblem {
     ) {}
 }
 
+/** The characters JSON allows after a backslash, besides `u` and four hex digits. */
+const ESCAPES = new Set(['"', "\\", "/", "b", "f", "n", "r", "t"])
 const NUMBER = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/
 const LITERAL = /^(?:true|false|null)\b/
 
@@ -82,8 +89,15 @@ function findJsonProblem(text: string): JsonProblem {
         index += 1
         while (index < text.length) {
             const char = text[index]
-            if (char === "\\") index += 2
-            else if (char === '"') {
+            if (char === "\\") {
+                const escape = text[index + 1]
+                const valid =
+                    escape === "u"
+                        ? /^[0-9a-fA-F]{4}$/.test(text.slice(index + 2, index + 6))
+                        : ESCAPES.has(escape)
+                if (!valid) throw new JsonProblem("other", index)
+                index += escape === "u" ? 6 : 2
+            } else if (char === '"') {
                 index += 1
                 return
             } else if (char === "\n") break

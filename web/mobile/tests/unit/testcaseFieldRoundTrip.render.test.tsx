@@ -171,6 +171,14 @@ describe("Testcase editor round trip", () => {
      * `from` in one of its text pieces, and the editor sends its text.
      */
     const editCode = async (key: string, from: string, to: string) => {
+        // The code editor loads on its first use.
+        for (
+            let tries = 0;
+            tries < 100 && !section(key)?.querySelector("[contenteditable]");
+            tries++
+        ) {
+            await flush()
+        }
         const element = section(key)?.querySelector("[contenteditable]")
         const editor = (element as unknown as {__lexicalEditor?: LexicalEditorLike} | null)
             ?.__lexicalEditor
@@ -255,6 +263,49 @@ describe("Testcase editor round trip", () => {
         expect(host.querySelector('[role="alert"]')?.textContent).toContain(
             "the test case must be an object. The test case keeps its last valid value until you fix it.",
         )
+    })
+
+    it("a YAML edit of the last value keeps the line breaks the user sent, not the old ones", async () => {
+        const row = storedRow({note: {x: "hello\n\n\n"}})
+        await content(row.id, "form")
+        await showAs("note", "YAML")
+
+        await editCode("note", "hello", "goodbye")
+
+        expect(row.data()).toStrictEqual({note: {x: "goodbye\n"}})
+    })
+
+    it("a text that grows past the fold while the user types keeps its editor", async () => {
+        const row = storedRow({story: "word ".repeat(299)})
+        await content(row.id, "form")
+        const before = section("story")?.querySelector("[contenteditable]")
+
+        await editCode("story", "word word", "word word and more words to pass the fold")
+
+        expect((row.data()?.story as string).length).toBeGreaterThan(1500)
+        expect(section("story")?.querySelector("[contenteditable]")).toBe(before)
+    })
+
+    it("a chip list that got a text adds the next item as text", async () => {
+        const row = storedRow({tags: [1]})
+        await content(row.id, "form")
+        const add = async (text: string) => {
+            const button = [...(section("tags")?.querySelectorAll("button") ?? [])].find(
+                (item) => item.textContent === "+ Add",
+            )
+            act(() => button?.click())
+            const input = section("tags")?.querySelector<HTMLInputElement>("input")
+            act(() => {
+                if (input) input.value = text
+                input?.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}))
+            })
+            await flush()
+        }
+
+        await add("blue")
+        await add("true")
+
+        expect(row.data()).toStrictEqual({tags: [1, "blue", "true"]})
     })
 
     it("an edit in YAML changes only the edited value, also when the last value ends in blank lines", async () => {

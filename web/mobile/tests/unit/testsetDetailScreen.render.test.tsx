@@ -26,6 +26,7 @@ const state = vi.hoisted(() => ({
     query: {} as Record<string, string>,
     morePages: false,
     drawerMounts: 0,
+    columns: [] as {key: string; parentKey?: string}[],
 }))
 
 vi.mock("next/router", () => ({
@@ -97,7 +98,7 @@ vi.mock("@agenta/entities/testcase", () => {
         {id: "case-2", key: "case-2"},
     ]
     const rows = atom(firstPage)
-    const columns = atom([{key: "question"}])
+    const columns = atom(() => state.columns)
     // A second page with one more test case, loaded on request while `state.morePages` is set.
     // As in the store, `hasMore` reads false while the page loads, and the rows come later.
     const loading = atom(false)
@@ -169,6 +170,7 @@ describe("Test set page", () => {
         state.rowAdded = null
         state.query = {}
         state.morePages = false
+        state.columns = [{key: "question"}]
         state.drawerMounts = 0
         queryClient = new QueryClient()
         store = createStore()
@@ -327,6 +329,29 @@ describe("Test set page", () => {
         act(() => (state.drawer?.onClose as () => void)())
         act(() => state.openRow?.("case-2"))
         expect(state.drawer?.columnChanges).toEqual([])
+    })
+
+    it("Delete column on an object field deletes that field, not a column whose own key holds a dot", async () => {
+        const deleteColumns = vi.fn(async () => ({ok: true}))
+        state.editor = loadedEditor({deleteColumns, columnEditBlocked: null})
+        // `{"meta": {"lang": "en"}, "meta.lang": "fr"}`: the grid keeps one column per path, and
+        // the key that holds a dot is read last.
+        state.columns = [{key: "question"}, {key: "meta.lang"}]
+        render()
+        act(() => state.openRow?.("case-1"))
+        const actions = (state.drawer?.columnActions as (key: string) => Record<string, unknown>)(
+            "meta",
+        )
+        expect(actions.onRename).toBeUndefined()
+
+        act(() => (actions.onDelete as () => void)())
+        await act(async () => {
+            ;[...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+                .find((button) => button.textContent === "Delete")
+                ?.click()
+        })
+
+        expect(deleteColumns).toHaveBeenCalledWith(["meta"])
     })
 
     describe("an archived test set", () => {

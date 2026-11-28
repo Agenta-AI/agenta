@@ -1,6 +1,6 @@
-import {useCallback} from "react"
+import {useCallback, useState} from "react"
 
-import {FieldFold} from "@agenta/chat/value-view"
+import {FieldFold, needsFold} from "@agenta/chat/value-view"
 import {TextField} from "@agenta/ui/drill-in"
 
 /**
@@ -18,12 +18,16 @@ export const TextAreaField = ({
     collapseSignal: number
     onChange: (next: string) => void
 }) => {
+    // Whether the text folds is decided when the field opens: the fold wraps the editor in
+    // another element, and a text that grows past the fold while the user types would remount
+    // the editor and lose the focus.
+    const [folds] = useState(() => needsFold(text))
     const setValue = useCallback(
         (_path: string[], next: unknown) => onChange(String(next)),
         [onChange],
     )
     return (
-        <FieldFold text={text} collapseSignal={collapseSignal}>
+        <FieldFold text={text} collapseSignal={collapseSignal} unfolded={!folds}>
             <TextField
                 item={{key: name, name, value: text}}
                 stringValue={text}

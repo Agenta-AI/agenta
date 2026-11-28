@@ -228,15 +228,17 @@ export const TestsetDetailScreen = ({
                         }),
                 }
             }
-            const groupKeys = columnHeaderTarget({...header, isGroup: true}, columns)
-            if (!groupKeys) return null
+            // An object field is a group in the grid. The drawer shows the row's own top-level
+            // keys, so the field is deleted by its key: a column whose own key holds a dot
+            // (`meta.lang` next to `meta`) is another field.
+            if (!columnHeaderTarget({...header, isGroup: true}, columns)) return null
             return {
                 blockedReason,
                 onDelete: () =>
                     setFieldColumnStep({
                         kind: "delete",
                         columnKey: key,
-                        columnKeys: groupKeys,
+                        columnKeys: [key],
                         isGroup: true,
                     }),
             }

@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {CHIPS_SHOWN} from "@agenta/chat/value-view"
 import {inferPrimitiveFromText} from "@agenta/entity-ui/testcase"
@@ -28,10 +28,11 @@ export const ChipsField = ({
     useEffect(() => setAll(false), [collapseSignal])
 
     const shown = all ? items : items.slice(0, CHIPS_SHOWN)
-    // Decided once, so a list of numbers keeps adding numbers after its last item is removed.
-    const [typed] = useState(
-        () => items.length > 0 && items.every((item) => typeof item !== "string"),
-    )
+    // Read from the items; an empty list keeps the mode of its last items, so a list of numbers
+    // keeps adding numbers after its last item is removed.
+    const lastTyped = useRef(items.length > 0 && items.every((item) => typeof item !== "string"))
+    if (items.length > 0) lastTyped.current = items.every((item) => typeof item !== "string")
+    const typed = lastTyped.current
 
     return (
         <div className="flex flex-wrap items-center gap-1 pl-1">

@@ -80,7 +80,9 @@ export const CodeField = ({
                     key={`${editorId}-shared`}
                     initialValue={text}
                     handleChange={
-                        onChange ? (sent) => onTextChange(withShownEnd(sent, text)) : undefined
+                        onChange
+                            ? (sent) => onTextChange(withShownEnd(sent, text, format))
+                            : undefined
                     }
                     editorType="border"
                     className={cn("min-h-15 overflow-hidden", error && "!border-destructive")}

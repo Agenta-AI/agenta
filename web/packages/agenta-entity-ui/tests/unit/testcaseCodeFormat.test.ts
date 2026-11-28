@@ -80,6 +80,15 @@ describe("codeParseError", () => {
     })
 })
 
+describe("codeParseError on a backslash JSON does not allow", () => {
+    it("names the line of the escape, not the end of the text", () => {
+        const text = '{\n  "path": "C:\\work",\n  "ok": true\n}'
+        expect(codeParseError(text, "json")?.line).toBe(2)
+        expect(codeParseError('{\n  "a": "\\u12",\n  "b": 1\n}', "json")?.line).toBe(2)
+        expect(codeParseError('{"a": "\\u00e9\\n"}', "json")).toBeNull()
+    })
+})
+
 describe("codeErrorText", () => {
     it("says the decided sentence with the line", () => {
         expect(codeErrorText({line: 5, problem: "missingComma"}, "json")).toBe(
@@ -166,7 +175,7 @@ describe("text round trip", () => {
                 const text = toCodeString(value, format)
                 expect(parseCodeString(text, format, Symbol("failed"))).toStrictEqual(value)
                 // As the code editor sends it back: without the end of the text.
-                const sent = withShownEnd(text.trimEnd(), text)
+                const sent = withShownEnd(text.trimEnd(), text, format)
                 expect(parseCodeString(sent, format, Symbol("failed"))).toStrictEqual(value)
             }
         },
@@ -174,9 +183,18 @@ describe("text round trip", () => {
 })
 
 describe("withShownEnd", () => {
-    it("puts back the end of the text the editor was given", () => {
-        expect(withShownEnd("x: |+\n  a", "x: |+\n  a\n\n")).toBe("x: |+\n  a\n\n")
-        expect(withShownEnd('{"a": 2}  ', '{"a": 1}')).toBe('{"a": 2}')
+    it("puts back the end of the YAML text the editor was given while the last line is the same", () => {
+        expect(withShownEnd("x: |+\n  a", "x: |+\n  a\n\n", "yaml")).toBe("x: |+\n  a\n\n")
+        expect(withShownEnd("y: 2\nx: |+\n  a", "y: 1\nx: |+\n  a\n\n", "yaml")).toBe(
+            "y: 2\nx: |+\n  a\n\n",
+        )
+    })
+
+    it("takes an edit of the last value as sent, and JSON as sent", () => {
+        expect(withShownEnd("x: |+\n  goodbye", "x: |+\n  hello\n\n\n", "yaml")).toBe(
+            "x: |+\n  goodbye",
+        )
+        expect(withShownEnd('{"a": 2}  ', '{"a": 1}', "json")).toBe('{"a": 2}  ')
     })
 })
 
