@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {SharedEditor} from "@agenta/ui/shared-editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**

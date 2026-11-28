@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {formatLabel} from "@agenta/editor/drill-in"
 import {
     connectionSlugFromOption,
     selectedOptionKey,
@@ -9,7 +10,6 @@ import {
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
-import {formatLabel} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 
 import {NumberSliderControl} from "../../SchemaControls/NumberSliderControl"

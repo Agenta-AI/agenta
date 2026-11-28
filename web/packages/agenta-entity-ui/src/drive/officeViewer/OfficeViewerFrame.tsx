@@ -1,8 +1,5 @@
 import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {useT} from "@agenta/i18n"
-import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
-import {Segmented} from "@agenta/ui/composed"
 import {
     frameRectToRoot,
     PreviewCommentLayer,
@@ -11,7 +8,10 @@ import {
     type PreviewCommentTarget,
     type PreviewPick,
     type PreviewPinRect,
-} from "@agenta/ui/quote-selection"
+} from "@agenta/editor/quote-selection"
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
+import {Segmented} from "@agenta/ui/composed"
 import {Button} from "@agenta/ui/ui"
 import {CaretLeft, CaretRight} from "@phosphor-icons/react"
 

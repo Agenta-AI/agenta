@@ -9,7 +9,7 @@ import dynamic from "next/dynamic"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 const {Text} = Typography
-const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
+const DiffView = dynamic(() => import("@agenta/editor/editor").then((module) => module.DiffView), {
     ssr: false,
 })
 

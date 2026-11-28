@@ -1,9 +1,9 @@
 import {useRef} from "react"
 
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {HomeTaskComposer} from "@agenta/home-ui"
 import {useT} from "@agenta/i18n"
 import creatorCatalog from "@agenta/i18n/catalogs/onboarding.creator"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"

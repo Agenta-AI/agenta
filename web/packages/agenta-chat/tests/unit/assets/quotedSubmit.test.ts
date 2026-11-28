@@ -1,6 +1,6 @@
+import {clearQuotes, getQuotes, restoreQuotes} from "@agenta/editor/quote-selection"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import type {Quote} from "@agenta/shared/quotes"
-import {clearQuotes, getQuotes, restoreQuotes} from "@agenta/ui/quote-selection"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {withStagedQuotes} from "../../../src/assets/quotedSubmit"

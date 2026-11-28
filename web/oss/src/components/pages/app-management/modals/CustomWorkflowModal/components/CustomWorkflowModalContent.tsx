@@ -1,9 +1,9 @@
 import {useCallback, useEffect, useMemo} from "react"
 
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {probeEndpointPath} from "@agenta/entities/shared/openapi"
 import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {removeTrailingSlash} from "@agenta/shared/utils"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CloseOutlined} from "@ant-design/icons"
 import {Scroll} from "@phosphor-icons/react"
 import {Typography, Space, Button, notification} from "antd"

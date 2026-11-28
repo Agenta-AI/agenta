@@ -19,6 +19,8 @@
         "./analytics": "./src/analytics/index.ts"
     },
     "dependencies": {
+        "@agenta/annotation-ui": "workspace:../agenta-annotation-ui",
+        "@agenta/editor": "workspace:../agenta-editor",
         "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/observability": "workspace:../agenta-observability",
@@ -26,12 +28,11 @@
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",
         "clsx": "^2.1.1",
-        "papaparse": "^5.5.3",
-        "@agenta/annotation-ui": "workspace:../agenta-annotation-ui",
-        "usehooks-ts": "^3.1.1",
-        "json5": "^2.2.3",
         "js-yaml": "^4.3.1",
-        "recharts": "2.15.4"
+        "json5": "^2.2.3",
+        "papaparse": "^5.5.3",
+        "recharts": "2.15.4",
+        "usehooks-ts": "^3.1.1"
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",

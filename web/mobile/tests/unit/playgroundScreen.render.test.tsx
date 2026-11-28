@@ -93,7 +93,7 @@ vi.mock("@/features/chat/DrillInBridgeProvider", () => ({
     DrillInBridgeProvider: ({children}: {children: React.ReactNode}) => children,
 }))
 vi.mock("@agenta/entity-ui/gatewayTool", () => ({CatalogDrawer: () => null}))
-vi.mock("@agenta/ui/editor", () => ({preloadEditorPlugins: vi.fn()}))
+vi.mock("@agenta/editor/editor", () => ({preloadEditorPlugins: vi.fn()}))
 vi.mock("@/features/nav/NavDrawer", () => ({NavDrawer: () => null}))
 // next/head writes no document title outside a Next app, so the title is read off its props.
 vi.mock("@/components/PageTitle", () => ({

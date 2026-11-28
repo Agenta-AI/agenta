@@ -2,11 +2,11 @@
 
 import {memo, useCallback, useState} from "react"
 
+import {EditorProvider} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {useT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {CollapseToggleButton} from "@agenta/ui/components/presentational"
-import {EditorProvider} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {CopySimple} from "@phosphor-icons/react"
 import clsx from "clsx"

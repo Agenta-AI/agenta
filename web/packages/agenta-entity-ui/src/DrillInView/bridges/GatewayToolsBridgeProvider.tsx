@@ -13,6 +13,12 @@
 import {useMemo, type PropsWithChildren} from "react"
 
 import {
+    DrillInUIProvider,
+    useDrillInUI,
+    type DrillInUIComponents,
+    type GatewayToolsBridge,
+} from "@agenta/editor/drill-in"
+import {
     buildToolSlug,
     fetchToolActionDetail,
     toolCatalogDrawerOpenAtom,
@@ -21,12 +27,6 @@ import {
     useToolIntegrationDetail,
 } from "@agenta/entities/gatewayTool"
 import {isToolsEnabled} from "@agenta/shared/api"
-import {
-    DrillInUIProvider,
-    useDrillInUI,
-    type DrillInUIComponents,
-    type GatewayToolsBridge,
-} from "@agenta/ui/drill-in"
 import {useSetAtom} from "jotai"
 
 function useGatewayToolsIntegrationInfo(integrationKey: string) {

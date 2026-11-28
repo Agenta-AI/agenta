@@ -1,6 +1,6 @@
 import React, {useMemo, useState} from "react"
 
-import {SharedEditor} from "@agenta/ui/shared-editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {Menu, Divider, Typography, Input, Radio, Tag} from "antd"
 import yaml from "js-yaml"
 

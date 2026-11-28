@@ -1,0 +1,87 @@
+import {describe, expect, it} from "vitest"
+
+import {isSameRun, readRun, runPatternFor} from "../../src/rich-chat-input/assets/palette"
+
+const FILE_RUN = runPatternFor("@", true)
+const COMMAND_RUN = runPatternFor("/", false)
+
+const readFile = (text: string) => readRun(text, FILE_RUN)
+const readCommand = (text: string) => readRun(text, COMMAND_RUN)
+
+describe("runPatternFor('@')", () => {
+    it("opens on a bare `@` starting the text", () => {
+        expect(readFile("@")).toEqual({query: "", start: 0, afterSpace: false})
+    })
+
+    it("opens on an `@` following a space, mid-message", () => {
+        expect(readFile("summarise @guide")).toEqual({query: "guide", start: 10, afterSpace: true})
+    })
+
+    it("keeps a path in one run, unlike the `/` palette", () => {
+        expect(readFile("@docs/guide")?.query).toBe("docs/guide")
+        expect(readRun("/docs/guide", COMMAND_RUN)).toBeNull()
+    })
+
+    it("stays shut on an email address mid-sentence", () => {
+        expect(readFile("email me at hey@agenta.ai")).toBeNull()
+    })
+
+    it("closes once the run ends in whitespace", () => {
+        expect(readFile("@guide ")).toBeNull()
+    })
+
+    it("reports the last run when the caret sits after a second trigger", () => {
+        expect(readFile("@one @two")).toEqual({query: "two", start: 5, afterSpace: true})
+    })
+})
+
+describe("runPatternFor('/')", () => {
+    it("opens on a `/` that starts the text", () => {
+        expect(readCommand("/mod")).toEqual({query: "mod", start: 0, afterSpace: false})
+    })
+
+    it("opens on a `/` following a space, mid-message", () => {
+        expect(readCommand("hello /mod")).toEqual({query: "mod", start: 6, afterSpace: true})
+    })
+
+    it("reports the empty query for a bare `/`", () => {
+        expect(readCommand("/")).toEqual({query: "", start: 0, afterSpace: false})
+    })
+
+    // The guards that keep the menu out of ordinary prose.
+    it.each([
+        ["and/or", "a slash inside a word"],
+        ["https://agenta.ai", "a URL"],
+        ["src/components/Foo", "a path"],
+        ["/model ", "a run the caret has left"],
+        ["", "empty text"],
+        ["plain text", "text with no slash"],
+    ])("declines %j (%s)", (text) => {
+        expect(readCommand(text)).toBeNull()
+    })
+
+    it("tracks the run's start as it moves through the message", () => {
+        expect(readCommand("a /x")?.start).toBe(2)
+        expect(readCommand("aa /x")?.start).toBe(3)
+    })
+})
+
+describe("isSameRun", () => {
+    it("separates the same position in two different palettes", () => {
+        expect(
+            isSameRun(
+                {palette: "slash", nodeKey: "1", start: 0},
+                {palette: "files", nodeKey: "1", start: 0},
+            ),
+        ).toBe(false)
+    })
+
+    it("matches the same position in the same palette", () => {
+        expect(
+            isSameRun(
+                {palette: "files", nodeKey: "1", start: 4},
+                {palette: "files", nodeKey: "1", start: 4},
+            ),
+        ).toBe(true)
+    })
+})

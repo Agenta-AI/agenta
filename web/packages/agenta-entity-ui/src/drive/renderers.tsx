@@ -11,18 +11,18 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
-import {humanSize} from "@agenta/entities/drive"
-import {type Mount} from "@agenta/entities/session"
-import {useT} from "@agenta/i18n"
-import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {
     getQuotes,
     PreviewCommentLayer,
     usePreviewComments,
     useQuoteReveal,
     type PreviewCommentTarget,
-} from "@agenta/ui/quote-selection"
+} from "@agenta/editor/quote-selection"
+import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
+import {humanSize} from "@agenta/entities/drive"
+import {type Mount} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {
     Button,
     Empty,

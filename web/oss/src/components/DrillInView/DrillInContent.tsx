@@ -8,7 +8,7 @@ import {
     useState,
 } from "react"
 
-import {ChatMessageEditor, ChatMessageList} from "@agenta/ui"
+import {ChatMessageEditor, ChatMessageList} from "@agenta/editor/chat-message"
 import {
     detectDataType,
     getTextModeValue,
@@ -17,15 +17,15 @@ import {
     parseMessages,
     textModeToStorageValue,
     type DataType,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
 import {
     DrillInProvider,
     EditorProvider,
     markdownViewAtom,
     SET_MARKDOWN_VIEW,
     useLexicalComposerContext,
-} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
+} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {InputNumber, Select, Switch} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"

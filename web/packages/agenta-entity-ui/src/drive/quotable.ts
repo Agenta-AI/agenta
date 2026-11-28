@@ -1,6 +1,6 @@
 // Marks a text-family file body quotable: data attributes, raw source, staleness.
+import {useFileQuoteFreshness, useQuoteSource} from "@agenta/editor/quote-selection"
 import type {Mount} from "@agenta/entities/session"
-import {useFileQuoteFreshness, useQuoteSource} from "@agenta/ui/quote-selection"
 
 import {useDriveSessionId} from "./driveSessionContext"
 

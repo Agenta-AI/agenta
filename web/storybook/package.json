@@ -10,6 +10,7 @@
     },
     "dependencies": {
         "@agenta/chat": "workspace:*",
+        "@agenta/editor": "workspace:*",
         "@agenta/entities": "workspace:*",
         "@agenta/entity-ui": "workspace:*",
         "@agenta/navigation": "workspace:*",

@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
-import {EditorProvider} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
+import {EditorProvider} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 
 /** A stored value as read-only JSON. A page loads this file with `next/dynamic`. */
 export const ConfigJsonViewer = ({id, value}: {id: string; value: unknown}) => {

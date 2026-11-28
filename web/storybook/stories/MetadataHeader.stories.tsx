@@ -9,7 +9,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A presentational row (label + optional monospace value, each with a tooltip).\n\n**Used in:** 1 place — the chat tool-message header (`@agenta/ui/chat-message` `ToolMessageHeader`).",
+                    "A presentational row (label + optional monospace value, each with a tooltip).\n\n**Used in:** 1 place — the chat tool-message header (`@agenta/editor/chat-message` `ToolMessageHeader`).",
             },
         },
     },

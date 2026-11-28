@@ -3,7 +3,7 @@
  *
  * Molecule-first drill-in navigation for entities.
  *
- * Core framework (types, renderers, utilities, context) lives in @agenta/ui/drill-in.
+ * Core framework (types, renderers, utilities, context) lives in @agenta/editor/drill-in.
  * This module provides entity-specific wrappers (MoleculeDrillIn*, SchemaControls)
  * and re-exports the core framework for convenience.
  *
@@ -59,7 +59,7 @@ export type {
 } from "./components"
 
 // ============================================================================
-// RE-EXPORTS FROM @agenta/ui/drill-in (core framework)
+// RE-EXPORTS FROM @agenta/editor/drill-in (core framework)
 // ============================================================================
 
 // Types
@@ -84,7 +84,7 @@ export type {
     // Component props
     MoleculeDrillInViewProps,
     MoleculeDrillInAdapter,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
 
 // Utils
 export {
@@ -102,15 +102,15 @@ export {
     createEditableDrillInAdapter,
     type AdaptableMolecule,
     type CreateAdapterOptions,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
 
 // Context
-export type {DrillInContextValue, DrillInProviderProps} from "@agenta/ui/drill-in"
+export type {DrillInContextValue, DrillInProviderProps} from "@agenta/editor/drill-in"
 
-export {defaultFieldBehaviors} from "@agenta/ui/drill-in"
+export {defaultFieldBehaviors} from "@agenta/editor/drill-in"
 
 // UI Injection Context (for OSS component injection)
-export {DrillInUIProvider, useDrillInUI, defaultShowMessage} from "@agenta/ui/drill-in"
+export {DrillInUIProvider, useDrillInUI, defaultShowMessage} from "@agenta/editor/drill-in"
 export type {
     DrillInUIComponents,
     DrillInUIProviderProps,
@@ -124,7 +124,7 @@ export type {
     WorkflowReferencePayload,
     WorkflowConfigPart,
     WorkflowConfigPayload,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
 
 // The workflow-as-tool reference bridge every host feeds into its own DrillInUIProvider.
 export {useWorkflowReferenceBridge} from "./bridges/useWorkflowReferenceBridge"
@@ -155,7 +155,7 @@ export type {
     EntityDrillInAPI,
     EntityControllerAPI,
     EntityDualViewEditorProps,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
 
 // Core Components
 export {
@@ -163,13 +163,13 @@ export {
     DrillInControls,
     DrillInFieldHeader,
     DrillInContent,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
 export type {
     DrillInBreadcrumbProps,
     DrillInControlsProps,
     DrillInFieldHeaderProps,
     DrillInContentWithRenderersProps,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
 
 // Core Utilities
 export {
@@ -187,7 +187,7 @@ export {
     formatLabel,
     canToggleRawMode,
     detectDataType,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
 
 // Field Renderers
 export {
@@ -210,7 +210,7 @@ export {
     parseMessages,
     getTextModeValue,
     textModeToStorageValue,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
 
 // NOTE: For tryParseAsObject, tryParseAsArray, SimpleChatMessage, import from @agenta/shared
 
@@ -221,7 +221,7 @@ export type {
     JsonObjectFieldProps,
     RawModeDisplayProps,
     TextFieldProps,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
 
 // ============================================================================
 // SCHEMA CONTROLS (entity-specific, local)

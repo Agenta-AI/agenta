@@ -1,14 +1,14 @@
 import {useMemo} from "react"
 
+import {ChatMessageEditor} from "@agenta/editor/chat-message"
 import {useT} from "@agenta/i18n"
 import refineCatalog from "@agenta/i18n/catalogs/playground.refine"
-import {ChatMessageEditor} from "@agenta/ui/chat-message"
 import dynamic from "next/dynamic"
 
 import type {PromptTemplate} from "./refinePromptApi"
 
 // The diff loads only when the user turns it on.
-const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
+const DiffView = dynamic(() => import("@agenta/editor/editor").then((module) => module.DiffView), {
     ssr: false,
 })
 

@@ -1,4 +1,4 @@
-import {SharedEditor} from "@agenta/ui/shared-editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {Button, Typography} from "antd"
 import clsx from "clsx"
 

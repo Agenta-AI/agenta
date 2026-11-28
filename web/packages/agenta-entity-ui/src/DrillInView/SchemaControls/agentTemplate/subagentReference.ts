@@ -1,4 +1,4 @@
-import type {WorkflowReferenceBridge} from "@agenta/ui/drill-in"
+import type {WorkflowReferenceBridge} from "@agenta/editor/drill-in"
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
 
 import {toolReferenceSlug} from "./itemDescriptors"

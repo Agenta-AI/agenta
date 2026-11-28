@@ -1,5 +1,9 @@
-import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS, $isCodeBlockNode} from "@agenta/ui"
-import type {CodeLanguage} from "@agenta/ui/editor"
+import type {CodeLanguage} from "@agenta/editor/editor"
+import {
+    $convertToMarkdownStringCustom,
+    PLAYGROUND_TRANSFORMERS,
+    $isCodeBlockNode,
+} from "@agenta/editor/editor"
 import {$isCodeNode} from "@lexical/code"
 import {load as yamlLoad, dump as yamlDump, type DumpOptions} from "js-yaml"
 import JSON5 from "json5"

@@ -9,13 +9,13 @@ import {
     type RefObject,
 } from "react"
 
-import {cellsToTable, type PreviewQuote} from "@agenta/shared/quotes"
 import {
     pressClosedNote,
     type PreviewPick,
     type PreviewPinRect,
     type PreviewRect,
-} from "@agenta/ui/quote-selection"
+} from "@agenta/editor/quote-selection"
+import {cellsToTable, type PreviewQuote} from "@agenta/shared/quotes"
 
 import {boxToRange, rangeToBox, tableWidth, type CellBox} from "./cellAddress"
 import type {Sheet, SheetCell, Workbook} from "./workbook"

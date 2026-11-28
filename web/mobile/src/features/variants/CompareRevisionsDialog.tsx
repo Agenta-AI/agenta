@@ -11,7 +11,7 @@ import dynamic from "next/dynamic"
 import type {AppRevisionRow} from "./useAppRevisions"
 
 // The diff editor loads only when a comparison opens.
-const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
+const DiffView = dynamic(() => import("@agenta/editor/editor").then((module) => module.DiffView), {
     ssr: false,
 })
 

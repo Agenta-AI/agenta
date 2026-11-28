@@ -1,12 +1,12 @@
 # @agenta/ui Source Structure
 
 This package holds the shared UI kit: the theme, the shadcn primitives, the parts built on
-them, and the larger blocks (tables, editors, app chrome) that the app and the `@agenta/*`
-packages share.
+them, and the larger blocks (tables, app chrome) that the app and the `@agenta/*` packages
+share. The Lexical editors and the drill-in field views are in `@agenta/editor`.
 
 ## Folder Structure
 
-`src/` has nine folders. They are listed from the bottom layer up. A folder imports only
+`src/` has eight folders. They are listed from the bottom layer up. A folder imports only
 from the folders above it in this list.
 
 ```
@@ -14,7 +14,7 @@ src/
 ├── foundation/      # theme, cn, hooks, CSS
 │   ├── design/      # theme.config.ts, rules.json, generated theme CSS
 │   ├── theme/       # theme mode
-│   ├── styles/      # global CSS files (surfaces, focus, touch, editor themes)
+│   ├── styles/      # global CSS files (surfaces, focus, touch)
 │   ├── hooks/       # shared React hooks
 │   └── utils/       # cn, copyToClipboard, layout sizes
 ├── primitives/      # shadcn registry components (@agenta/ui/ui)
@@ -28,18 +28,11 @@ src/
 │   ├── section/     # SectionCard, ConfigAccordionSection, ...
 │   └── page-title/  # the tab title
 ├── shell/           # app chrome that hosts screens: view-stack, phone, shortcuts, create-menu
-├── editor/          # Lexical editors and chat input
-│   ├── editor/            # @agenta/ui/editor
-│   ├── shared-editor/     # @agenta/ui/shared-editor
-│   ├── rich-chat-input/   # @agenta/ui/rich-chat-input
-│   ├── chat-message/      # @agenta/ui/chat-message
-│   ├── quote-selection/   # @agenta/ui/quote-selection
-│   └── MarkdownPreview.tsx
-├── data/            # tables, lists, cells, filters, drill-in
+├── data/            # tables, lists, cells, filters
 │   ├── infinite-virtual-table/  # @agenta/ui/table
 │   ├── list-table/              # @agenta/ui/list-table
 │   ├── cell-renderers/          # @agenta/ui/cell-renderers
-│   ├── filter-menu/, drill-in/, type-chip/
+│   ├── filter-menu/, type-chip/
 ├── patterns/        # domain-neutral blocks (@agenta/ui/components)
 │   ├── presentational/          # @agenta/ui/components/presentational
 │   ├── selection/               # @agenta/ui/components/selection
@@ -50,9 +43,9 @@ src/
 
 Folder names are kebab-case. A module keeps its own inner structure.
 
-A few older imports break the layer order: the table, the cell renderers and the editors
-read some `patterns/presentational` parts, the chat message list reads `data/drill-in`, and
-`@agenta/ui/utils` re-exports `groupColumns` from the table. Do not add new ones.
+A few older imports break the layer order: the table and the cell renderers read some
+`patterns/presentational` parts, and `@agenta/ui/utils` re-exports `groupColumns` from the
+table. Do not add new ones.
 
 ## Design Principles
 
@@ -66,9 +59,6 @@ read some `patterns/presentational` parts, the chat message list reads `data/dri
 ## Module READMEs
 
 - [patterns/README.md](./patterns/README.md): selection and presentational components
-- [editor/chat-message/README.md](./editor/chat-message/README.md)
-- [editor/editor/README.md](./editor/editor/README.md)
-- [editor/shared-editor/README.md](./editor/shared-editor/README.md)
 - [data/infinite-virtual-table/README.md](./data/infinite-virtual-table/README.md)
 - [icons/llm-icons/README.md](./icons/llm-icons/README.md)
 - [patterns/select-llm-provider/README.md](./patterns/select-llm-provider/README.md)
@@ -76,8 +66,8 @@ read some `patterns/presentational` parts, the chat message list reads `data/dri
 
 ## Importing
 
-Import from a subpath, never from the root `@agenta/ui`. The root re-exports the whole kit,
-the table and the Lexical editors included.
+Import from a subpath, never from the root `@agenta/ui`. The root re-exports the whole kit
+and the table.
 
 ```typescript
 import {Button, Dialog} from "@agenta/ui/ui" // primitives
@@ -86,7 +76,6 @@ import {HeightCollapse, PageLayout, pageContentWidthClass} from "@agenta/ui/layo
 import {GitHubMark} from "@agenta/ui/icons"
 import {VersionBadge, SectionCard} from "@agenta/ui/components/presentational"
 import {InfiniteVirtualTable} from "@agenta/ui/table"
-import {Editor, MarkdownPreview} from "@agenta/ui/editor"
 import {cn} from "@agenta/ui/styles"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {message, modal} from "@agenta/ui/app-message"

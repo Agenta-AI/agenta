@@ -1,9 +1,9 @@
 import type {ReactNode} from "react"
 
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {useT} from "@agenta/i18n"
 import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {deriveToolViewModelFromResult} from "@agenta/shared/utils"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 
 import {NoOutputPlaceholder} from "../chat/NoOutputPlaceholder"
 import ToolCallView from "../shared/ToolCallView"

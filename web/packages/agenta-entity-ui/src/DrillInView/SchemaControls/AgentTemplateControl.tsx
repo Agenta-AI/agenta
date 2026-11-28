@@ -23,6 +23,7 @@
  */
 import {memo, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import {
     toolActionAvailabilityKey,
     useToolActionAvailability,
@@ -43,7 +44,6 @@ import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationV
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
     useViewOpener,

@@ -7,8 +7,8 @@ import {
     useState,
 } from "react"
 
+import {type RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {isSessionFresh} from "@agenta/entities/session"
-import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {composerDraftBySession} from "../state/sessionEphemera"
 

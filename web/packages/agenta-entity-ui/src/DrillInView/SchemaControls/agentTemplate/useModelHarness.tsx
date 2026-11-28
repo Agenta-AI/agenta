@@ -6,6 +6,7 @@
  */
 import {useCallback, useEffect, useMemo} from "react"
 
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import {customSecretsAtom, type AgentConnectionNamespace} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
@@ -15,7 +16,6 @@ import {
 } from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useHasFocusUnder, useIsPathVisible} from "../../../drawers/shared/FocusPathsContext"

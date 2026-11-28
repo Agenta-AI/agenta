@@ -1,6 +1,6 @@
+import {MessageAttachments} from "@agenta/editor/chat-message"
 import type {MessageContent} from "@agenta/shared/types"
 import {getAttachments} from "@agenta/shared/utils"
-import {MessageAttachments} from "@agenta/ui/chat-message"
 import {
     PromptDocumentUpload,
     PromptImageUpload,

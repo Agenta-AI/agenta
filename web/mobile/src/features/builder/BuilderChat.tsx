@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {builderAgentRevisionIdQueryAtom} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import agentLayoutPhoneCatalog from "@agenta/i18n/catalogs/agentLayout.phone"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useQueryClient} from "@tanstack/react-query"
 import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 

@@ -4,7 +4,7 @@
  */
 import {useMemo} from "react"
 
-import type {RegistrySkillParams} from "@agenta/ui/drill-in"
+import type {RegistrySkillParams} from "@agenta/editor/drill-in"
 import {ViewDrawerHost, type ViewRequest} from "@agenta/ui/view-stack"
 
 import {registrySkillView} from "./registrySkillView"

@@ -1,6 +1,6 @@
 import {ComposerQuotes} from "@agenta/chat/components"
+import {QuoteNote, QuoteToolbar} from "@agenta/editor/quote-selection"
 import type {Quote} from "@agenta/shared/quotes"
-import {QuoteNote, QuoteToolbar} from "@agenta/ui/quote-selection"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // Quote-to-reply states a reviewer cannot reach by clicking.

@@ -9,7 +9,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A pure-presentational image thumbnail with an optional hover-reveal remove button. Wraps a plain `<img>`.\n\n**Used in:** 1 place — the chat message attachment strip (`@agenta/ui/chat-message` `MessageAttachments`).",
+                    "A pure-presentational image thumbnail with an optional hover-reveal remove button. Wraps a plain `<img>`.\n\n**Used in:** 1 place — the chat message attachment strip (`@agenta/editor/chat-message` `MessageAttachments`).",
             },
         },
     },

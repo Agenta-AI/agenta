@@ -22,8 +22,8 @@
 /* The Lexical editor's own theme + Prism code tokens. Mobile renders the SAME editor (the chat
    composer and the config panel's JSON/YAML views), so it needs the same stylesheets — without
    them code blocks and editor chrome render untokenised. */
-@import "@agenta/ui/editor-theme.css";
-@import "@agenta/ui/code-editor-styles.css";
+@import "@agenta/editor/editor-theme.css";
+@import "@agenta/editor/code-editor-styles.css";
 /* Streamdown token-animation keyframes — the streaming "typing" effect. */
 @import "streamdown/styles.css";
 
@@ -37,6 +37,7 @@
    error anywhere. That failure mode has cost us three separate rounds of "why does /m look
    wrong" — one line per package is the cheap insurance. */
 @source "../../node_modules/@agenta/ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/editor/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/entity-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/automation-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/playground-ui/src/**/*.{ts,tsx}";

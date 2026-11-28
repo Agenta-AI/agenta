@@ -17,11 +17,11 @@
 
 import {useMemo} from "react"
 
+import type {TokenPathSuggestion} from "@agenta/editor/editor"
 import type {RunnablePort} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController} from "@agenta/playground"
 import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
-import type {TokenPathSuggestion} from "@agenta/ui/editor"
 import {atom, useAtomValue} from "jotai"
 
 import {observedTestcasesAtom} from "../atoms"

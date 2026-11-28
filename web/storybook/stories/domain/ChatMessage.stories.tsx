@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {ChatMessageEditor} from "@agenta/ui/chat-message"
+import {ChatMessageEditor} from "@agenta/editor/chat-message"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**

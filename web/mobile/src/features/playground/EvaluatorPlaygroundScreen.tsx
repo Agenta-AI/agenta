@@ -1,12 +1,12 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {preloadEditorPlugins} from "@agenta/editor/editor"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {evaluatorChainController, playgroundController} from "@agenta/playground"
 import type {RunOnMode} from "@agenta/playground-ui/panels/evaluator"
-import {preloadEditorPlugins} from "@agenta/ui/editor"
 import {
     AlertDialog,
     AlertDialogAction,

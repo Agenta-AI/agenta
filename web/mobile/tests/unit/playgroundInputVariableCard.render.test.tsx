@@ -12,7 +12,7 @@ import {afterEach, beforeEach, describe, expect, it, vi, type Mock} from "vitest
 const toast = vi.hoisted(() => ({success: vi.fn(), error: vi.fn()}))
 vi.mock("@agenta/ui/app-message", () => ({message: toast}))
 // The code editor is Lexical; a textarea stands in for it and reports each edit.
-vi.mock("@agenta/ui/shared-editor", () => ({
+vi.mock("@agenta/editor/shared-editor", () => ({
     SharedEditor: ({
         initialValue,
         handleChange,

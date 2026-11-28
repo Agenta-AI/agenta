@@ -22,7 +22,7 @@
  *     because it's a legacy contract that requires rooting at a known slot.
  *
  * Kept in `@agenta/shared/utils` so both `@agenta/entities/runnable`
- * (variable grouping) and `@agenta/ui/editor` (token-node styling) can
+ * (variable grouping) and `@agenta/editor/editor` (token-node styling) can
  * import from the same authoritative list without a circular dep.
  */
 

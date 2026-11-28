@@ -25,7 +25,7 @@
 
 import {useCallback, useMemo, type ReactElement, type ReactNode} from "react"
 
-import {TokenPathSuggestionsProvider, type TokenPathSuggestionsGetter} from "@agenta/ui/editor"
+import {TokenPathSuggestionsProvider, type TokenPathSuggestionsGetter} from "@agenta/editor/editor"
 import {useAtomValue} from "jotai"
 
 import {nodeChainContextAtomFamily} from "./chainContext"

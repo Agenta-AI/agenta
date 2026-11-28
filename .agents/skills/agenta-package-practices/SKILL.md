@@ -28,6 +28,7 @@ Is the code used by 2+ features, or could be?
 └─ YES → Move it to a package, picking by purpose:
          ├─ Pure utility / type (no React)              → @agenta/shared
          ├─ Reusable UI component / style util          → @agenta/ui
+         ├─ Lexical editor, chat input, drill-in views  → @agenta/editor
          ├─ Entity state + API (molecule, atoms)        → @agenta/entities
          ├─ Entity-specific UI (modals, pickers, drive) → @agenta/entity-ui
          ├─ Agent chat (model, transport, components)   → @agenta/chat
@@ -79,6 +80,7 @@ one-line purpose each, is `web/packages/README.md`. The core ones:
 | --- | --- | --- |
 | `@agenta/shared` | Utilities, types, schemas, hooks; host QueryClient API | `./api`, `./state`, `./utils`, `getHostQueryClient` |
 | `@agenta/ui` | Shared UI kit | shadcn primitives (`./ui`), `./composed`, `./layout`, `InfiniteVirtualTable` (`./table`), `cn` (`./styles`), presentational components |
+| `@agenta/editor` | Lexical editors and the views built on them | `./editor`, `./shared-editor`, `./rich-chat-input`, `./chat-message`, `./quote-selection`, `./drill-in`, `./diff` |
 | `@agenta/sdk` | Fern client wrapper | per-resource clients in `./resources` |
 | `@agenta/entities` | Entity state and API calls | molecules (`workflowMolecule`, `testcaseMolecule`, ...), the loadable bridge |
 | `@agenta/entity-ui` | Entity-specific UI | `EntityPicker`, modals, drawers, drill-in, the drive |
@@ -86,7 +88,7 @@ one-line purpose each, is `web/packages/README.md`. The core ones:
 | `@agenta/playground` | Playground state controllers | `./state`, `./snapshot`, `./agent-chat` |
 | `@agenta/playground-ui` | Playground UI | comparison view, execution items, agent build, commit |
 
-READMEs: `agenta-ui`, `agenta-entities`, `agenta-entity-ui`, `agenta-shared`,
+READMEs: `agenta-ui`, `agenta-editor`, `agenta-entities`, `agenta-entity-ui`, `agenta-shared`,
 `agenta-playground`, `agenta-playground-ui`, and `agenta-api-client` each have a
 `README.md` at the package root.
 
@@ -106,10 +108,10 @@ import {MESSAGE_CONTENT_SCHEMA, CHAT_MESSAGE_SCHEMA} from "@agenta/shared/schema
 import type {SimpleChatMessage, MessageContent, ToolCall} from "@agenta/shared/types"
 ```
 
-`@agenta/ui` (never the root `@agenta/ui`: it re-exports the whole kit, the table and the
-editors included). `src/` has nine folders, bottom layer first: `foundation`, `primitives`,
-`composed`, `icons`, `layout`, `shell`, `editor`, `data`, `patterns`. A folder imports only
-from the folders before it. `web/packages/agenta-ui/src/README.md` has the map.
+`@agenta/ui` (never the root `@agenta/ui`: it re-exports the whole kit and the table).
+`src/` has eight folders, bottom layer first: `foundation`, `primitives`, `composed`,
+`icons`, `layout`, `shell`, `data`, `patterns`. A folder imports only from the folders before
+it. `web/packages/agenta-ui/src/README.md` has the map.
 
 ```typescript
 import {...} from "@agenta/ui/ui"                 // shadcn primitives (Button, Dialog, Sheet, ...) — src/primitives
@@ -119,11 +121,18 @@ import {...} from "@agenta/ui/icons"              // GitHubMark, LogoMarks — s
 import {...} from "@agenta/ui/components/presentational" // presentational components — src/patterns/presentational
 import {...} from "@agenta/ui/styles"             // cn
 import {...} from "@agenta/ui/table"              // InfiniteVirtualTable, paginated stores
-import {...} from "@agenta/ui/editor"             // Editor, JSON parsing utilities
-import {...} from "@agenta/ui/shared-editor"      // SharedEditor, useDebounceInput
-import {...} from "@agenta/ui/chat-message"       // ChatMessageEditor, message types/schemas
 import {...} from "@agenta/ui/llm-icons"          // LLM provider icons
 import {...} from "@agenta/ui/cell-renderers"     // Table cell renderers, CellRendererRegistry
+```
+
+`@agenta/editor` (the Lexical editors; it imports `@agenta/ui`, never the other way):
+
+```typescript
+import {...} from "@agenta/editor/editor"         // Editor, MarkdownPreview, JSON parsing utilities
+import {...} from "@agenta/editor/shared-editor"  // SharedEditor, useDebounceInput
+import {...} from "@agenta/editor/rich-chat-input" // the composer input
+import {...} from "@agenta/editor/chat-message"   // ChatMessageEditor, ChatMessageList
+import {...} from "@agenta/editor/drill-in"       // drill-in field views
 ```
 
 `@agenta/entities`:

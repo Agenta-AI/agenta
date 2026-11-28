@@ -24,11 +24,11 @@ import {
     type ComposerAttachment,
     type useComposerAttachments,
 } from "@agenta/chat/hooks"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {useT} from "@agenta/i18n"
 import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
 import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import type {FileUIPart} from "ai"
 import {AnimatePresence, motion} from "motion/react"
 import dynamic from "next/dynamic"

@@ -39,6 +39,7 @@ const nextConfig: NextConfig = {
         "@agentaai/api-client",
         "@agenta/shared",
         "@agenta/ui",
+        "@agenta/editor",
         "@agenta/entities",
         "@agenta/entity-ui",
         "@agenta/automation-ui",

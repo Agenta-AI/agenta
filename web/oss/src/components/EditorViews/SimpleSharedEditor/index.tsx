@@ -7,8 +7,8 @@ import {
     $isCodeBlockNode,
     TOGGLE_MARKDOWN_VIEW,
     type CodeLanguage,
-} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
+} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {mergeRegister} from "@lexical/utils"
 import {
     BracketsCurly,

@@ -1,10 +1,10 @@
 import {useEffect, useState} from "react"
 
+import {ComposerSendButton} from "@agenta/editor/rich-chat-input"
 import {useT} from "@agenta/i18n"
 import chatRecordingBarCatalog from "@agenta/i18n/catalogs/chat.recordingBar"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {SimpleTooltip} from "@agenta/ui/composed"
-import {ComposerSendButton} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
 import {Check, X} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"

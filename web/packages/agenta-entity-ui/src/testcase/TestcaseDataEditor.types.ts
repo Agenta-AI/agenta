@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import type {PropertyType} from "@agenta/ui/drill-in"
+import type {PropertyType} from "@agenta/editor/drill-in"
 
 import type {RootDrawerViewMode} from "./codeFormat"
 

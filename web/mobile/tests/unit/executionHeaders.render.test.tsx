@@ -69,7 +69,7 @@ vi.mock("@/features/playground/PlaygroundTestsetMenu", () => ({
 vi.mock("@/features/chat/DrillInBridgeProvider", () => ({
     DrillInBridgeProvider: ({children}: {children: React.ReactNode}) => children,
 }))
-vi.mock("@agenta/ui/editor", async (original) => ({
+vi.mock("@agenta/editor/editor", async (original) => ({
     ...(await original<object>()),
     preloadEditorPlugins: vi.fn(),
 }))

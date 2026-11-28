@@ -15,12 +15,12 @@
 
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {ChatMessageList} from "@agenta/editor/chat-message"
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {richText, useT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import type {SimpleChatMessage} from "@agenta/shared/types"
-import {ChatMessageList} from "@agenta/ui/chat-message"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {

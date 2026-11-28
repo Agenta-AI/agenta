@@ -1,7 +1,7 @@
 import {lazy, Suspense} from "react"
 
+import type {RegistrySkillParams} from "@agenta/editor/drill-in"
 import {SkillViewSkeleton} from "@agenta/entity-ui/drill-in"
-import type {RegistrySkillParams} from "@agenta/ui/drill-in"
 import {defineView, type ViewProps} from "@agenta/ui/view-stack"
 
 const Body = lazy(() => import("./RegistrySkillViewBody"))

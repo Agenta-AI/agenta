@@ -2,6 +2,7 @@ import {useEffect, useState} from "react"
 
 import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
 import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
+import {DrillInUIProvider} from "@agenta/editor/drill-in"
 import type {AgentSecretBinding} from "@agenta/entities/secret"
 import {
     secretAttachView,
@@ -11,7 +12,6 @@ import {
 import {createT} from "@agenta/i18n"
 import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import {userAtom} from "@agenta/shared/state"
-import {DrillInUIProvider} from "@agenta/ui/drill-in"
 import {
     useViewStack,
     ViewDrawerHost,

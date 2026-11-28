@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {isConnectionActive, useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {
@@ -18,7 +19,6 @@ import type {SessionRowVm} from "@agenta/sessions/row"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/layout"
 import {HeightCollapse} from "@agenta/ui/layout"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {ArrowLeftIcon} from "@phosphor-icons/react"
 import {App, Typography} from "antd"
 import clsx from "clsx"

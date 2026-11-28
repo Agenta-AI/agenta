@@ -1,6 +1,6 @@
 import {FC} from "react"
 
-import {SharedEditor} from "@agenta/ui/shared-editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {PlayIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 

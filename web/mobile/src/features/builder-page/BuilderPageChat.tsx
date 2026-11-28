@@ -1,9 +1,9 @@
 import {useCallback, useRef, useState} from "react"
 
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {useT} from "@agenta/i18n"
 import builderContextCatalog from "@agenta/i18n/catalogs/builder.context"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Robot, X} from "@phosphor-icons/react"
 import type {UIMessage} from "ai"
 import {useSetAtom, useStore} from "jotai"

@@ -1,8 +1,8 @@
 import {useCallback, type RefObject} from "react"
 
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import type {AgentSetupSelection, AgentStarterTemplate} from "@agenta/entities/workflow"
 import {captureFirstAgentIntent, classifyAgentIntent} from "@agenta/shared/analytics"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 

@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
+import {RichChatInput, type RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
-import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {RobotIcon} from "@phosphor-icons/react"
 import {Select} from "antd"
 import {useAtomValue} from "jotai"

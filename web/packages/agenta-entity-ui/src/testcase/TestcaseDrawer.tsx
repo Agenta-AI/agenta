@@ -1,9 +1,9 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {ViewModeDropdown} from "@agenta/editor/drill-in"
 import {createT, useT} from "@agenta/i18n"
 import testcaseCatalog from "@agenta/i18n/catalogs/entityUi.testcase"
 import {DropdownButton, type DropdownButtonOption} from "@agenta/ui/components"
-import {ViewModeDropdown} from "@agenta/ui/drill-in"
 import {
     Alert,
     Button,

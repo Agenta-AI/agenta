@@ -17,7 +17,7 @@ import {
 import dynamic from "next/dynamic"
 
 // The diff view pulls in the editor. It loads only when the dialog has a preview to draw.
-const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
+const DiffView = dynamic(() => import("@agenta/editor/editor").then((module) => module.DiffView), {
     ssr: false,
     loading: () => <Spinner className="mx-auto my-4" />,
 })

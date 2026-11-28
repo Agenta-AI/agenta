@@ -6,10 +6,9 @@ export default defineConfig({
     resolve: {
         alias: {
             // Pure diff engine — resolve to the real module (no antd/Lexical).
-            // Must precede the "@agenta/ui" stub so the subpath matches first.
-            "@agenta/ui/diff": path.resolve(
+            "@agenta/editor/diff": path.resolve(
                 __dirname,
-                "../agenta-ui/src/editor/editor/utils/diffUtils.ts",
+                "../agenta-editor/src/editor/utils/diffUtils.ts",
             ),
             // Colour maths + a stub catalog, so the agent icon atoms run without the picker.
             "@agenta/ui/agent-icon": path.resolve(

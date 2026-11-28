@@ -1,15 +1,15 @@
 import {useCallback, useMemo, type ReactNode} from "react"
 
-import type {RunnablePort} from "@agenta/entities/runnable"
-import {workflowMolecule} from "@agenta/entities/workflow"
-import {outputConnectionController, playgroundController} from "@agenta/playground"
-import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import {
     TokenPathSuggestionsProvider,
     useTokenPathSuggestionsContext,
     type TokenPathSuggestion,
     type TokenPathSuggestionsGetter,
-} from "@agenta/ui/editor"
+} from "@agenta/editor/editor"
+import type {RunnablePort} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {outputConnectionController, playgroundController} from "@agenta/playground"
+import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import {atom, useAtomValue} from "jotai"
 
 const SLOTS = ["inputs", "outputs"] as const

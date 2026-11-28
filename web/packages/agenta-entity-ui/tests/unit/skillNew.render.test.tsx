@@ -5,7 +5,7 @@
  */
 import {act, createElement} from "react"
 
-import {DrillInUIProvider, type SkillsBridge} from "@agenta/ui/drill-in"
+import {DrillInUIProvider, type SkillsBridge} from "@agenta/editor/drill-in"
 import {
     ViewFormActions,
     ViewStackHost,

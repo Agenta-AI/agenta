@@ -12,6 +12,14 @@
  */
 import {useCallback, useMemo} from "react"
 
+import type {
+    SubagentDetail,
+    WorkflowConfigPart,
+    WorkflowConfigPayload,
+    WorkflowReferenceBridge,
+    WorkflowReferenceCatalogEntry,
+    WorkflowReferenceType,
+} from "@agenta/editor/drill-in"
 import type {RunnablePort} from "@agenta/entities/shared"
 import {
     discardLocalServerDataAtom,
@@ -31,14 +39,6 @@ import {createT} from "@agenta/i18n"
 import workflowReferenceCatalog from "@agenta/i18n/catalogs/entityUi.workflowReference"
 import {projectIdAtom} from "@agenta/shared/state"
 import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
-import type {
-    SubagentDetail,
-    WorkflowConfigPart,
-    WorkflowConfigPayload,
-    WorkflowReferenceBridge,
-    WorkflowReferenceCatalogEntry,
-    WorkflowReferenceType,
-} from "@agenta/ui/drill-in"
 import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"

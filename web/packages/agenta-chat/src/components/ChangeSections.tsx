@@ -7,10 +7,10 @@
  */
 import {createContext, useContext, useEffect, useState, type ReactNode} from "react"
 
+import {computeTextDiffLines} from "@agenta/editor/diff"
 import {useT} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
 import chatPhoneDetailCatalog from "@agenta/i18n/catalogs/chat.phoneDetail"
-import {computeTextDiffLines} from "@agenta/ui/diff"
 import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
 import {Sheet, SheetContent, SheetTitle} from "@agenta/ui/ui"
 import {

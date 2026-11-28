@@ -1,11 +1,11 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import {commitAgentCredentialsAtom, workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
 import secretViewsCatalog from "@agenta/i18n/catalogs/entityUi.secretViews"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue, useSetAtom} from "jotai"
 

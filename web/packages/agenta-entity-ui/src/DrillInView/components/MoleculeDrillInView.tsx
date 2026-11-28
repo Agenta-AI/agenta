@@ -20,7 +20,7 @@
  * ```
  */
 
-import type {MoleculeDrillInViewProps} from "@agenta/ui/drill-in"
+import type {MoleculeDrillInViewProps} from "@agenta/editor/drill-in"
 
 import {MoleculeDrillInBreadcrumb} from "./MoleculeDrillInBreadcrumb"
 import {MoleculeDrillInProvider, useDrillIn} from "./MoleculeDrillInContext"

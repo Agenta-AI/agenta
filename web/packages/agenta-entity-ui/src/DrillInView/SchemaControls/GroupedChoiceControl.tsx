@@ -12,11 +12,11 @@
 
 import {memo, useMemo} from "react"
 
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import {withoutSlugBoundGroups} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Combobox, Field} from "@agenta/ui/ui"

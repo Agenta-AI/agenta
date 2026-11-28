@@ -8,9 +8,9 @@
  */
 import {useState} from "react"
 
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {createT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 
 const tNow = createT(schemaControlsCatalog)
 

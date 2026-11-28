@@ -197,7 +197,7 @@ vi.mock("@agenta/ui/app-message", () => ({
     modal: dialog,
 }))
 vi.mock("@agenta/ui/components/presentational", () => ({ChatBubble: () => null}))
-vi.mock("@agenta/ui/quote-selection", () => ({QuoteSelectionLayer: () => null}))
+vi.mock("@agenta/editor/quote-selection", () => ({QuoteSelectionLayer: () => null}))
 vi.mock("@agenta/ui/shortcuts", () => ({
     isAltChord: (e: KeyboardEvent) => e.altKey && !e.ctrlKey && !e.metaKey,
 }))

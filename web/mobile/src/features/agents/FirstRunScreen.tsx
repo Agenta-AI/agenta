@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from "react"
 
 import {stagedFilesToOutbound, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {
     agentTemplateLookupAtomFamily,
     refetchAgentTemplatesAtom,
@@ -13,7 +14,6 @@ import {useT} from "@agenta/i18n"
 import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
 import {classifyAgentIntent} from "@agenta/shared/analytics"
 import {HeightCollapse} from "@agenta/ui/layout"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 

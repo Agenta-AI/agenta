@@ -8,17 +8,17 @@ import {
     type ReactNode,
 } from "react"
 
-import {formatNumber, useT} from "@agenta/i18n"
-import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
-import type {SimpleChatMessage} from "@agenta/playground"
-import {message as appMessage} from "@agenta/ui/app-message"
-import {ChatMessageEditor, createSnippetPdfAttachment} from "@agenta/ui/chat-message"
+import {ChatMessageEditor, createSnippetPdfAttachment} from "@agenta/editor/chat-message"
 import {
     getViewOptions,
     messageViewModeAtom,
     toMessageViewMode,
     ViewModeDropdown,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
+import {formatNumber, useT} from "@agenta/i18n"
+import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
+import type {SimpleChatMessage} from "@agenta/playground"
+import {message as appMessage} from "@agenta/ui/app-message"
 import {
     AlertDialog,
     AlertDialogAction,

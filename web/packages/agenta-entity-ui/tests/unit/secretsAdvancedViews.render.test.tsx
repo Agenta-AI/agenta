@@ -121,7 +121,7 @@ vi.mock("../../src/accounts/useItemAccount", () => ({
     useItemAccount: () => ({workflowId: "wf-1", account: undefined, loading: false, failed: false}),
 }))
 vi.mock("../../src/accounts/useProjectName", () => ({useProjectName: () => "Acme Agency"}))
-vi.mock("@agenta/ui/drill-in", async (original) => ({
+vi.mock("@agenta/editor/drill-in", async (original) => ({
     ...(await original<object>()),
     useDrillInUI: () => ({permissions: {canEditSecrets: true}}),
 }))

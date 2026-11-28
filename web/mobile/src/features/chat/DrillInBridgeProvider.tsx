@@ -1,5 +1,7 @@
 import {type PropsWithChildren, useMemo} from "react"
 
+import {EditorProvider} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {canViewSpansAtom} from "@agenta/entities/access"
 import {
     DrillInUIProvider,
@@ -11,8 +13,6 @@ import {useLLMProviderConfig} from "@agenta/entity-ui/secretProvider"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {isCloud} from "@agenta/shared/api"
 import {useSkillsBridge} from "@agenta/skills-ui"
-import {EditorProvider} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {getDefaultStore, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 

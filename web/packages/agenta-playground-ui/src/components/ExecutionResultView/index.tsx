@@ -1,9 +1,9 @@
 import {useMemo} from "react"
 
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import type {RunnablePort} from "@agenta/entities/runnable"
 import {playgroundController} from "@agenta/playground"
 import {deriveToolViewModelFromResult} from "@agenta/shared/utils"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 

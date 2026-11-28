@@ -10,7 +10,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const {mounts} = vi.hoisted(() => ({mounts: [] as {initialValue: string}[]}))
 
-vi.mock("@agenta/ui/shared-editor", () => ({
+vi.mock("@agenta/editor/shared-editor", () => ({
     SharedEditor: ({initialValue}: {initialValue: string}) => {
         mounts.push({initialValue})
         return <div data-testid="raw-editor">{initialValue}</div>

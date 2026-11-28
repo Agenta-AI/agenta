@@ -8,12 +8,12 @@ import {
     useState,
 } from "react"
 
+import {Editor} from "@agenta/editor/editor"
 import {cronToBuilder, summarizeSchedule} from "@agenta/entities/gatewayTrigger"
 import {createT, useT} from "@agenta/i18n"
 import schemaFormCatalog from "@agenta/i18n/catalogs/entityUi.schemaForm"
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {AutosizeTextarea, InputNumber, TimePicker} from "@agenta/ui/composed"
-import {Editor} from "@agenta/ui/editor"
 import {
     Accordion,
     AccordionContent,

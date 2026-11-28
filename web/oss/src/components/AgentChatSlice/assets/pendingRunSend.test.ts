@@ -1,6 +1,6 @@
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {createStore} from "jotai"
 import {describe, expect, it, vi} from "vitest"
 

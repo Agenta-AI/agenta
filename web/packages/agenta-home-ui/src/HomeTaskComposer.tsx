@@ -7,10 +7,10 @@ import {
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {useVoiceComposer, type useComposerAttachments} from "@agenta/chat/hooks"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {AgentPicker} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import composerCatalog from "@agenta/i18n/catalogs/home.composer"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
 import {XIcon} from "@phosphor-icons/react"
 

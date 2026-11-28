@@ -5,7 +5,7 @@
  */
 import {act, createElement, useMemo} from "react"
 
-import {DrillInUIProvider, type WorkflowReferenceBridge} from "@agenta/ui/drill-in"
+import {DrillInUIProvider, type WorkflowReferenceBridge} from "@agenta/editor/drill-in"
 import {
     ViewFormActions,
     ViewStackHost,

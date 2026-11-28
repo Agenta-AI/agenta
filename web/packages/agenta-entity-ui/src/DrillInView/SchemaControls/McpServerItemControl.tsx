@@ -9,10 +9,10 @@
  */
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import {useT} from "@agenta/i18n"
 import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import {safeStringify} from "@agenta/shared/utils"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {MinusCircle} from "@phosphor-icons/react"
 import clsx from "clsx"

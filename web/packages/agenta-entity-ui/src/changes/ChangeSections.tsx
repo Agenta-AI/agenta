@@ -13,12 +13,12 @@
  */
 import {useState} from "react"
 
+import type {ExtendedDiffLine} from "@agenta/editor/diff"
 import type {ChangeItem, ChangeSection, ScalarChange} from "@agenta/entities/workflow/commitDiff"
 import {useT} from "@agenta/i18n"
 import changeSectionsCatalog from "@agenta/i18n/catalogs/entityUi.changeSections"
 import {HeightCollapse} from "@agenta/ui/components"
 import {AdaptiveList} from "@agenta/ui/components/selection"
-import type {ExtendedDiffLine} from "@agenta/ui/diff"
 import {cn} from "@agenta/ui/styles"
 import {Badge, type BadgeProps} from "@agenta/ui/ui"
 import {

@@ -1,10 +1,10 @@
 import {useState} from "react"
 
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import {useT} from "@agenta/i18n"
 import agentTemplateCatalog from "@agenta/i18n/catalogs/entityUi.agentTemplate"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {UploadSimple} from "@phosphor-icons/react"
 

@@ -1,12 +1,12 @@
 import {useRef, useState} from "react"
 
+import {QuoteSelectionLayer} from "@agenta/editor/quote-selection"
 import {META_REVEAL} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {CopyTooltip, SimpleTooltip as Tooltip} from "@agenta/ui/composed"
-import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import {Button} from "@agenta/ui/ui"
 import {Copy, Info} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"

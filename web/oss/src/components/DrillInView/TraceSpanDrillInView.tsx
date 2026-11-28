@@ -10,14 +10,6 @@ import {
     useState,
 } from "react"
 
-import {traceSpanMolecule} from "@agenta/entities/trace"
-import {
-    buildDecodedJsonOutput,
-    normalizeEscapedLineBreaks,
-    parseStructuredJson,
-} from "@agenta/observability-ui/drillIn"
-import {getDefaultJsonViewMode} from "@agenta/observability-ui/drillIn"
-import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {
     Editor as EditorWrapper,
     EditorProvider,
@@ -26,7 +18,15 @@ import {
     ON_CHANGE_LANGUAGE,
     SET_MARKDOWN_VIEW,
     SearchPlugin,
-} from "@agenta/ui"
+} from "@agenta/editor/editor"
+import {traceSpanMolecule} from "@agenta/entities/trace"
+import {
+    buildDecodedJsonOutput,
+    normalizeEscapedLineBreaks,
+    parseStructuredJson,
+} from "@agenta/observability-ui/drillIn"
+import {getDefaultJsonViewMode} from "@agenta/observability-ui/drillIn"
+import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {
     ArrowDownIcon,
     ArrowUpIcon,

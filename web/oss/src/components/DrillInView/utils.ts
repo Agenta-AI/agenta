@@ -1,4 +1,4 @@
-import type {DataType} from "@agenta/ui/drill-in"
+import type {DataType} from "@agenta/editor/drill-in"
 
 /**
  * Determines if a data type supports raw mode toggle.

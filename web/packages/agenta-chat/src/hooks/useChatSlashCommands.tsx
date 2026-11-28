@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import type {SlashCommandSection} from "@agenta/editor/rich-chat-input"
 import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
     buildConnectionPickerRows,
@@ -39,7 +40,6 @@ import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import {skillDisplayName} from "@agenta/shared/utils"
-import type {SlashCommandSection} from "@agenta/ui/rich-chat-input"
 // Same icons the config panel gives these sections (AgentTemplateControl / itemKinds).
 import {ChatCircleDots, Cpu, Compass, HardDrives, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"

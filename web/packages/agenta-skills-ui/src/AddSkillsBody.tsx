@@ -1,6 +1,7 @@
 /** The registry list of the agent's "Add skills" view: the agent's skills, then all the others. */
 import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import type {AddSkillsBodyProps} from "@agenta/editor/drill-in"
 import {CatalogGroupSkeleton, CatalogListRow} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -12,7 +13,6 @@ import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {skillsResolveDataAtom, skillsResolveQueryAtom} from "@agenta/skills/state"
 import {SkillMark} from "@agenta/ui/agent-icon"
 import {SearchInput, SimpleTooltip} from "@agenta/ui/composed"
-import type {AddSkillsBodyProps} from "@agenta/ui/drill-in"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {
     Alert,

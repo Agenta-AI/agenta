@@ -24,6 +24,10 @@
 
 import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
+import {ChatMessageList} from "@agenta/editor/chat-message"
+import type {SimpleChatMessage} from "@agenta/editor/chat-message"
+import {SharedEditor} from "@agenta/editor/shared-editor"
+import type {ExpectedType, LogicalType, ViewOption, ViewType} from "@agenta/entity-ui/view-types"
 import {
     FormView,
     ViewTypeSelect,
@@ -35,10 +39,6 @@ import {
     parseYamlEdit,
     valueToDisplay,
 } from "@agenta/entity-ui/view-types"
-import type {ExpectedType, LogicalType, ViewOption, ViewType} from "@agenta/entity-ui/view-types"
-import {ChatMessageList} from "@agenta/ui/chat-message"
-import type {SimpleChatMessage} from "@agenta/ui/chat-message"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
 import {CaretDown, CaretRight, CopySimple, Database, Info, Warning} from "@phosphor-icons/react"

@@ -12,10 +12,10 @@
  */
 import {useMemo, useState} from "react"
 
+import {DiffView} from "@agenta/editor/editor"
 import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
 import {useT} from "@agenta/i18n"
 import changesSummaryCatalog from "@agenta/i18n/catalogs/entityUi.changesSummary"
-import {DiffView} from "@agenta/ui/editor"
 import {cn} from "@agenta/ui/styles"
 import {ArrowLeft, Code, PencilSimple} from "@phosphor-icons/react"
 

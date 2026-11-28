@@ -14,10 +14,10 @@
 
 import {Component, lazy, memo, Suspense, useMemo, type ReactNode} from "react"
 
+import {formatLabel} from "@agenta/editor/drill-in"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {createT, useT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
-import {formatLabel} from "@agenta/ui/drill-in"
 import clsx from "clsx"
 
 import AgentConfigSkeleton from "./agentTemplate/AgentConfigSkeleton"

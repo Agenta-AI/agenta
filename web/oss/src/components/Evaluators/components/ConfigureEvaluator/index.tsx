@@ -12,11 +12,12 @@
 
 import {useCallback, useEffect, useMemo} from "react"
 
+import {preloadEditorPlugins} from "@agenta/editor/editor"
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
-import {preloadEditorPlugins, Tag} from "@agenta/ui"
+import {Tag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 

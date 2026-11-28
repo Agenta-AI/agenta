@@ -1,5 +1,5 @@
+import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/editor/drill-in"
 import {DrillInUIProvider, ReferenceToolFormView} from "@agenta/entity-ui/drill-in"
-import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // The detail panel for one saved subagent: the calling agent owns only the description.

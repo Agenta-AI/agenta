@@ -32,15 +32,15 @@ import {
     useState,
 } from "react"
 
-import {useT} from "@agenta/i18n"
-import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {
     EditorProvider,
     MarkdownToolbar,
     SET_MARKDOWN_VIEW,
     useLexicalComposerContext,
-} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
+} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {cn} from "@agenta/ui/styles"
 import {Badge} from "@agenta/ui/ui"
 import {registerCodeHighlighting} from "@lexical/code"

@@ -1,13 +1,13 @@
 /** The two connected halves of the Subagents section: the picker and the saved list. */
 import {useCallback, useEffect, useMemo} from "react"
 
-import {agentIconAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
-import {agentIconChrome} from "@agenta/ui/agent-icon"
 import type {
     WorkflowReferenceBridge,
     WorkflowReferencePayload,
     WorkflowReferenceUI,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
+import {agentIconAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {agentIconChrome} from "@agenta/ui/agent-icon"
 import {Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 

@@ -1,6 +1,7 @@
 /** The drill-in `skills` bridge implementation each host feeds its DrillInUIProvider. */
 import {useMemo} from "react"
 
+import type {SkillsBridge} from "@agenta/editor/drill-in"
 import {createT} from "@agenta/i18n"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -10,7 +11,6 @@ import {
     skillsListDataAtom,
     skillsResolveDataAtom,
 } from "@agenta/skills/state"
-import type {SkillsBridge} from "@agenta/ui/drill-in"
 import {getDefaultStore, useAtomValue} from "jotai"
 
 import {AddSkillsBody} from "./AddSkillsBody"

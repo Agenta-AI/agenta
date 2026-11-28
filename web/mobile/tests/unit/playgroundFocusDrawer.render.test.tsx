@@ -59,7 +59,7 @@ vi.mock("@agenta/playground-ui/panels/focus", async (original) => {
 })
 // The code editor is Lexical; a textarea stands in for it and reports each edit. Like the real
 // editor, it starts over when its initial value changes.
-vi.mock("@agenta/ui/shared-editor", () => ({
+vi.mock("@agenta/editor/shared-editor", () => ({
     SharedEditor: ({
         initialValue,
         handleChange,

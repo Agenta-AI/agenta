@@ -10,6 +10,12 @@
 import {useCallback, useDeferredValue, useMemo, useState, type ReactNode} from "react"
 
 import {
+    HintKey,
+    type PaletteItem,
+    type PaletteSection,
+    type PaletteSpec,
+} from "@agenta/editor/rich-chat-input"
+import {
     driveRootLabel,
     fileOrigin,
     humanSize,
@@ -27,12 +33,6 @@ import {
 } from "@agenta/entity-ui/drive"
 import {richText, useT} from "@agenta/i18n"
 import chatFilePaletteCatalog from "@agenta/i18n/catalogs/chat.filePalette"
-import {
-    HintKey,
-    type PaletteItem,
-    type PaletteSection,
-    type PaletteSpec,
-} from "@agenta/ui/rich-chat-input"
 import {Spinner} from "@agenta/ui/ui"
 import {FolderOpen, FolderSimple, MagnifyingGlass} from "@phosphor-icons/react"
 

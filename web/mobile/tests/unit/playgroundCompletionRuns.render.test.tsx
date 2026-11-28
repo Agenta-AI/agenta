@@ -6,12 +6,12 @@
  */
 import {act} from "react"
 
+import {useTokenPathSuggestions} from "@agenta/editor/editor"
 import {loadableController} from "@agenta/entities/loadable"
 import {playgroundController} from "@agenta/playground"
 import {PromptTokenPathProvider} from "@agenta/playground-ui/panels/config"
 import {RunsPanel} from "@agenta/playground-ui/panels/runs"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
-import {useTokenPathSuggestions} from "@agenta/ui/editor"
 import {QueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"

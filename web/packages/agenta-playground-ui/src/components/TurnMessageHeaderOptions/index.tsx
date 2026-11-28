@@ -1,7 +1,7 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/editor/drill-in"
 import {CollapseToggleButton} from "@agenta/ui/components/presentational"
-import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
 import {
     ArrowClockwise,
     ArrowsOutLineHorizontal,

@@ -1,4 +1,4 @@
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 
 export const canRestoreRefusedSend = (editor: RichChatInputHandle | null): boolean =>
     Boolean(editor && editor.getMarkdown() === "")

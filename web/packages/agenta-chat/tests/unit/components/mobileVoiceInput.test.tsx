@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {act, cleanup, fireEvent, render} from "@testing-library/react"
 import {useRef} from "react"
+
+import {RichChatInput, type RichChatInputHandle} from "@agenta/editor/rich-chat-input"
+import {act, cleanup, fireEvent, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import VoiceInputButton from "../../../src/components/VoiceInputButton"

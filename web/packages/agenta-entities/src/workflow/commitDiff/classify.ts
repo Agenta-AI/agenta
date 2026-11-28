@@ -5,7 +5,7 @@
  * removed = present remotely). Returns `[]` when nothing recognized changed, so the
  * caller can fall back to the coarse "Configuration modified" + JSON view.
  */
-import {computeTextDiffLines} from "@agenta/ui/diff"
+import {computeTextDiffLines} from "@agenta/editor/diff"
 
 import {PARAM_KEYS, readAgentConfig, stableStringify} from "./accessors"
 import {agentItemIdentity, type AgentItemKind} from "./identity"

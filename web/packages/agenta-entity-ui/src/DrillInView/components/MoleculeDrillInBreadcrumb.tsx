@@ -7,9 +7,9 @@
 
 import {Fragment, useCallback, useMemo} from "react"
 
+import type {BreadcrumbSlotProps} from "@agenta/editor/drill-in"
 import {createT} from "@agenta/i18n"
 import drillInCatalog from "@agenta/i18n/catalogs/entityUi.drillIn"
-import type {BreadcrumbSlotProps} from "@agenta/ui/drill-in"
 import {ArrowLeftIcon, CaretRightIcon} from "@phosphor-icons/react"
 
 import {useDrillIn} from "./MoleculeDrillInContext"

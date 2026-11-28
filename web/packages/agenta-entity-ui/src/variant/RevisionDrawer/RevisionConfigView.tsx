@@ -1,11 +1,11 @@
 import {useMemo, useState, type ReactNode} from "react"
 
+import {DrillInUIProvider, useDrillInUI} from "@agenta/editor/drill-in"
+import {EditorProvider} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {useT} from "@agenta/i18n"
 import revisionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.revisionDrawer"
 import {Segmented} from "@agenta/ui/composed"
-import {DrillInUIProvider, useDrillInUI} from "@agenta/ui/drill-in"
-import {EditorProvider} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {useAtomValue} from "jotai"
 
 import PlaygroundConfigSection from "../../DrillInView/components/PlaygroundConfigSection"

@@ -1,9 +1,9 @@
 import {useCallback} from "react"
 
 import {revealConfigPaneAtom} from "@agenta/chat/state"
+import {RichChatInput} from "@agenta/editor/rich-chat-input"
 import {AgentOverviewBody} from "@agenta/entity-ui/agent"
 import {sessionRouteModes} from "@agenta/sessions/state"
-import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"

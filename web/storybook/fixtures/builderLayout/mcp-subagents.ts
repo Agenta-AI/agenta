@@ -1,11 +1,11 @@
 import {useMemo} from "react"
 
-import type {Workflow} from "@agenta/entities/workflow"
 import type {
     SubagentDetail,
     WorkflowReferenceBridge,
     WorkflowReferenceCatalogEntry,
-} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
+import type {Workflow} from "@agenta/entities/workflow"
 
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {variantNameCellQueries, workflowIds, workflowRevision, type WorkflowIds} from "../workflow"

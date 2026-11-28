@@ -190,7 +190,7 @@ vi.mock("@agenta/ui/app-message", () => ({
     modal: dialog,
 }))
 vi.mock("@agenta/ui/components/presentational", () => ({ChatBubble: () => null}))
-vi.mock("@agenta/ui/quote-selection", () => ({
+vi.mock("@agenta/editor/quote-selection", () => ({
     QuoteSelectionLayer: () => <div data-testid="quote-layer" />,
 }))
 vi.mock("@agenta/ui/shortcuts", () => ({

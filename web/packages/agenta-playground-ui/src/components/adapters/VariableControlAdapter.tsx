@@ -1,16 +1,16 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useState} from "react"
 
-import {executionItemController, playgroundController} from "@agenta/playground"
-import {getCollapseStyle} from "@agenta/ui/components/presentational"
-import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
+import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/editor/drill-in"
 import {
     DrillInProvider,
     EditorProvider,
     SET_MARKDOWN_VIEW,
     useLexicalComposerContext,
-} from "@agenta/ui/editor"
-import type {EditorProps} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
+} from "@agenta/editor/editor"
+import type {EditorProps} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
+import {executionItemController, playgroundController} from "@agenta/playground"
+import {getCollapseStyle} from "@agenta/ui/components/presentational"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
 import {Info} from "@phosphor-icons/react"

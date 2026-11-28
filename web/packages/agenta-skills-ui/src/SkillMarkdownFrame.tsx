@@ -1,5 +1,5 @@
+import {MarkdownPreview} from "@agenta/editor/editor"
 import {MarkdownBodySkeleton, MarkdownEditor} from "@agenta/entity-ui/drill-in"
-import {MarkdownPreview} from "@agenta/ui/editor"
 import {cn} from "@agenta/ui/styles"
 
 /** One bordered markdown box. The formatting tools render into `toolbar`, a slot the host puts in its label row. */
