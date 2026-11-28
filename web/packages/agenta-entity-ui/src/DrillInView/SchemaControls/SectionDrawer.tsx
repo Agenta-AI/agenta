@@ -6,16 +6,27 @@
  * passes as children. The host owns the draft model (snapshot the config on open, restore on
  * Cancel), so this is pure chrome: header (title), a scrollable body, and Cancel/Save.
  *
- * Built on the shared `EnhancedDrawer`.
+ * Built on the kit `Sheet`.
  */
 import {type ReactNode, useCallback, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
+import {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from "@agenta/ui/ui"
 
-import {FormDrawerSkeleton} from "./DrawerSkeletons"
+import {DeferredBody, FormDrawerSkeleton} from "./DrawerSkeletons"
 import {SectionDrawerPanelContext} from "./sectionDrawerPanel"
 
 export interface SectionDrawerProps {
@@ -58,39 +69,54 @@ export function SectionDrawer({
     }, [dirty, onCancel])
     return (
         <>
-            <EnhancedDrawer
-                rootClassName="ag-drawer-elevated"
+            <Sheet
                 open={open}
-                onClose={handleRequestClose}
-                placement="right"
-                width={width}
-                panelRef={setPanel}
-                destroyOnClose
-                bodyFallback={<FormDrawerSkeleton />}
-                title={
-                    <div className="flex min-w-0 items-center gap-2">
-                        {icon ? <span className="flex shrink-0 items-center">{icon}</span> : null}
-                        <span className="truncate text-label font-medium">{title}</span>
-                    </div>
-                }
-                footer={
-                    <div className="flex items-center justify-end gap-2">
-                        <Button variant="outline" onClick={onCancel}>
-                            {t("entityUi.configItems.cancel")}
-                        </Button>
-                        <Button onClick={onSave} disabled={disabled}>
-                            {t("entityUi.configItems.save")}
-                        </Button>
-                    </div>
-                }
-                // The body itself doesn't scroll — the content (a full-height flex row) gives each
-                // panel its own overflow, so the left and right panels scroll independently.
-                styles={{body: {padding: bodyPadding, overflow: "hidden"}}}
+                onOpenChange={(next) => {
+                    if (!next) handleRequestClose()
+                }}
             >
-                <SectionDrawerPanelContext.Provider value={panel}>
-                    {children}
-                </SectionDrawerPanelContext.Provider>
-            </EnhancedDrawer>
+                <SheetContent
+                    ref={setPanel}
+                    side="right"
+                    className="ag-drawer-elevated"
+                    // The panel floats 8px in from each edge, so the clamp leaves room for both.
+                    style={{width, maxWidth: "calc(100% - 1rem)"}}
+                >
+                    <SheetHeader>
+                        <SheetTitle className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-2">
+                                {icon ? (
+                                    <span className="flex shrink-0 items-center">{icon}</span>
+                                ) : null}
+                                <span className="truncate text-label font-medium">{title}</span>
+                            </div>
+                        </SheetTitle>
+                    </SheetHeader>
+                    {/* The body itself doesn't scroll — the content (a full-height flex row) gives
+                        each panel its own overflow, so the left and right panels scroll
+                        independently. */}
+                    <div
+                        className="min-h-0 flex-1 overflow-hidden text-field-md text-foreground"
+                        style={{padding: bodyPadding}}
+                    >
+                        <DeferredBody fallback={<FormDrawerSkeleton />}>
+                            <SectionDrawerPanelContext.Provider value={panel}>
+                                {children}
+                            </SectionDrawerPanelContext.Provider>
+                        </DeferredBody>
+                    </div>
+                    <SheetFooter>
+                        <div className="flex items-center justify-end gap-2">
+                            <Button variant="outline" onClick={onCancel}>
+                                {t("entityUi.configItems.cancel")}
+                            </Button>
+                            <Button onClick={onSave} disabled={disabled}>
+                                {t("entityUi.configItems.save")}
+                            </Button>
+                        </div>
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
             <Dialog
                 open={confirmOpen}
                 onOpenChange={(next) => {

@@ -18,8 +18,8 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle} from "../components/ui/sheet"
-import {cn} from "../components/ui/utils"
+import {Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle} from "@agenta/ui/ui"
+import {cn} from "@agenta/ui/ui"
 
 // Local, antd-`Drawer`-compatible prop surface. This facade carries 0 antd runtime AND 0 antd
 // type dependency; the shape below reproduces the antd `DrawerProps` fields the call-sites pass
@@ -60,10 +60,10 @@ interface DrawerSemanticClassNames {
 
 // antd v6 `styles`/`classNames` are resolvable: an object or `(info) => object`. The facade only
 // consumes the object form; the props param is loose so any antd resolver assigns here.
-type DrawerStylesProp = DrawerSemanticStyles | ((info: {props: any}) => DrawerSemanticStyles) // eslint-disable-line @typescript-eslint/no-explicit-any
+type DrawerStylesProp = DrawerSemanticStyles | ((info: {props: any}) => DrawerSemanticStyles)
 type DrawerClassNamesProp =
     | DrawerSemanticClassNames
-    | ((info: {props: any}) => DrawerSemanticClassNames) // eslint-disable-line @typescript-eslint/no-explicit-any
+    | ((info: {props: any}) => DrawerSemanticClassNames)
 
 /**
  * Local, antd-compatible `Drawer` prop surface. Reproduces the antd `DrawerProps` fields the

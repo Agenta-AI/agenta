@@ -6,9 +6,9 @@ import {dayjs} from "@agenta/shared/utils"
 import {Check, Copy} from "@phosphor-icons/react"
 
 import {copyToClipboard} from "../../utils/copyToClipboard"
-import {cn, textColors} from "../../utils/styles"
 import {Badge} from "../ui/badge"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../ui/tooltip"
+import {cn} from "../ui/utils"
 
 export interface FormattedDateProps {
     date: string | number | Date | null | undefined
@@ -35,12 +35,12 @@ export function FormattedDate({
     const [copied, setCopied] = useState(false)
 
     if (date == null) {
-        return <span className={cn(textColors.muted, className)}>{fallback}</span>
+        return <span className={cn("text-muted-foreground", className)}>{fallback}</span>
     }
 
     const parsed = dayjs(date)
     if (!parsed.isValid()) {
-        return <span className={cn(textColors.muted, className)}>{fallback}</span>
+        return <span className={cn("text-muted-foreground", className)}>{fallback}</span>
     }
 
     const formatted = parsed.format(format)

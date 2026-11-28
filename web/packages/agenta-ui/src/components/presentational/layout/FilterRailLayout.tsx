@@ -28,7 +28,7 @@
 
 import type {ReactNode} from "react"
 
-import {cn} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
 
 export interface FilterRailLayoutProps {
     /** Title, search, facets — everything you filter WITH. Never scrolls with the results. */

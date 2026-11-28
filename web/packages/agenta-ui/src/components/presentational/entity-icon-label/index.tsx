@@ -29,17 +29,7 @@
 
 import type {ReactNode} from "react"
 
-import {
-    bgColors,
-    borderColors,
-    cn,
-    entityIconColors,
-    flexLayouts,
-    gapClasses,
-    justifyClasses,
-    spacingClasses,
-    textSizes,
-} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
 import {type QueryStatus, type ExecutionStatus} from "../status"
 import {Tag} from "../tag"
 import {VersionBadge} from "../version"
@@ -55,12 +45,12 @@ export interface EntityIconLabelProps {
     icon: ReactNode
     /**
      * Background color class for the icon container
-     * @default entityIconColors.primaryBg
+     * @default "bg-secondary"
      */
     iconBgColor?: string
     /**
      * Text color class for the icon
-     * @default entityIconColors.primary
+     * @default "text-muted-foreground"
      */
     iconColor?: string
     /**
@@ -101,12 +91,12 @@ export interface PanelHeaderProps {
     icon: ReactNode
     /**
      * Background color class for the icon container
-     * @default entityIconColors.primaryBg
+     * @default "bg-secondary"
      */
     iconBgColor?: string
     /**
      * Text color class for the icon
-     * @default entityIconColors.primary
+     * @default "text-muted-foreground"
      */
     iconColor?: string
     /**
@@ -149,8 +139,8 @@ export interface PanelHeaderProps {
  */
 export function EntityIconLabel({
     icon,
-    iconBgColor = entityIconColors.primaryBg,
-    iconColor = entityIconColors.primary,
+    iconBgColor = "bg-secondary",
+    iconColor = "text-muted-foreground",
     iconSize = "md",
     label,
     version,
@@ -162,24 +152,22 @@ export function EntityIconLabel({
     const sizeClasses = iconSize === "sm" ? "w-6 h-6" : "w-8 h-8"
 
     return (
-        <div className={cn(flexLayouts.rowCenter, gapClasses.md, className)}>
+        <div className={cn("flex items-center gap-3", className)}>
             <div
                 className={cn(
                     sizeClasses,
-                    flexLayouts.rowCenter,
-                    justifyClasses.center,
-                    "rounded-lg flex-shrink-0",
+                    "flex items-center justify-center rounded-lg flex-shrink-0",
                     iconBgColor,
                 )}
             >
                 <span className={iconColor}>{icon}</span>
             </div>
             <div className="min-w-0">
-                <div className={cn(flexLayouts.rowCenter, gapClasses.sm, "flex-wrap")}>
+                <div className="flex items-center gap-2 flex-wrap">
                     <span
                         className={cn(
                             "font-semibold",
-                            iconSize === "sm" ? textSizes.sm : textSizes.base,
+                            iconSize === "sm" ? "text-label" : "text-body",
                         )}
                     >
                         {label}
@@ -189,9 +177,7 @@ export function EntityIconLabel({
                     {extra}
                 </div>
                 {subtitle && (
-                    <span className={cn(textSizes.xs, "capitalize text-muted-foreground")}>
-                        {subtitle}
-                    </span>
+                    <span className="text-meta capitalize text-muted-foreground">{subtitle}</span>
                 )}
             </div>
         </div>
@@ -204,8 +190,8 @@ export function EntityIconLabel({
  */
 export function PanelHeader({
     icon,
-    iconBgColor = entityIconColors.primaryBg,
-    iconColor = entityIconColors.primary,
+    iconBgColor = "bg-secondary",
+    iconColor = "text-muted-foreground",
     label,
     version,
     subtitle,
@@ -217,15 +203,12 @@ export function PanelHeader({
     return (
         <div
             className={cn(
-                spacingClasses.card,
-                "border-0 border-b border-solid",
-                borderColors.secondary,
-                bgColors.container,
+                "px-4 py-3 border-0 border-b border-solid border-border-muted bg-background",
                 sticky && "sticky top-0 z-10",
                 className,
             )}
         >
-            <div className={cn(flexLayouts.rowCenter, justifyClasses.between)}>
+            <div className="flex items-center justify-between">
                 <EntityIconLabel
                     icon={icon}
                     iconBgColor={iconBgColor}
@@ -235,9 +218,7 @@ export function PanelHeader({
                     subtitle={subtitle}
                     status={status}
                 />
-                {actions && (
-                    <div className={cn(flexLayouts.rowCenter, gapClasses.sm)}>{actions}</div>
-                )}
+                {actions && <div className="flex items-center gap-2">{actions}</div>}
             </div>
         </div>
     )

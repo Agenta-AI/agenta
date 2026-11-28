@@ -1,6 +1,5 @@
 import type {Visibility} from "@agenta/entities/sharing"
 import type {CommitDeployOption} from "@agenta/entity-ui/modals"
-import type {EnhancedModalProps as ModalProps} from "@agenta/ui"
 import type {ButtonProps, LegacyButtonSize, LegacyButtonType} from "@agenta/ui/ui"
 
 /** Host side effects a commit triggers that this package has no business knowing about. */
@@ -34,7 +33,10 @@ export interface CommitHostAdapter {
     commitDeployOptions?: CommitDeployOption[]
 }
 
-export interface CommitVariantChangesModalProps extends ModalProps, CommitHostAdapter {
+export interface CommitVariantChangesModalProps extends CommitHostAdapter {
+    open?: boolean
+    /** Closes the modal. A save that is under way keeps it open. */
+    onCancel?: () => void
     variantId: string
     onSuccess?: (props: {revisionId?: string; variantId?: string}) => void
 }

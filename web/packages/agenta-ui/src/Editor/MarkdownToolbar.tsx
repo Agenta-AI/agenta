@@ -71,9 +71,9 @@ import {
 } from "../components/ui/dropdown-menu"
 import {Input} from "../components/ui/input"
 import {Popover, PopoverContent, PopoverTrigger} from "../components/ui/popover"
+import {cn} from "../components/ui/utils"
 import {useScrollFadeEdges} from "../hooks/useScrollFadeEdges"
 import {useIsMacPlatform} from "../shortcuts/ShortcutKeys"
-import {cn} from "../utils/styles"
 
 const BLOCK_TYPES = [
     {key: "paragraph", labelKey: "ui.editor.normalText"},

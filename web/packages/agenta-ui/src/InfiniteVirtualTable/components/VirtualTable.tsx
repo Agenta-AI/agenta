@@ -25,7 +25,7 @@ import {useVirtualizer} from "@tanstack/react-virtual"
 
 import {CollapseCaret} from "../../components/ui/collapse-caret"
 import {Spinner} from "../../components/ui/spinner"
-import {cn} from "../../utils/styles"
+import {cn} from "../../components/ui/utils"
 import type {ColumnDef, ColumnDefs, ColumnRenderResult, RenderedColumnCell} from "../columnDef"
 import {isColumnGroupDef} from "../columnDef"
 import {distributeColumnWidths, type DistributableColumn} from "../distributeColumnWidths"

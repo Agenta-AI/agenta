@@ -10,7 +10,9 @@ import {useEffect, useState} from "react"
 import {useT, type CatalogKey, type TranslationValues} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
 import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardStates"
-import {useIsPhone} from "@agenta/ui/phone"
+import chatPhoneDetailCatalog from "@agenta/i18n/catalogs/chat.phoneDetail"
+import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
+import {Sheet, SheetContent, SheetTitle} from "@agenta/ui/ui"
 import {CaretRight, PencilSimple, Plus, Sparkle, X} from "@phosphor-icons/react"
 
 import {useChangeVersions} from "../hooks/useChangeVersions"
@@ -21,10 +23,12 @@ import {
     blockLabel,
     diffRows,
     groupChanges,
+    InPhoneDetail,
+    PHONE_DETAIL_BODY_CLASS,
+    PHONE_DETAIL_SHEET_CLASS,
     RiskLine,
     type ChangeBlock,
 } from "./ChangeSections"
-import {PhoneDetailScreen} from "./PhoneDetailScreen"
 
 type Translate = (
     key: CatalogKey<typeof chatChangeCardStatesCatalog> | CatalogKey<typeof chatChangeCardCatalog>,
@@ -71,6 +75,7 @@ const blockMark = (block: ChangeBlock): "added" | "removed" | "changed" => {
 
 const Row = ({block}: {block: ChangeBlock}) => {
     const t = useT(chatChangeCardStatesCatalog, chatChangeCardCatalog)
+    const tDetail = useT(chatPhoneDetailCatalog)
     // On a phone a row opens its detail full screen (M05); on the desktop it opens in place.
     const phone = useIsPhone()
     const [open, setOpen] = useState(false)
@@ -125,9 +130,29 @@ const Row = ({block}: {block: ChangeBlock}) => {
                 ) : null}
             </button>
             {phone ? (
-                <PhoneDetailScreen open={open} onOpenChange={setOpen} title={label}>
-                    <Block block={block} small={false} />
-                </PhoneDetailScreen>
+                <Sheet open={open} onOpenChange={setOpen}>
+                    <SheetContent
+                        side="right"
+                        data-testid="change-phone-detail"
+                        className={PHONE_DETAIL_SHEET_CLASS}
+                        aria-describedby={undefined}
+                    >
+                        <PhoneScreenHeader
+                            title={
+                                <SheetTitle asChild className="font-semibold">
+                                    <span>{label}</span>
+                                </SheetTitle>
+                            }
+                            onBack={() => setOpen(false)}
+                            backTitle={tDetail("chat.phoneDetail.chat")}
+                        />
+                        <div className={PHONE_DETAIL_BODY_CLASS}>
+                            <InPhoneDetail.Provider value>
+                                <Block block={block} small={false} />
+                            </InPhoneDetail.Provider>
+                        </div>
+                    </SheetContent>
+                </Sheet>
             ) : null}
             {open && !phone ? (
                 <div className="py-2 pl-6">

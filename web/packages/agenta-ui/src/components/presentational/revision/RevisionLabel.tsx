@@ -30,7 +30,7 @@
 
 import React from "react"
 
-import {cn, flexLayouts, textColors} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
 import {VersionBadge} from "../version"
 
 import {AuthorLabel} from "./AuthorLabel"
@@ -139,33 +139,33 @@ export function RevisionLabel({
     // Message element - show actual message or invisible spacer for consistent height
     const messageElement = message ? (
         <span
-            className={cn("truncate", textColors.muted)}
+            className="truncate text-muted-foreground"
             style={{maxWidth: maxMessageWidth}}
             title={message}
         >
             {message}
         </span>
     ) : reserveSubtitleSpace ? (
-        <span className={cn("invisible", textColors.muted)}>&nbsp;</span>
+        <span className="invisible text-muted-foreground">&nbsp;</span>
     ) : null
 
     // Author element - show actual author or invisible spacer for consistent height
     const authorElement = author ? (
-        <div className={textColors.muted}>
+        <div className="text-muted-foreground">
             {renderAuthor ? renderAuthor(author) : <AuthorLabel author={author} />}
         </div>
     ) : reserveSubtitleSpace ? (
-        <div className={cn("invisible", textColors.muted)}>&nbsp;</div>
+        <div className="invisible text-muted-foreground">&nbsp;</div>
     ) : null
 
     return (
-        <div className={cn(flexLayouts.column, "gap-0.5", className)}>
+        <div className={cn("flex flex-col gap-0.5", className)}>
             {/* Version and date row */}
-            <div className={cn(flexLayouts.rowCenter, "gap-2")}>
+            <div className="flex items-center gap-2">
                 <VersionBadge version={version} variant="chip" />
                 {variantName && (
                     <span
-                        className={cn("truncate text-meta", textColors.secondary)}
+                        className="truncate text-meta text-muted-foreground"
                         style={{maxWidth: 120}}
                         title={variantName}
                     >
@@ -173,7 +173,7 @@ export function RevisionLabel({
                     </span>
                 )}
                 {showDateInline && (formattedDate || reserveSubtitleSpace) && (
-                    <span className={cn(textColors.muted, !formattedDate && "invisible")}>
+                    <span className={cn("text-muted-foreground", !formattedDate && "invisible")}>
                         {formattedDate || ""}
                     </span>
                 )}
@@ -201,15 +201,12 @@ export function RevisionLabelInline({
     className,
 }: Pick<RevisionLabelProps, "version" | "message" | "className">) {
     return (
-        <span className={cn(flexLayouts.inlineCenter, "gap-1", className)}>
+        <span className={cn("inline-flex items-center gap-1", className)}>
             <VersionBadge version={version} variant="chip" size="small" />
             {message && (
                 <>
-                    <span className={textColors.separator}>-</span>
-                    <span
-                        className={cn("truncate max-w-[150px]", textColors.muted)}
-                        title={message}
-                    >
+                    <span className="text-muted-foreground">-</span>
+                    <span className="truncate max-w-[150px] text-muted-foreground" title={message}>
                         {message}
                     </span>
                 </>

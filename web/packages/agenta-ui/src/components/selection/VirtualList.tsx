@@ -31,8 +31,8 @@ import {useT} from "@agenta/i18n"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {useVirtualizer} from "@tanstack/react-virtual"
 
-import {cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
 import {Spinner} from "../ui/spinner"
+import {cn} from "../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -193,11 +193,11 @@ export function VirtualList<T>({
     if (isLoading) {
         return (
             <div
-                className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-8", className)}
+                className={cn("flex items-center justify-center py-8", className)}
                 style={containerStyle}
             >
                 <Spinner size="default" />
-                <span className={cn("ml-2", textColors.tertiary)}>{loadingMessage}</span>
+                <span className="ml-2 text-muted-foreground">{loadingMessage}</span>
             </div>
         )
     }
@@ -239,9 +239,9 @@ export function VirtualList<T>({
 
             {/* Loading indicator for fetching more */}
             {isFetchingMore && (
-                <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-4")}>
+                <div className="flex items-center justify-center py-4">
                     <Spinner size="small" />
-                    <span className={cn("ml-2", textColors.tertiary)}>
+                    <span className="ml-2 text-muted-foreground">
                         {t("ui.listControls.loadingMore")}
                     </span>
                 </div>
@@ -286,27 +286,27 @@ export function SimpleList<T>({
     if (isLoading) {
         return (
             <div
-                className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-8", className)}
+                className={cn("flex items-center justify-center py-8", className)}
                 style={containerStyle}
             >
                 <Spinner size="default" />
-                <span className={cn("ml-2", textColors.tertiary)}>{loadingMessage}</span>
+                <span className="ml-2 text-muted-foreground">{loadingMessage}</span>
             </div>
         )
     }
 
     return (
         <div className={className} style={containerStyle}>
-            <div className={cn(flexLayouts.column, gapClasses.xs)}>
+            <div className="flex flex-col gap-1">
                 {items.map((item, index) => (
                     <React.Fragment key={index}>{renderItem(item, index)}</React.Fragment>
                 ))}
             </div>
 
             {isFetchingMore && (
-                <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-4")}>
+                <div className="flex items-center justify-center py-4">
                     <Spinner size="small" />
-                    <span className={cn("ml-2", textColors.tertiary)}>
+                    <span className="ml-2 text-muted-foreground">
                         {t("ui.listControls.loadingMore")}
                     </span>
                 </div>

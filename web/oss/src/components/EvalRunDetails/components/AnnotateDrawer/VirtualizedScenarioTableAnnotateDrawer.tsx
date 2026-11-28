@@ -3,7 +3,6 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {resolveOutputSchema} from "@agenta/entities/workflow"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, DrawerProps, Spin} from "antd"
 import deepEqual from "fast-deep-equal"
@@ -11,6 +10,7 @@ import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
+import {EnhancedDrawer} from "@/oss/components/LegacyKit"
 import {
     generateAnnotationPayloadData,
     generateNewAnnotationPayloadData,

@@ -19,8 +19,8 @@
 
 import type {ReactNode} from "react"
 
-import {cn, entityIconColors, flexLayouts, gapClasses} from "../../../utils/styles"
 import {Badge, type BadgeProps} from "../../ui/badge"
+import {cn} from "../../ui/utils"
 
 // antd Tag `color` → shadcn Badge variant.
 const COLOR_VARIANT: Record<string, NonNullable<BadgeProps["variant"]>> = {
@@ -42,7 +42,7 @@ export interface SourceIndicatorProps {
     icon: ReactNode
     /**
      * Icon color class
-     * @default entityIconColors.connected
+     * @default "text-success"
      */
     iconColor?: string
     /**
@@ -78,7 +78,7 @@ export interface SourceIndicatorProps {
  */
 export function SourceIndicator({
     icon,
-    iconColor = entityIconColors.connected,
+    iconColor = "text-success",
     name,
     connected = true,
     modified = false,
@@ -89,7 +89,7 @@ export function SourceIndicator({
     const displayName = modified ? `${name} (modified)` : name
 
     return (
-        <div className={cn(flexLayouts.rowCenter, gapClasses.sm, className)}>
+        <div className={cn("flex items-center gap-2", className)}>
             <span className={cn("flex-shrink-0", iconColor)}>{icon}</span>
             <Badge
                 variant={COLOR_VARIANT[tagColor] ?? "default"}

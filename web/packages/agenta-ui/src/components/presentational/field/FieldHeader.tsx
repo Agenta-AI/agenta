@@ -20,7 +20,6 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Check, Copy} from "@phosphor-icons/react"
 
 import {copyToClipboard} from "../../../utils/copyToClipboard"
-import {cn, flexLayouts, gapClasses, justifyClasses} from "../../../utils/styles"
 import {Button} from "../../ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
@@ -53,7 +52,7 @@ const FieldHeader = ({value = ""}: FieldHeaderProps) => {
     }, [value])
 
     return (
-        <div className={cn(flexLayouts.rowCenter, justifyClasses.end, gapClasses.xs, "w-full")}>
+        <div className="flex items-center justify-end gap-1 w-full">
             <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
@@ -61,7 +60,7 @@ const FieldHeader = ({value = ""}: FieldHeaderProps) => {
                             variant="ghost"
                             size="sm"
                             onClick={onCopyText}
-                            className={cn(flexLayouts.rowCenter, justifyClasses.center)}
+                            className="flex items-center justify-center"
                         >
                             {isCopied ? <Check size={14} /> : <Copy size={14} />}
                         </Button>

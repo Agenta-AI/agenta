@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import {cn} from "../../utils/styles"
+import {cn} from "../../components/ui/utils"
 import type {ColumnDefs} from "../columnDef"
 
 import type {TableColumnConfig, TableColumnGroup, TableColumnCell} from "./types"

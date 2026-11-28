@@ -5,12 +5,14 @@
  * one header. Old values come from the server preview; without one the card shows the proposed
  * values and says so. The footer (the version note and the buttons) is the card's.
  */
-import {useEffect, useState, type ReactNode} from "react"
+import {createContext, useContext, useEffect, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
+import chatPhoneDetailCatalog from "@agenta/i18n/catalogs/chat.phoneDetail"
 import {computeTextDiffLines} from "@agenta/ui/diff"
-import {useIsPhone} from "@agenta/ui/phone"
+import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
+import {Sheet, SheetContent, SheetTitle} from "@agenta/ui/ui"
 import {
     ArrowRight,
     BookOpen,
@@ -35,8 +37,6 @@ import type {
     ApprovalChangeSection,
 } from "../skin/types"
 
-import {PhoneDetailScreen, useInPhoneDetail} from "./PhoneDetailScreen"
-
 const SECTION_ICON: Record<ApprovalChangeSection, Icon> = {
     instructions: FileText,
     model: Cpu,
@@ -47,6 +47,20 @@ const SECTION_ICON: Record<ApprovalChangeSection, Icon> = {
     permissions: ShieldCheck,
     settings: GearSix,
 }
+
+/**
+ * True inside a phone detail screen: a detail there shows whole, with no "View full diff". A
+ * phone detail screen covers the screen, with a back arrow to the chat and the detail's name as
+ * the title (M05); the desktop card opens the same detail in place.
+ */
+export const InPhoneDetail = createContext(false)
+
+/** The classes of a phone detail screen's sheet: the whole screen, not the floating side panel. */
+export const PHONE_DETAIL_SHEET_CLASS =
+    "inset-0 w-full max-w-none gap-0 rounded-none pt-[env(safe-area-inset-top)] sm:max-w-none"
+/** The scroll area under a phone detail screen's header. */
+export const PHONE_DETAIL_BODY_CLASS =
+    "ag-scroll-quiet min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
 
 /** Diff rows before "View full diff" takes over. */
 const INLINE_DIFF_LINES = 6
@@ -192,9 +206,10 @@ const TextDiff = ({
     bleed: boolean
 }) => {
     const t = useT(chatChangeCardCatalog)
+    const tDetail = useT(chatPhoneDetailCatalog)
     const phone = useIsPhone()
     // A phone detail screen already shows the whole diff.
-    const inDetail = useInPhoneDetail()
+    const inDetail = useContext(InPhoneDetail)
     const [full, setFull] = useState(false)
     // The open state means "in place" on the desktop and "full screen" on a phone: a move across
     // the phone width closes it rather than turning one into the other.
@@ -243,14 +258,36 @@ const TextDiff = ({
                 </button>
             ) : null}
             {phone && !inDetail ? (
-                <PhoneDetailScreen open={full} onOpenChange={setFull} title={screenTitle}>
-                    <div
-                        className="overflow-x-auto rounded-md border border-solid border-border-muted bg-secondary py-1 font-mono text-code"
-                        data-testid="change-diff-full"
+                <Sheet open={full} onOpenChange={setFull}>
+                    <SheetContent
+                        side="right"
+                        data-testid="change-phone-detail"
+                        // The sheet is portaled out of the page, so it keeps the notch and home
+                        // bar clear itself.
+                        className={PHONE_DETAIL_SHEET_CLASS}
+                        aria-describedby={undefined}
                     >
-                        <DiffRows rows={rows.full} />
-                    </div>
-                </PhoneDetailScreen>
+                        <PhoneScreenHeader
+                            title={
+                                <SheetTitle asChild className="font-semibold">
+                                    <span>{screenTitle}</span>
+                                </SheetTitle>
+                            }
+                            onBack={() => setFull(false)}
+                            backTitle={tDetail("chat.phoneDetail.chat")}
+                        />
+                        <div className={PHONE_DETAIL_BODY_CLASS}>
+                            <InPhoneDetail.Provider value>
+                                <div
+                                    className="overflow-x-auto rounded-md border border-solid border-border-muted bg-secondary py-1 font-mono text-code"
+                                    data-testid="change-diff-full"
+                                >
+                                    <DiffRows rows={rows.full} />
+                                </div>
+                            </InPhoneDetail.Provider>
+                        </div>
+                    </SheetContent>
+                </Sheet>
             ) : null}
         </div>
     )

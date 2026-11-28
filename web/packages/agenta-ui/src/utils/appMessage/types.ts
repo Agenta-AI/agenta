@@ -3,8 +3,8 @@ import type * as React from "react"
 /**
  * Local, structurally-compatible replacements for the antd types the app-message facade
  * used to re-export (`antd/es/message/interface`, `antd/es/notification/interface`,
- * `antd/es/modal/confirm`). Same precedent as `EnhancedModal` /
- * `PageLayout`: the facade keeps its public shape, the antd dependency disappears.
+ * `antd/es/modal/confirm`). Same precedent as `PageLayout`: the facade keeps its public
+ * shape, the antd dependency disappears.
  *
  * These are deliberately WIDE — a call-site that compiles against antd's props must keep
  * compiling. When something is missing, widen HERE, never edit the call-site.

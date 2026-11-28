@@ -39,7 +39,6 @@
         "./create-menu": "./src/create-menu/index.ts",
         "./custom-resize-handle.css": "./src/styles/custom-resize-handle.css",
         "./diff": "./src/Editor/utils/diffUtils.ts",
-        "./drawer": "./src/drawer/index.ts",
         "./drill-in": "./src/drill-in/index.ts",
         "./editor": "./src/Editor/index.ts",
         "./editor-theme.css": "./src/styles/editor-theme.css",

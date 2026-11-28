@@ -26,7 +26,7 @@
 import {useT} from "@agenta/i18n"
 import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
 
-import {cn} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
 
 import ImagePreview from "./ImagePreview"
 

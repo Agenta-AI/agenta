@@ -21,7 +21,7 @@ import {CommitMessageInput} from "@agenta/ui/components/presentational"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {InputAffix} from "@agenta/ui/composed"
 import {DiffView} from "@agenta/ui/editor"
-import {cn, textColors} from "@agenta/ui/styles"
+import {cn} from "@agenta/ui/styles"
 import {Alert, Badge, Button, Input, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -343,7 +343,7 @@ export function EntityCommitContent({
                                 </div>
                             )}
                             {!slugFieldError && !slugValidationError && (
-                                <span className={cn(textColors.tertiary)}>
+                                <span className="text-muted-foreground">
                                     {t("entityUi.commitModal.slugEditHint")}
                                 </span>
                             )}
@@ -439,12 +439,7 @@ export function EntityCommitContent({
                         >
                             {(selectedMode ?? "version") === "variant" ? (
                                 <div className="flex flex-col gap-3">
-                                    <span
-                                        className={cn(
-                                            "text-meta leading-relaxed",
-                                            textColors.secondary,
-                                        )}
-                                    >
+                                    <span className="text-meta leading-relaxed text-muted-foreground">
                                         {richText(
                                             t("entityUi.commitModal.variantNote", {
                                                 name: variantName,
@@ -466,12 +461,7 @@ export function EntityCommitContent({
                                     ) : null}
                                 </div>
                             ) : (
-                                <span
-                                    className={cn(
-                                        "text-meta leading-relaxed",
-                                        textColors.secondary,
-                                    )}
-                                >
+                                <span className="text-meta leading-relaxed text-muted-foreground">
                                     {richText(
                                         t("entityUi.commitModal.versionNote", {
                                             name: hasVariantMode
@@ -496,7 +486,7 @@ export function EntityCommitContent({
                     since there's no existing entity to show version transitions for */}
                     {context?.versionInfo && actionLabel === "Commit" && !isAgentCommit && (
                         <div className="rounded-lg border border-zinc-2 bg-zinc-1 p-3">
-                            <span className={textColors.secondary}>
+                            <span className="text-muted-foreground">
                                 {richText(
                                     selectedMode === "variant"
                                         ? t("entityUi.commitModal.createsVariantFrom", {
@@ -511,7 +501,7 @@ export function EntityCommitContent({
                             <div className="mt-2 flex items-center gap-2 min-w-0">
                                 <span className="flex items-center gap-1 min-w-0">
                                     <span
-                                        className={cn("truncate", textColors.secondary)}
+                                        className="truncate text-muted-foreground"
                                         title={originalEntityName}
                                     >
                                         {originalEntityName}
@@ -522,7 +512,7 @@ export function EntityCommitContent({
                                         className="shrink-0"
                                     />
                                 </span>
-                                <span className={cn("shrink-0", textColors.tertiary)}>→</span>
+                                <span className="shrink-0 text-muted-foreground">→</span>
                                 {selectedMode === "variant" ? (
                                     <span className="flex items-center gap-1 min-w-0">
                                         <span
@@ -544,7 +534,7 @@ export function EntityCommitContent({
                                 ) : (
                                     <span className="flex items-center gap-1 min-w-0">
                                         <span
-                                            className={cn("truncate", textColors.secondary)}
+                                            className="truncate text-muted-foreground"
                                             title={originalEntityName}
                                         >
                                             {originalEntityName}
@@ -556,7 +546,7 @@ export function EntityCommitContent({
                                 )}
                             </div>
                             {changesDescription.length > 0 && (
-                                <div className={cn("mt-2 text-meta", textColors.tertiary)}>
+                                <div className="mt-2 text-meta text-muted-foreground">
                                     {t("entityUi.commitModal.changesList", {
                                         list: changesDescription.join(", "),
                                     })}
@@ -682,10 +672,10 @@ export function EntityCommitContent({
             ) : hasDiffData ? (
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-2 bg-zinc-1">
                     <div className="flex items-center justify-between border-b border-zinc-2 bg-zinc-1 px-3 py-2 shrink-0">
-                        <span className={cn("text-meta font-medium", textColors.secondary)}>
+                        <span className="text-meta font-medium text-muted-foreground">
                             {t("entityUi.commitModal.changesPreview")}
                         </span>
-                        <span className={cn("text-meta", textColors.quaternary)}>
+                        <span className="text-meta text-muted-foreground">
                             {t("entityUi.commitModal.changeCount", {count: totalChanges})}
                         </span>
                     </div>

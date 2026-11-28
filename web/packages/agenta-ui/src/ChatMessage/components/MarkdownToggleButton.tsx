@@ -10,7 +10,6 @@ import {Button} from "../../components/ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../components/ui/tooltip"
 import {TOGGLE_MARKDOWN_VIEW} from "../../Editor/plugins/markdown/commands"
 import {markdownViewAtom} from "../../Editor/state/assets/atoms"
-import {cn, flexLayouts, justifyClasses} from "../../utils/styles"
 
 interface MarkdownToggleButtonProps {
     id: string
@@ -33,7 +32,7 @@ const MarkdownToggleButton = ({id}: MarkdownToggleButtonProps) => {
                         variant="ghost"
                         size="sm"
                         onClick={onToggleMarkdown}
-                        className={cn(flexLayouts.rowCenter, justifyClasses.center)}
+                        className="flex items-center justify-center"
                     >
                         {markdownView ? <MarkdownLogoIcon size={14} /> : <TextAa size={14} />}
                     </Button>

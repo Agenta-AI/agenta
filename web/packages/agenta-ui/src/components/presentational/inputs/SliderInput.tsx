@@ -27,10 +27,10 @@ import {memo, useCallback, useEffect, useState} from "react"
 
 import {XCircle} from "@phosphor-icons/react"
 
-import {cn, flexLayouts, gapClasses} from "../../../utils/styles"
 import {InputNumber} from "../../composed/input-number"
 import {Button} from "../../ui/button"
 import {Slider} from "../../ui/slider"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -111,8 +111,8 @@ export const SliderInput = memo(function SliderInput({
     )
 
     return (
-        <div className={cn(flexLayouts.column, gapClasses.xs, className)}>
-            <div className={cn(flexLayouts.rowCenter, gapClasses.xs)}>
+        <div className={cn("flex flex-col gap-1", className)}>
+            <div className="flex items-center gap-1">
                 <InputNumber
                     min={min}
                     max={max}

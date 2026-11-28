@@ -10,10 +10,10 @@ import React from "react"
 import {useT} from "@agenta/i18n"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 
-import {cn, flexLayouts, justifyClasses, textColors} from "../../utils/styles"
 import {SearchInput} from "../composed"
 import {EmptyState} from "../composed/empty-state"
 import {Spinner} from "../ui/spinner"
+import {cn} from "../ui/utils"
 
 import {AdaptiveList, SimpleList, VirtualList} from "./VirtualList"
 
@@ -104,9 +104,9 @@ export function SearchableList<T>({
 
     const renderLoading = () =>
         loadingState ?? (
-            <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-8")}>
+            <div className="flex items-center justify-center py-8">
                 <Spinner size="default" />
-                <span className={cn("ml-2", textColors.tertiary)}>{loadingMessage}</span>
+                <span className="ml-2 text-muted-foreground">{loadingMessage}</span>
             </div>
         )
 

@@ -16,14 +16,14 @@
 
 import type {ReactNode} from "react"
 
-import {
-    borderColors,
-    cn,
-    flexLayouts,
-    gapClasses,
-    justifyClasses,
-    spacingClasses,
-} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
+
+const JUSTIFY = {
+    start: "justify-start",
+    center: "justify-center",
+    end: "justify-end",
+    between: "justify-between",
+} as const
 
 // ============================================================================
 // TYPES
@@ -56,12 +56,8 @@ export function PanelFooter({children, align = "end", className}: PanelFooterPro
     return (
         <div
             className={cn(
-                "border-0 border-t border-solid flex-shrink-0",
-                flexLayouts.rowCenter,
-                spacingClasses.panel,
-                gapClasses.sm,
-                borderColors.secondary,
-                justifyClasses[align],
+                "border-0 border-t border-solid flex-shrink-0 flex items-center p-4 gap-2 border-border-muted",
+                JUSTIFY[align],
                 className,
             )}
         >

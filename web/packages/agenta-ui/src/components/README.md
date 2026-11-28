@@ -22,10 +22,8 @@ components/
 │   ├── metadata/            # MetadataHeader
 │   ├── attachments/         # ImageAttachment, FileAttachment, AttachmentGrid
 │   ├── field/               # FieldHeader
-│   ├── select/              # SimpleDropdownSelect
 │   ├── editable/            # EditableText
 │   └── index.ts
-├── EnhancedModal.tsx        # Modal wrapper with lazy rendering
 └── index.ts
 ```
 
@@ -48,9 +46,6 @@ import {
     SectionCard,
     MetadataHeader,
     EditableText,
-
-    // Modal
-    EnhancedModal,
 } from "@agenta/ui"
 ```
 
@@ -82,17 +77,16 @@ Pure display components with no data fetching or business logic.
 | `ConfigBlock`           | Configuration block with title                    |
 | `MetadataHeader`        | Label/value metadata display                      |
 | `EditableText`          | Inline editable text                              |
-| `SimpleDropdownSelect`  | Simple dropdown using Ant Design                  |
 | `ImageAttachment`       | Image preview with remove button                  |
 | `FileAttachment`        | File badge with remove button                     |
 | `AttachmentGrid`        | Grid layout for attachments                       |
 | `FieldHeader`           | Field header with copy/markdown toggle            |
 
-## Modal Components
+## Modals
 
-| Component       | Description                                                         |
-| --------------- | ------------------------------------------------------------------- |
-| `EnhancedModal` | Modal wrapper with lazy rendering, auto-height, smart style merging |
+Build a modal from the `Dialog` primitive in `@agenta/ui/ui` (`Dialog`, `DialogContent`,
+`DialogHeader`, `DialogTitle`, `DialogFooter`). Radix mounts the content only while the dialog
+is open and unmounts it after it closes.
 
 ### Modal Pattern: Content Extraction
 
@@ -107,18 +101,22 @@ function MyModal({open, onClose}) {
     const items = useAtomValue(someListAtom)
 
     return (
-        <EnhancedModal open={open} onCancel={onClose}>
-            <MyContent data={data} items={items} />
-        </EnhancedModal>
+        <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+            <DialogContent>
+                <MyContent data={data} items={items} />
+            </DialogContent>
+        </Dialog>
     )
 }
 
 // ✅ Good: Data logic only runs when modal is open
 function MyModal({open, onClose, ...props}) {
     return (
-        <EnhancedModal open={open} onCancel={onClose}>
-            <MyModalContent {...props} onClose={onClose} />
-        </EnhancedModal>
+        <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+            <DialogContent>
+                <MyModalContent {...props} onClose={onClose} />
+            </DialogContent>
+        </Dialog>
     )
 }
 
@@ -138,13 +136,6 @@ function MyModalContent({onClose, ...props}) {
 - No wasted processing when modal is closed
 - Cleaner separation of concerns (modal chrome vs content)
 - Better performance for pages with many modals
-
-**EnhancedModal features:**
-
-- `lazyRender` (default: true): Content only mounts after first open
-- `destroyOnHidden` (default: true): Content unmounts when closed
-- Auto-contained height with internal scrolling (default: 90vh max)
-- Smart style merging for container/body/footer
 
 ## Adding New Components
 

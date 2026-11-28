@@ -5,7 +5,6 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import loadErrorCatalog from "@agenta/i18n/catalogs/ui.loadError"
 import {ArrowClockwiseIcon, WarningIcon} from "@phosphor-icons/react"
 
-import {cn} from "../../../utils/styles"
 import {Button} from "../../ui/button"
 import {
     Empty,
@@ -15,6 +14,7 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from "../../ui/empty"
+import {cn} from "../../ui/utils"
 
 export interface LoadErrorProps {
     /** What failed: "Could not load skills". */

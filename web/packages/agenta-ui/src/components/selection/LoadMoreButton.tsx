@@ -27,16 +27,9 @@ import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {CaretDownIcon} from "@phosphor-icons/react"
 
 import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
-import {
-    cn,
-    flexLayouts,
-    gapClasses,
-    justifyClasses,
-    linkColors,
-    textColors,
-} from "../../utils/styles"
 import {Button, type ButtonProps} from "../ui/button"
 import {Spinner} from "../ui/spinner"
+import {cn} from "../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -199,23 +192,12 @@ export function LoadMoreInline({
     return (
         <div className={cn("py-2 text-center", className)}>
             {isLoading ? (
-                <span
-                    className={cn(
-                        textColors.tertiary,
-                        flexLayouts.rowCenter,
-                        justifyClasses.center,
-                        gapClasses.sm,
-                    )}
-                >
+                <span className="text-muted-foreground flex items-center justify-center gap-2">
                     <Spinner size="small" />
                     {t("ui.listControls.loadingDots")}
                 </span>
             ) : (
-                <button
-                    type="button"
-                    onClick={onClick}
-                    className={cn(linkColors.default, linkColors.hover)}
-                >
+                <button type="button" onClick={onClick} className="text-link hover:underline">
                     {label}
                 </button>
             )}
@@ -256,7 +238,7 @@ export function EndOfList({message: messageProp, totalCount, className = ""}: En
         : message
 
     return (
-        <div className={cn("py-3 text-center", textColors.quaternary, className)}>
+        <div className={cn("py-3 text-center text-muted-foreground", className)}>
             {displayMessage}
         </div>
     )

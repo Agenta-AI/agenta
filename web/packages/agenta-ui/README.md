@@ -25,7 +25,6 @@ import {
   VirtualList,
   VersionBadge,
   RevisionLabel,
-  EnhancedModal,
   // Section layout primitives
   SectionCard,
   SectionLabel,
@@ -36,7 +35,7 @@ import {
 } from '@agenta/ui'
 
 // Import utilities
-import { copyToClipboard, cn, sizeClasses, textColors, bgColors } from '@agenta/ui'
+import { copyToClipboard, cn } from '@agenta/ui'
 ```
 
 ## Subpath Exports
@@ -45,7 +44,7 @@ import { copyToClipboard, cn, sizeClasses, textColors, bgColors } from '@agenta/
 
 | Subpath | Description | Key Exports |
 |---------|-------------|-------------|
-| `@agenta/ui` | Main exports | Presentational components, utilities, `cn`, `textColors` |
+| `@agenta/ui` | Main exports | Presentational components, utilities, `cn` |
 | `@agenta/ui/table` | Virtual table | `InfiniteVirtualTable`, paginated store utilities |
 | `@agenta/ui/editor` | Lexical editor | `Editor`, `DiffView`, JSON parsing utilities |
 | `@agenta/ui/shared-editor` | Shared editor | `SharedEditor`, `useDebounceInput` |
@@ -59,7 +58,7 @@ import { copyToClipboard, cn, sizeClasses, textColors, bgColors } from '@agenta/
 
 ```typescript
 // Main exports (presentational components, utilities)
-import {cn, textColors, SectionCard, EnhancedModal} from "@agenta/ui"
+import {cn, SectionCard} from "@agenta/ui"
 
 // Table components (avoids pulling Lexical)
 import {InfiniteVirtualTable, createPaginatedEntityStore} from "@agenta/ui/table"

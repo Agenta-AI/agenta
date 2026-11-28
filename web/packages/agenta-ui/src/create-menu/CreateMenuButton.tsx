@@ -12,7 +12,7 @@ import {
     DropdownMenuTrigger,
     type ButtonProps,
 } from "../components/ui"
-import {cn} from "../utils/styles"
+import {cn} from "../components/ui/utils"
 
 /** Each kind's tile is a neutral Mark; the icon tells the kinds apart (COLOR-05). */
 const TILES = {

@@ -29,7 +29,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The `@agenta/ui` Dialog (Radix-based) for modal content. It is a compound component — compose `Dialog` > `DialogContent` > `DialogHeader`/`DialogFooter`. Prop tables for each part are below.\n\n**Used in:** 2 places directly — `EnhancedModal` and the attachment `ImagePreview`. Its real reach is through `EnhancedModal`, which 42 files render (playground modals, deploy/commit/delete flows, settings, EE billing).",
+                    "The `@agenta/ui` Dialog (Radix-based) for modal content. It is a compound component — compose `Dialog` > `DialogContent` > `DialogHeader`/`DialogFooter`. Prop tables for each part are below.\n\n**Used in:** every modal; call sites compose the parts directly (commit, deploy and delete flows, settings forms, the attachment `ImagePreview`).",
             },
         },
     },

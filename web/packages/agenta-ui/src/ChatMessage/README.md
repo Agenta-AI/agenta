@@ -24,8 +24,7 @@ ChatMessage/
     ├── MarkdownToggleButton.tsx# Markdown preview toggle
     ├── ToolMessageHeader.tsx   # Tool message header (uses MetadataHeader)
     ├── MessageAttachments.tsx  # Attachment display (uses presentational components)
-    ├── AttachmentButton.tsx    # Attachment upload dropdown
-    └── SimpleDropdownSelect.tsx# Role selector (re-exports from presentational)
+    └── AttachmentButton.tsx    # Attachment upload dropdown
 ```
 
 > **Note:** Types, schemas, and utilities are re-exported from `@agenta/shared`.

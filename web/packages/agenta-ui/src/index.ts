@@ -14,7 +14,6 @@
  * Reusable UI components including:
  * - Selection components (SearchInput, VirtualList, EntityBreadcrumb, etc.)
  * - Presentational components (VersionBadge, RevisionLabel, EntityPathLabel, etc.)
- * - Modal utilities (EnhancedModal)
  *
  * ### Utilities
  * Generic utilities for clipboard operations, styling, and other common tasks.
@@ -34,11 +33,10 @@
  *   VirtualList,
  *   VersionBadge,
  *   RevisionLabel,
- *   EnhancedModal,
  * } from '@agenta/ui'
  *
  * // Import utilities
- * import { copyToClipboard, cn, sizeClasses } from '@agenta/ui'
+ * import { copyToClipboard, cn } from '@agenta/ui'
  * ```
  */
 
@@ -65,7 +63,6 @@ export {MarkdownPreview, type MarkdownPreviewProps} from "./MarkdownPreview"
  * All component exports including:
  * - Selection: SearchInput, ListItem, VirtualList, LoadMoreButton, LoadAllButton, EntityBreadcrumb
  * - Presentational: VersionBadge, RevisionLabel, EntityPathLabel, EntityNameWithVersion
- * - Modal: EnhancedModal
  */
 export * from "./components"
 
@@ -92,39 +89,9 @@ export {
 } from "./utils/groupColumns"
 
 /**
- * Styling utilities:
- * - cn: Class name concatenation utility
- * - sizeClasses: Text size class mappings
- * - flexLayouts: Common flex layout patterns
- * - textColors: Semantic text color classes (using Ant Design zinc scale)
- * - bgColors: Semantic background color classes
- * - borderColors: Semantic border color classes
- * - interactiveStyles: Common interactive element styles
- * - statusColors: Status-based color classes (success, warning, error, info)
- * - shadows: Common shadow classes
+ * Styling utilities: `cn` (the tailwind-merge class combiner) and the shared layout sizes.
  */
-export {
-    cn,
-    sizeClasses,
-    flexLayouts,
-    textColors,
-    bgColors,
-    borderColors,
-    interactiveStyles,
-    statusColors,
-    entityIconColors,
-    shadows,
-    textSizes,
-    justifyClasses,
-    focusStyles,
-    layoutSizes,
-    modalSizes,
-    spacingClasses,
-    gapClasses,
-    linkColors,
-    dangerColors,
-    type SizeVariant,
-} from "./utils/styles"
+export {cn, layoutSizes, modalSizes, type SizeVariant} from "./utils/styles"
 
 /**
  * App Message Context - Static message/modal/notification services

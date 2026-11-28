@@ -14,6 +14,3 @@ export const getInitials = (name: string) => name.slice(0, 2).toUpperCase()
 // Add additional no-op exports here if other @agenta/ui symbols are imported
 // by entity source files in the future.
 export const cn = (...args: unknown[]) => args.filter(Boolean).join(" ")
-export const textColors = {}
-export const bgColors = {}
-export const EnhancedModal = () => null

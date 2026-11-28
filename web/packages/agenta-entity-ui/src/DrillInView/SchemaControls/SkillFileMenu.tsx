@@ -169,7 +169,7 @@ export function SkillFileMenu({
 
     return (
         <div className={cn("flex flex-col", !inSheet && "max-h-[min(560px,70vh)]")}>
-            <div className={cn("shrink-0 pb-1", inSheet ? "px-2" : "p-1.5")}>
+            <div className={cn("shrink-0", inSheet ? "px-2" : "p-1.5", "pb-1")}>
                 <InputAffix
                     autoFocus={!inSheet}
                     value={query}

@@ -25,8 +25,8 @@ import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import {type MappingStatus, getMappingStatusConfig} from "@agenta/shared/utils"
 import {MagicWand, PencilSimpleLine, Warning, X} from "@phosphor-icons/react"
 
-import {cn} from "../../../utils/styles"
 import {Badge, type BadgeProps} from "../../ui/badge"
+import {cn} from "../../ui/utils"
 import {type EnvironmentName, type ExecutionStatus, type QueryStatus} from "../status"
 
 type Tone = BadgeProps["variant"]

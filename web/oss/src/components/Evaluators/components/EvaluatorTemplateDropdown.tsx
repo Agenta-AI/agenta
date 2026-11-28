@@ -5,7 +5,7 @@ import {
     evaluatorTemplatesQueryAtom,
     type EvaluatorCatalogTemplate,
 } from "@agenta/entities/workflow"
-import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
+import {cn} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Empty, Popover, Skeleton, Tabs, Tag, Typography} from "antd"
@@ -19,6 +19,7 @@ import {
     filterEvaluatorsByTag,
     getEvaluatorTagColor,
 } from "@/oss/components/Evaluators/assets/evaluatorFiltering"
+import {textColors, bgColors, borderColors} from "@/oss/components/LegacyKit"
 
 interface EvaluatorTemplateDropdownProps {
     /** Callback when an evaluator template is selected */

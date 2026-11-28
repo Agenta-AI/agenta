@@ -7,7 +7,7 @@ import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {SidebarLayoutContext, SidebarShell} from "@agenta/navigation-ui"
 import {SimpleTooltip} from "@agenta/ui/composed"
-import {SidebarSheet, useIsPhone} from "@agenta/ui/phone"
+import {useIsPhone} from "@agenta/ui/phone"
 import {Button, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@agenta/ui/ui"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -126,17 +126,27 @@ export const NavDrawer = ({
     )
 
     if (phone) {
-        // The sidebar brings its own Back and Close row (onDismiss), so the sheet draws none.
+        // The phone sidebar: 300 px wide, inset 8 px, a dimmed page behind it. The sidebar
+        // brings its own Back and Close row (onDismiss), so the sheet draws none.
         return (
-            <SidebarSheet
-                open={open}
-                onOpenChange={onOpenChange}
-                title={t("navigation.chrome.navigationTitle")}
-                showHeader={false}
-                trigger={menuButton(tPhone("ui.phone.openSidebar"))}
-            >
-                <SidebarLayoutContext.Provider value="phone">{shell}</SidebarLayoutContext.Provider>
-            </SidebarSheet>
+            <Sheet open={open} onOpenChange={onOpenChange}>
+                <SheetTrigger asChild>{menuButton(tPhone("ui.phone.openSidebar"))}</SheetTrigger>
+                <SheetContent
+                    side="left"
+                    data-testid="sidebar-sheet"
+                    aria-describedby={undefined}
+                    className="w-[300px] max-w-[calc(100vw-16px)] gap-0 overflow-hidden"
+                >
+                    <SheetTitle className="sr-only">
+                        {t("navigation.chrome.navigationTitle")}
+                    </SheetTitle>
+                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                        <SidebarLayoutContext.Provider value="phone">
+                            {shell}
+                        </SidebarLayoutContext.Provider>
+                    </div>
+                </SheetContent>
+            </Sheet>
         )
     }
 

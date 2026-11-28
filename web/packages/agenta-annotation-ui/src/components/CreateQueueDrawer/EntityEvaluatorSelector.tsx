@@ -14,7 +14,6 @@ import {
 import {createT, useT} from "@agenta/i18n"
 import queuesCatalog from "@agenta/i18n/catalogs/annotation.queues"
 import {VersionBadge} from "@agenta/ui/components/presentational"
-import {textColors} from "@agenta/ui/styles"
 import {Plus} from "@phosphor-icons/react"
 
 export interface EntityEvaluatorSelectorProps {
@@ -82,7 +81,7 @@ export function EntityEvaluatorSelector({
                 </div>
                 {metricSummary ? (
                     <span
-                        className={`truncate text-meta ${textColors.muted}`}
+                        className={`truncate text-meta text-muted-foreground`}
                         title={metrics.map(formatHumanMetricLabel).join(", ")}
                     >
                         {metricSummary}

@@ -24,7 +24,7 @@ import React from "react"
 
 import {CaretRightIcon} from "@phosphor-icons/react"
 
-import {cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
+import {cn} from "../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -153,23 +153,15 @@ export function ListItem({
     }
 
     // Hover is the translucent `accent`, so it shows on any surface; selection is `selected`.
-    const baseClasses = cn(
-        flexLayouts.rowCenter,
-        justifyClasses.between,
-        "box-border px-2 py-2 transition-colors rounded-md",
-        textColors.secondary,
-    )
+    const baseClasses =
+        "flex items-center justify-between box-border px-2 py-2 transition-colors rounded-md text-muted-foreground"
     const stateClasses = isDisabled
         ? "opacity-50 cursor-not-allowed"
         : isSelected
-          ? cn(
-                "cursor-pointer",
-                "bg-selected hover:bg-[image:linear-gradient(var(--accent),var(--accent))]",
-                textColors.primary,
-            )
+          ? "cursor-pointer bg-selected hover:bg-[image:linear-gradient(var(--accent),var(--accent))] text-foreground"
           : isHovered
-            ? cn("cursor-pointer", "bg-selected", textColors.primary)
-            : cn("cursor-pointer", "hover:bg-accent", textColors.iconHover)
+            ? "cursor-pointer bg-selected text-foreground"
+            : "cursor-pointer hover:bg-accent hover:text-foreground"
 
     return (
         <div
@@ -181,17 +173,17 @@ export function ListItem({
             aria-disabled={isDisabled}
             aria-selected={isSelected}
         >
-            <div className={cn(flexLayouts.rowCenter, gapClasses.md, "flex-1 min-w-0")}>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
                 {prefixNode && (
                     <span className="flex-shrink-0 flex items-center">{prefixNode}</span>
                 )}
-                {icon && <span className={cn("flex-shrink-0", textColors.tertiary)}>{icon}</span>}
+                {icon && <span className="flex-shrink-0 text-muted-foreground">{icon}</span>}
                 <div className="flex-1 min-w-0">
                     <div className="truncate text-field-md" title={label}>
                         {labelNode ?? label}
                     </div>
                     {description && (
-                        <div className={cn(textColors.tertiary, "truncate text-field-md")}>
+                        <div className="text-muted-foreground truncate text-field-md">
                             {description}
                         </div>
                     )}
@@ -206,7 +198,7 @@ export function ListItem({
             {/* Show chevron for items with children (indicates popover/drill-down available) */}
             {hasChildren && (
                 <div className="flex-shrink-0 ml-2">
-                    <CaretRightIcon className={cn("w-3 h-3", textColors.quaternary)} />
+                    <CaretRightIcon className="w-3 h-3 text-muted-foreground" />
                 </div>
             )}
         </div>

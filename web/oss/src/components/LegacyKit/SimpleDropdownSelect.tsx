@@ -24,19 +24,19 @@
 
 import {useMemo} from "react"
 
-import {CaretUpDown} from "@phosphor-icons/react"
-
-import {bgColors, flexLayouts} from "../../../utils/styles"
-import {Button} from "../../ui/button"
+import {Button} from "@agenta/ui/ui"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from "../../ui/dropdown-menu"
+} from "@agenta/ui/ui"
 // The tailwind-merge `cn`, not the clsx-only one in utils/styles: this composes against
 // `buttonVariants`, and clsx keeps `px-btn px-2` both, letting stylesheet order win.
-import {cn} from "../../ui/utils"
+import {cn} from "@agenta/ui/ui"
+import {CaretUpDown} from "@phosphor-icons/react"
+
+import {bgColors, flexLayouts} from "./styles"
 
 // ============================================================================
 // TYPES

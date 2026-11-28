@@ -78,7 +78,7 @@ one-line purpose each, is `web/packages/README.md`. The core ones:
 | Package | Purpose | Key exports |
 | --- | --- | --- |
 | `@agenta/shared` | Utilities, types, schemas, hooks; host QueryClient API | `./api`, `./state`, `./utils`, `getHostQueryClient` |
-| `@agenta/ui` | Shared UI kit | shadcn primitives (`./ui`), `EnhancedModal`, `InfiniteVirtualTable`, `cn`, `textColors`, presentational components |
+| `@agenta/ui` | Shared UI kit | shadcn primitives (`./ui`), `InfiniteVirtualTable`, `cn`, presentational components |
 | `@agenta/sdk` | Fern client wrapper | per-resource clients in `./resources` |
 | `@agenta/entities` | Entity state and API calls | molecules (`workflowMolecule`, `testcaseMolecule`, ...), the loadable bridge |
 | `@agenta/entity-ui` | Entity-specific UI | `EntityPicker`, modals, drawers, drill-in, the drive |
@@ -111,7 +111,7 @@ import type {SimpleChatMessage, MessageContent, ToolCall} from "@agenta/shared/t
 ```typescript
 import {...} from "@agenta/ui/ui"                 // shadcn primitives (Button, Dialog, Sheet, ...)
 import {...} from "@agenta/ui/composed"           // built from the primitives (SimpleTooltip, LoadingButton, Segmented, SplitPane, ...)
-import {...} from "@agenta/ui"                    // presentational components, cn, textColors
+import {...} from "@agenta/ui"                    // presentational components, cn
 import {...} from "@agenta/ui/table"              // InfiniteVirtualTable, paginated stores
 import {...} from "@agenta/ui/editor"             // Editor, JSON parsing utilities
 import {...} from "@agenta/ui/shared-editor"      // SharedEditor, useDebounceInput
@@ -135,35 +135,45 @@ import {...} from "@agenta/entity-ui/selection"   // EntityPicker and adapters
 
 ## Modals
 
-`EnhancedModal` from `@agenta/ui` is an antd-`Modal`-compatible facade over the
-`@agenta/ui` Radix `Dialog`, kept so existing call sites work unchanged. Use it
-instead of raw antd `Modal` in package code. In `web/mobile`, and for new
-surfaces, compose `Dialog`/`Sheet` from `@agenta/ui/ui` directly.
+Compose a modal from the `Dialog` primitive in `@agenta/ui/ui`. Never use raw antd `Modal`,
+and do not add a wrapper around `Dialog`: the call site uses the parts directly. A side panel
+uses `Sheet` the same way.
 
 ```typescript
-import {EnhancedModal} from "@agenta/ui"
+import {Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 
 function MyModal({open, onClose, onConfirm}: MyModalProps) {
     return (
-        <EnhancedModal open={open} onCancel={onClose} onOk={onConfirm} title="Modal Title">
-            {/* Main content */}
-        </EnhancedModal>
+        <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Modal Title</DialogTitle>
+                </DialogHeader>
+                {/* Main content */}
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button onClick={onConfirm}>OK</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }
 ```
 
-Why: consistent styling, scroll handling inside the modal body, theme integration.
+Why: one primitive for every modal; the content mounts only while the dialog is open.
 
 ## Style utilities and presentational components
 
 When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
 
-```typescript
-import {cn, textColors, bgColors} from "@agenta/ui"
+Write theme-variable classes as literals (`web/DESIGN.md`); `cn` (clsx + tailwind-merge)
+combines them, and a later conflicting class wins.
 
-<div className={cn("base-class", isActive && "active-class")} />
-<span className={textColors.secondary}>Secondary text</span>
-<div className={bgColors.hover}>Hoverable area</div>
+```typescript
+import {cn} from "@agenta/ui/styles"
+
+<div className={cn("px-4 text-muted-foreground", isActive && "text-foreground", className)} />
+<div className="hover:bg-accent">Hoverable area</div>
 ```
 
 Section layout primitives from `@agenta/ui`:
@@ -185,8 +195,8 @@ import {
 ```text
 Need a primitive (button, dialog, ...)? → @agenta/ui/ui
 Need a kit composition (SimpleTooltip, LoadingButton, Segmented, RightPane, ...)? → @agenta/ui/composed
-Need a modal?                          → Dialog from @agenta/ui/ui (EnhancedModal for antd-style call sites)
-Class-name utils or theme colors?      → cn, textColors, bgColors from @agenta/ui
+Need a modal?                          → Dialog from @agenta/ui/ui
+Class-name utils?                      → cn from @agenta/ui/styles (theme colors are literal classes)
 Section layout primitives?             → SectionCard, SectionLabel, ConfigBlock from @agenta/ui
 Entity state management (molecules)?   → *Molecule from @agenta/entities/{entity}
 Entity selection UI?                   → EntityPicker from @agenta/entity-ui/selection

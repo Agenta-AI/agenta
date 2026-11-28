@@ -10,12 +10,11 @@
  * (labelled "Create" for a new item) and discards it via **Cancel** / the close button. So an
  * in-progress edit never touches the config until the user confirms.
  *
- * Built on the shared `EnhancedDrawer` (`@agenta/ui/drawer`) so all app drawers migrate
- * through a single component. This component is pure chrome — the per-item business logic lives
+ * Built on the kit `Sheet`. This component is pure chrome — the per-item business logic lives
  * in the `form` content component the host passes (ToolFormView / McpServerFormView /
- * SkillFormView). That content is mounted lazily: `EnhancedDrawer` does not render its children
- * until first opened, and `destroyOnClose` unmounts them again on close — so a content
- * component's hooks/queries never run until the user actually opens the drawer.
+ * SkillFormView). That content is mounted lazily: the sheet content mounts only while the drawer
+ * is open and unmounts after it closes — so a content component's hooks/queries never run until
+ * the user actually opens the drawer.
  *
  * Used for tools and MCP servers today; the chrome is item-agnostic so other config item
  * types can reuse it.
@@ -24,10 +23,19 @@ import {type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Badge, type BadgeProps, Button} from "@agenta/ui/ui"
+import {cn} from "@agenta/ui/styles"
+import {
+    Badge,
+    type BadgeProps,
+    Button,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from "@agenta/ui/ui"
 
-import {FormDrawerSkeleton} from "./DrawerSkeletons"
+import {DeferredBody, FormDrawerSkeleton} from "./DrawerSkeletons"
 
 // The badge `color` is an antd preset hue name supplied by the item-kind descriptors
 // (`typeColor: "cyan" | "blue" | …`), which type it as a plain string — so resolve it to a Badge
@@ -124,93 +132,107 @@ export function ConfigItemDrawer({
     const flushForm = contentFlush && !jsonOnly
 
     return (
-        <EnhancedDrawer
-            rootClassName="ag-drawer-elevated"
+        <Sheet
             open={open}
-            onClose={onCancel}
-            placement="right"
-            width={width}
-            // Lazy content: children aren't mounted until first open and are torn down on close,
-            // so the content component's logic only runs while the drawer is open.
-            destroyOnClose
-            bodyFallback={<div className={flushForm ? "h-full p-4" : "h-full"}>{loadingBody}</div>}
-            title={
-                // One line: title · subtitle. Stacked, the subtitle doubled the header height for
-                // a few muted words, and the leading icon repeated the row the drawer opened from.
-                <div className="flex min-w-0 items-center gap-2">
-                    <span className="min-w-0 truncate text-label font-medium">{title}</span>
-                    {badge ? (
-                        <Badge
-                            variant={badgeVariantFor(badge.color)}
-                            // `text-xs` displaces Badge's `text-badge-md` and brings no
-                            // line-height; antd Tag keeps its absolute tagLineHeight
-                            // (lineHeightSM x fontSizeSM = 22.4px).
-                            className="shrink-0 text-meta font-normal leading-[22.4px]"
-                        >
-                            {badge.text}
-                        </Badge>
-                    ) : null}
-                    {subtitle ? (
-                        <span className="min-w-0 truncate text-meta font-normal text-muted-foreground">
-                            · {subtitle}
-                        </span>
-                    ) : null}
-                </div>
-            }
-            extra={headerExtra ?? null}
-            footer={
-                // w-full, or the sheet's own end-justified footer keeps this row hugging the
-                // actions and a left-hand note lands beside Cancel.
-                <div className="flex w-full min-w-0 items-center justify-between gap-3">
-                    {error ? (
-                        <span role="alert" className="min-w-0 text-meta text-destructive">
-                            {error}
-                        </span>
-                    ) : footerNote ? (
-                        <span className="min-w-0 truncate text-meta text-muted-foreground">
-                            {footerNote}
-                        </span>
-                    ) : null}
-                    {/* ml-auto keeps the actions right-aligned when there is no footer note. */}
-                    <div className="ml-auto flex shrink-0 items-center gap-2">
-                        <Button variant="outline" onClick={onCancel}>
-                            {t("entityUi.configItems.cancel")}
-                        </Button>
-                        <Button
-                            variant="default"
-                            onClick={onSave}
-                            disabled={disabled || saveDisabled || saving}
-                        >
-                            {saving
-                                ? t("entityUi.configItems.saving")
-                                : mode === "create"
-                                  ? t("entityUi.configItems.create")
-                                  : t("entityUi.configItems.save")}
-                        </Button>
-                    </div>
-                </div>
-            }
-            styles={{
-                body: flushForm
-                    ? {
-                          padding: 0,
-                          height: "100%",
-                          display: "flex",
-                          flexDirection: "column",
-                          overflow: "hidden",
-                      }
-                    : {padding: 16},
+            onOpenChange={(next) => {
+                if (!next) onCancel()
             }}
         >
-            {!jsonOnly ? (
-                form
-            ) : contentFlush ? (
-                // Body already provides the padding here (flushForm is false in JSON view); the
-                // wrapper only adds full-height independent scroll — no extra `p-4` (double-pad).
-                <div className="h-full overflow-auto">{json}</div>
-            ) : (
-                json
-            )}
-        </EnhancedDrawer>
+            <SheetContent
+                side="right"
+                className="ag-drawer-elevated"
+                style={{width, maxWidth: "calc(100% - 1rem)"}}
+            >
+                <SheetHeader>
+                    {/* One row: the title, then the header action beside it. */}
+                    <div className="flex items-center gap-2">
+                        <SheetTitle className="min-w-0 flex-1">
+                            {/* One line: title · subtitle. Stacked, the subtitle doubled the header
+                                height for a few muted words, and the leading icon repeated the
+                                row the drawer opened from. */}
+                            <div className="flex min-w-0 items-center gap-2">
+                                <span className="min-w-0 truncate text-label font-medium">
+                                    {title}
+                                </span>
+                                {badge ? (
+                                    <Badge
+                                        variant={badgeVariantFor(badge.color)}
+                                        // `text-xs` displaces Badge's `text-badge-md` and brings no
+                                        // line-height; antd Tag keeps its absolute tagLineHeight
+                                        // (lineHeightSM x fontSizeSM = 22.4px).
+                                        className="shrink-0 text-meta font-normal leading-[22.4px]"
+                                    >
+                                        {badge.text}
+                                    </Badge>
+                                ) : null}
+                                {subtitle ? (
+                                    <span className="min-w-0 truncate text-meta font-normal text-muted-foreground">
+                                        · {subtitle}
+                                    </span>
+                                ) : null}
+                            </div>
+                        </SheetTitle>
+                        {headerExtra != null ? <div>{headerExtra}</div> : null}
+                    </div>
+                </SheetHeader>
+                <div
+                    className={cn(
+                        "min-h-0 flex-1 text-field-md text-foreground",
+                        flushForm ? "flex h-full flex-col overflow-hidden" : "overflow-y-auto p-4",
+                    )}
+                >
+                    {/* Lazy content: it mounts after the panel has painted and unmounts on close,
+                        so the content component's logic only runs while the drawer is open. */}
+                    <DeferredBody
+                        fallback={
+                            <div className={flushForm ? "h-full p-4" : "h-full"}>{loadingBody}</div>
+                        }
+                    >
+                        {!jsonOnly ? (
+                            form
+                        ) : contentFlush ? (
+                            // Body already provides the padding here (flushForm is false in JSON
+                            // view); the wrapper only adds full-height independent scroll — no
+                            // extra `p-4` (double-pad).
+                            <div className="h-full overflow-auto">{json}</div>
+                        ) : (
+                            json
+                        )}
+                    </DeferredBody>
+                </div>
+                <SheetFooter>
+                    {/* w-full, or the sheet's own end-justified footer keeps this row hugging the
+                        actions and a left-hand note lands beside Cancel. */}
+                    <div className="flex w-full min-w-0 items-center justify-between gap-3">
+                        {error ? (
+                            <span role="alert" className="min-w-0 text-meta text-destructive">
+                                {error}
+                            </span>
+                        ) : footerNote ? (
+                            <span className="min-w-0 truncate text-meta text-muted-foreground">
+                                {footerNote}
+                            </span>
+                        ) : null}
+                        {/* ml-auto keeps the actions right-aligned when there is no footer note. */}
+                        <div className="ml-auto flex shrink-0 items-center gap-2">
+                            <Button variant="outline" onClick={onCancel}>
+                                {t("entityUi.configItems.cancel")}
+                            </Button>
+                            <Button
+                                variant="default"
+                                onClick={onSave}
+                                disabled={disabled || saveDisabled || saving}
+                            >
+                                {saving
+                                    ? t("entityUi.configItems.saving")
+                                    : mode === "create"
+                                      ? t("entityUi.configItems.create")
+                                      : t("entityUi.configItems.save")}
+                            </Button>
+                        </div>
+                    </div>
+                </SheetFooter>
+            </SheetContent>
+        </Sheet>
     )
 }

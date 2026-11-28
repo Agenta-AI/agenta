@@ -81,12 +81,6 @@ export {VideoEmptyState, type VideoEmptyStateProps} from "./VideoEmptyState"
 export {LogoMarks, type LogoMark, type LogoMarksProps} from "./logo-marks"
 
 // ============================================================================
-// SELECT COMPONENTS
-// ============================================================================
-
-export {SimpleDropdownSelect, type SimpleDropdownSelectProps, type DropdownMenuItem} from "./select"
-
-// ============================================================================
 // METADATA COMPONENTS
 // ============================================================================
 

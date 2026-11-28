@@ -5,7 +5,7 @@ import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
- * Stories for `TestcaseDrawer`, an `EnhancedDrawer` overlay that portals to `body`. It shows
+ * Stories for `TestcaseDrawer`, a `Sheet` overlay that portals to `body`. It shows
  * ghost icon Buttons, header Tooltips, a footer split-button (DropdownButton), a loading
  * Skeleton and an error `Alert`.
  *

@@ -27,15 +27,7 @@
 
 import type {ReactNode} from "react"
 
-import {
-    borderColors,
-    cn,
-    flexLayouts,
-    gapClasses,
-    spacingClasses,
-    textColors,
-    textSizes,
-} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -76,18 +68,14 @@ export function NumberedStep({number, title, subtitle, children, className}: Num
     return (
         <div
             className={cn(
-                flexLayouts.column,
-                "rounded-lg border border-solid",
-                spacingClasses.card,
-                gapClasses.md,
-                borderColors.secondary,
+                "flex flex-col rounded-lg border border-solid px-4 py-3 gap-3 border-border-muted",
                 className,
             )}
         >
-            <div className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
-                <span className={cn("font-medium", textColors.tertiary)}>{number}.</span>
-                <span className={cn("font-medium", textSizes.sm, textColors.primary)}>{title}</span>
-                {subtitle && <span className={textColors.tertiary}>{subtitle}</span>}
+            <div className="flex items-center gap-2">
+                <span className="font-medium text-muted-foreground">{number}.</span>
+                <span className="font-medium text-label text-foreground">{title}</span>
+                {subtitle && <span className="text-muted-foreground">{subtitle}</span>}
             </div>
             {children}
         </div>

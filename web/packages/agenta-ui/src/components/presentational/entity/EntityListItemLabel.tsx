@@ -29,7 +29,7 @@
 
 import type {ReactNode} from "react"
 
-import {cn, flexLayouts, textColors} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -151,7 +151,7 @@ export function EntityListItemLabel({
         subtitle && showSubtitle ? (
             <span
                 className={cn(
-                    textColors.muted,
+                    "text-muted-foreground",
                     capitalizeSubtitle && "capitalize",
                     isInline && "ml-1.5",
                 )}
@@ -160,17 +160,19 @@ export function EntityListItemLabel({
             </span>
         ) : reserveSubtitleSpace ? (
             // Invisible spacer to maintain consistent height
-            <span className={cn(textColors.muted, "invisible", isInline && "ml-1.5")}>&nbsp;</span>
+            <span className={cn("text-muted-foreground invisible", isInline && "ml-1.5")}>
+                &nbsp;
+            </span>
         ) : null
 
     // Content layout (label + subtitle)
     const contentElement = isInline ? (
-        <span className={cn(flexLayouts.inlineCenter, "gap-0")}>
+        <span className="inline-flex items-center gap-0">
             {labelElement}
             {subtitleElement}
         </span>
     ) : (
-        <div className={cn(flexLayouts.column, "gap-0 min-w-0")}>
+        <div className="flex flex-col gap-0 min-w-0">
             {labelElement}
             {subtitleElement}
         </div>
@@ -179,8 +181,8 @@ export function EntityListItemLabel({
     // If we have icon or trailing, wrap in a row
     if (icon || trailing) {
         return (
-            <div className={cn(flexLayouts.rowCenter, "gap-2 min-w-0", className)}>
-                {icon && <span className={cn(textColors.muted, "flex-shrink-0")}>{icon}</span>}
+            <div className={cn("flex items-center gap-2 min-w-0", className)}>
+                {icon && <span className="text-muted-foreground flex-shrink-0">{icon}</span>}
                 <div className="flex-1 min-w-0">{contentElement}</div>
                 {trailing && <span className="flex-shrink-0">{trailing}</span>}
             </div>

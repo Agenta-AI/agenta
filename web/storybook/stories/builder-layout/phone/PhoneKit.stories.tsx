@@ -1,12 +1,8 @@
 import {useEffect, useState, type ReactNode} from "react"
 
 import {NavMenu, SidebarLayoutContext, type NavItem} from "@agenta/navigation-ui"
-import {
-    BottomSheetMenu,
-    PhonePrimaryAction,
-    PhoneScreenHeader,
-    SidebarSheet,
-} from "@agenta/ui/phone"
+import {BottomSheetMenu, PhonePrimaryAction, PhoneScreenHeader} from "@agenta/ui/phone"
+import {Button, Sheet, SheetContent, SheetTitle} from "@agenta/ui/ui"
 import {
     defineView,
     PhoneViewChrome,
@@ -26,6 +22,7 @@ import {
     Sparkle,
     SlidersHorizontal,
     WifiHigh,
+    X,
 } from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
@@ -170,24 +167,40 @@ const Sidebar = () => {
     }))
     return (
         <Phone>
-            <SidebarSheet
-                open={open}
-                onOpenChange={setOpen}
-                title={AGENT_NAME}
-                leading={
-                    <button
-                        type="button"
-                        className="flex h-11 items-center gap-1 rounded-lg border-0 bg-transparent px-2 font-[inherit] text-[15px] text-colorTextSecondary"
-                    >
-                        <CaretLeft size={14} />
-                        Back
-                    </button>
-                }
-            >
-                <SidebarLayoutContext.Provider value="phone">
-                    <NavMenu items={rows} collapsed={false} className="pt-2" />
-                </SidebarLayoutContext.Provider>
-            </SidebarSheet>
+            <Sheet open={open} onOpenChange={setOpen}>
+                <SheetContent
+                    side="left"
+                    aria-describedby={undefined}
+                    className="w-[300px] max-w-[calc(100vw-16px)] gap-0 overflow-hidden px-2 pb-2"
+                >
+                    <SheetTitle className="sr-only">{AGENT_NAME}</SheetTitle>
+                    <div className="-mx-2 flex h-13 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted pl-1.5 pr-1">
+                        <div className="flex min-w-0 flex-1 items-center">
+                            <button
+                                type="button"
+                                className="flex h-11 items-center gap-1 rounded-lg border-0 bg-transparent px-2 font-[inherit] text-[15px] text-colorTextSecondary"
+                            >
+                                <CaretLeft size={14} />
+                                Back
+                            </button>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Close sidebar"
+                            className="shrink-0 text-muted-foreground"
+                            onClick={() => setOpen(false)}
+                        >
+                            <X />
+                        </Button>
+                    </div>
+                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                        <SidebarLayoutContext.Provider value="phone">
+                            <NavMenu items={rows} collapsed={false} className="pt-2" />
+                        </SidebarLayoutContext.Provider>
+                    </div>
+                </SheetContent>
+            </Sheet>
         </Phone>
     )
 }
@@ -207,4 +220,4 @@ export const ViewReadOnly: Story = {args: {readOnly: true}, globals: {theme: "li
 export const PrimaryAction: Story = {render: () => <ListScreen />, globals: {theme: "light"}}
 export const PrimaryActionDark: Story = {render: () => <ListScreen />, globals: {theme: "dark"}}
 export const SheetMenuOpen: Story = {render: () => <SheetMenu />, globals: {theme: "light"}}
-export const SidebarSheetOpen: Story = {render: () => <Sidebar />, globals: {theme: "light"}}
+export const SidebarOpen: Story = {render: () => <Sidebar />, globals: {theme: "light"}}

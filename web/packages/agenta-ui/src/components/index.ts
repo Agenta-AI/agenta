@@ -12,9 +12,6 @@
  * ### Presentational Components
  * Pure UI components for displaying entity information, versions, and labels.
  *
- * ### Modal Components
- * Enhanced modal wrappers and utilities.
- *
  * @example
  * ```typescript
  * import {
@@ -30,9 +27,6 @@
  *   RevisionLabel,
  *   EntityPathLabel,
  *   EntityNameWithVersion,
- *
- *   // Modal
- *   EnhancedModal,
  * } from '@agenta/ui'
  * ```
  */
@@ -48,12 +42,6 @@ export * from "./selection"
 // ============================================================================
 
 export * from "./presentational"
-
-// ============================================================================
-// MODAL COMPONENTS
-// ============================================================================
-
-export {EnhancedModal, type EnhancedModalProps, type EnhancedModalStyles} from "./EnhancedModal"
 
 // ============================================================================
 // ACTION COMPONENTS

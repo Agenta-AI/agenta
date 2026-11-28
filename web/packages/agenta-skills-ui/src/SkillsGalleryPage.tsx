@@ -66,9 +66,7 @@ function SourceNavRow({
             className={cn(
                 "flex cursor-pointer items-center justify-between gap-2 rounded-md border-0 px-2.5 py-1.5 text-left text-label font-normal",
                 chip ? "shrink-0" : "w-full",
-                active
-                    ? "bg-selected font-medium"
-                    : "bg-transparent text-muted-foreground hover:bg-accent",
+                active ? "bg-selected" : "bg-transparent text-muted-foreground hover:bg-accent",
             )}
         >
             <span className="min-w-0 truncate">{entry.label}</span>

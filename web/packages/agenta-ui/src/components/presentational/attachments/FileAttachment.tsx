@@ -24,18 +24,9 @@ import {useT} from "@agenta/i18n"
 import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
 import {FileArchive, X} from "@phosphor-icons/react"
 
-import {
-    bgColors,
-    borderColors,
-    cn,
-    dangerColors,
-    flexLayouts,
-    gapClasses,
-    textColors,
-    textSizes,
-} from "../../../utils/styles"
 import {Button} from "../../ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -88,17 +79,13 @@ export function FileAttachment({
     return (
         <div
             className={cn(
-                "relative group px-2 py-1 rounded-md border border-solid",
-                borderColors.secondary,
-                bgColors.subtle,
-                flexLayouts.rowCenter,
-                gapClasses.sm,
+                "relative group px-2 py-1 rounded-md border border-solid border-border-muted bg-secondary flex items-center gap-2",
                 className,
             )}
         >
-            {icon ?? <FileArchive size={16} className={textColors.icon} />}
+            {icon ?? <FileArchive size={16} className="text-muted-foreground" />}
             <span
-                className={cn(textSizes.xs, textColors.secondary, "truncate")}
+                className="text-meta text-muted-foreground truncate"
                 style={{maxWidth}}
                 title={filename}
             >
@@ -112,11 +99,7 @@ export function FileAttachment({
                                 variant="ghost"
                                 size="sm"
                                 onClick={onRemove}
-                                className={cn(
-                                    "!p-0 !h-auto !min-w-0",
-                                    textColors.tertiary,
-                                    dangerColors.hover,
-                                )}
+                                className="!p-0 !h-auto !min-w-0 text-muted-foreground hover:text-destructive"
                             >
                                 {<X size={12} />}
                             </Button>

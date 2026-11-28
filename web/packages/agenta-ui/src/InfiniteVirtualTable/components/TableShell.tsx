@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 import {useLayoutEffect, useRef} from "react"
 
-import {cn} from "../../utils/styles"
+import {cn} from "../../components/ui/utils"
 
 interface TableShellProps {
     title?: ReactNode

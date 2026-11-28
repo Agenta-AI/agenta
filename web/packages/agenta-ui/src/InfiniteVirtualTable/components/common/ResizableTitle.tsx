@@ -3,7 +3,7 @@ import type {ThHTMLAttributes} from "react"
 
 import {Resizable, type ResizeCallbackData} from "react-resizable"
 
-import {cn} from "../../../utils/styles"
+import {cn} from "../../../components/ui/utils"
 
 type ResizeHandler = (e: React.SyntheticEvent, data: ResizeCallbackData) => void
 

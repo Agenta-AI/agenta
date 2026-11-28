@@ -12,7 +12,7 @@ import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
 import {ChangeSummary} from "@agenta/entity-ui/changes"
 import {useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
-import {cn, textColors} from "@agenta/ui/styles"
+import {cn} from "@agenta/ui/styles"
 
 /** The pane's own inset. Section bands fill it edge to edge and pad their content inward. */
 const PANE_PAD = "px-5"
@@ -26,12 +26,7 @@ const SKELETON_SECTIONS = [
 ]
 
 const Centered = ({children}: {children: React.ReactNode}) => (
-    <div
-        className={cn(
-            "mx-auto flex max-w-[340px] flex-1 items-center justify-center p-8 text-center text-label leading-relaxed",
-            textColors.tertiary,
-        )}
-    >
+    <div className="mx-auto flex max-w-[340px] flex-1 items-center justify-center p-8 text-center text-label leading-relaxed text-muted-foreground">
         {children}
     </div>
 )
@@ -97,16 +92,11 @@ export const ChangesPane = ({
                     {t("playground.versionHistory.whatVersionChanged", {version: version ?? "—"})}
                 </span>
                 {message ? (
-                    <span className={cn("text-meta", textColors.tertiary)}>{message}</span>
+                    <span className="text-meta text-muted-foreground">{message}</span>
                 ) : null}
             </div>
             {sections.length === 0 ? (
-                <div
-                    className={cn(
-                        "mx-auto max-w-[340px] px-6 py-14 text-center text-label leading-relaxed",
-                        textColors.tertiary,
-                    )}
-                >
+                <div className="mx-auto max-w-[340px] px-6 py-14 text-center text-label leading-relaxed text-muted-foreground">
                     {emptyText ?? t("playground.versionHistory.currentNothingToCompare")}
                 </div>
             ) : (

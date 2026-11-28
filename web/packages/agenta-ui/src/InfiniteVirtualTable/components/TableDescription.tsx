@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import {cn} from "../../utils/styles"
+import {cn} from "../../components/ui/utils"
 
 export interface TableDescriptionProps {
     /** The description text or content */

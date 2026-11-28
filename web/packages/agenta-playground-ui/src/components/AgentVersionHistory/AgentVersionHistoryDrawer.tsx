@@ -22,7 +22,7 @@ import {textVersionAtom, useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {buildVersionRows, revertAgentRevisionAtom} from "@agenta/playground/state"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
-import {cn, textColors} from "@agenta/ui/styles"
+import {cn} from "@agenta/ui/styles"
 import {
     AlertDialog,
     AlertDialogCancel,
@@ -332,11 +332,7 @@ export const AgentVersionHistoryDrawer = ({
                             <button
                                 type="button"
                                 onClick={() => setMobileView("list")}
-                                className={cn(
-                                    "flex cursor-pointer items-center gap-1.5 border-0 bg-transparent px-5 text-label font-normal sm:hidden",
-                                    "pt-3.5",
-                                    textColors.secondary,
-                                )}
+                                className="flex cursor-pointer items-center gap-1.5 border-0 bg-transparent px-5 text-label font-normal sm:hidden pt-3.5 text-muted-foreground"
                             >
                                 <ArrowLeft />
                                 {t("playground.versionHistory.versions")}

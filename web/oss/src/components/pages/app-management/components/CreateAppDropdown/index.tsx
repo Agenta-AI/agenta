@@ -6,11 +6,13 @@ import {
     type AppType,
 } from "@agenta/entities/workflow"
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
-import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
+import {cn} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Popover, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {textColors, bgColors, borderColors} from "@/oss/components/LegacyKit"
 
 import {getAppTypeIcon} from "../../../prompts/assets/iconHelpers"
 

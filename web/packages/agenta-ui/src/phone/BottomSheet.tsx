@@ -6,7 +6,7 @@ import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 
 import {Button} from "../components/ui/button"
 import {Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger} from "../components/ui/sheet"
-import {cn} from "../utils/styles"
+import {cn} from "../components/ui/utils"
 
 import {PHONE_BUTTON_CLASS} from "./phoneButton"
 

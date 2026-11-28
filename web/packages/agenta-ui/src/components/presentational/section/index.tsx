@@ -22,8 +22,8 @@
 
 import type {CSSProperties, PropsWithChildren, ReactNode} from "react"
 
-import {cn} from "../../../utils/styles"
 import {Skeleton} from "../../ui/skeleton"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES

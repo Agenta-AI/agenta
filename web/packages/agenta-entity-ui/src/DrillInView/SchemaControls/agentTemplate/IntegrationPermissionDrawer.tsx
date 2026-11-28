@@ -3,10 +3,10 @@ import type {Ref} from "react"
 
 import {useT} from "@agenta/i18n"
 import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDrawer"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button} from "@agenta/ui/ui"
+import {cn} from "@agenta/ui/styles"
+import {Button, Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle} from "@agenta/ui/ui"
 
-import {ToolPermissionsSkeleton} from "../DrawerSkeletons"
+import {DeferredBody, ToolPermissionsSkeleton} from "../DrawerSkeletons"
 import type {GatewayConnectionPermissions} from "../toolUtils"
 
 import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
@@ -53,67 +53,82 @@ export function IntegrationPermissionDrawer({
     const readOnly = source?.readOnly ?? false
 
     return (
-        <EnhancedDrawer
-            rootClassName="ag-drawer-elevated"
+        <Sheet
             open={open}
-            onClose={onClose}
-            // The side on every screen, as every playground drawer opens; the width clamps on a phone.
-            placement="right"
-            width={INTEGRATION_DRAWER_WIDTH}
-            destroyOnClose
-            bodyFallback={<ToolPermissionsSkeleton />}
-            panelRef={panelRef}
-            title={
-                source?.title ?? (
-                    <IntegrationTitle target={body.target} connectionSlug={body.connectionSlug} />
-                )
-            }
-            styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
+            onOpenChange={(next) => {
+                if (!next) onClose()
             }}
-            footer={
-                readOnly ? undefined : (
-                    // items-end, not items-center: the left column grows downward when an inline
-                    // confirm opens under its link, and Done stays on the bottom line with it.
-                    // w-full: the sheet footer is a flex row, so without it there is no space to
-                    // push the destructive action away from Done.
-                    <div className="flex w-full items-end justify-between gap-2">
-                        <div className="flex min-w-0 flex-col items-start gap-2">
-                            {source?.footerStart}
-                        </div>
-                        <Button variant="default" onClick={onClose}>
-                            {t("entityUi.permissionDrawer.done")}
-                        </Button>
-                    </div>
-                )
-            }
         >
-            {!body.permissions ? (
-                <UnmigratedNotice target={body.target} />
-            ) : source ? (
-                <PermissionDrawerBody
-                    {...body}
-                    permissions={body.permissions}
-                    catalog={source.catalog}
-                    catalogKey={source.catalogKey}
-                    emptyLabel={source.emptyLabel}
-                    searchCount={source.searchCount}
-                    readOnlyLabel={source.readOnlyLabel}
-                    writeLabel={source.writeLabel}
-                    staleLabel={source.staleLabel}
-                    toolOptions={source.toolOptions}
-                    presets={source.presets}
-                    lockedTool={source.lockedTool}
-                    rowValue={source.rowValue}
-                    banner={source.banner}
-                    controlsDisabled={source.controlsDisabled}
-                    footNote={source.footNote}
-                    readOnly={source.readOnly}
-                    account={body.account}
-                />
-            ) : (
-                <IntegrationDrawerBody {...body} permissions={body.permissions} />
-            )}
-        </EnhancedDrawer>
+            <SheetContent
+                ref={panelRef}
+                // The side on every screen, as every playground drawer opens; the width clamps on
+                // a phone.
+                side="right"
+                className="ag-drawer-elevated"
+                style={{width: INTEGRATION_DRAWER_WIDTH, maxWidth: "calc(100% - 1rem)"}}
+            >
+                <SheetHeader>
+                    <SheetTitle className="min-w-0">
+                        {source?.title ?? (
+                            <IntegrationTitle
+                                target={body.target}
+                                connectionSlug={body.connectionSlug}
+                            />
+                        )}
+                    </SheetTitle>
+                </SheetHeader>
+                <div
+                    className={cn(
+                        "flex min-h-0 flex-1 flex-col overflow-hidden text-field-md text-foreground",
+                        readOnly && "rounded-b-[inherit]",
+                    )}
+                >
+                    <DeferredBody fallback={<ToolPermissionsSkeleton />}>
+                        {!body.permissions ? (
+                            <UnmigratedNotice target={body.target} />
+                        ) : source ? (
+                            <PermissionDrawerBody
+                                {...body}
+                                permissions={body.permissions}
+                                catalog={source.catalog}
+                                catalogKey={source.catalogKey}
+                                emptyLabel={source.emptyLabel}
+                                searchCount={source.searchCount}
+                                readOnlyLabel={source.readOnlyLabel}
+                                writeLabel={source.writeLabel}
+                                staleLabel={source.staleLabel}
+                                toolOptions={source.toolOptions}
+                                presets={source.presets}
+                                lockedTool={source.lockedTool}
+                                rowValue={source.rowValue}
+                                banner={source.banner}
+                                controlsDisabled={source.controlsDisabled}
+                                footNote={source.footNote}
+                                readOnly={source.readOnly}
+                                account={body.account}
+                            />
+                        ) : (
+                            <IntegrationDrawerBody {...body} permissions={body.permissions} />
+                        )}
+                    </DeferredBody>
+                </div>
+                {readOnly ? null : (
+                    <SheetFooter>
+                        {/* items-end, not items-center: the left column grows downward when an
+                            inline confirm opens under its link, and Done stays on the bottom line
+                            with it. w-full: the sheet footer is a flex row, so without it there is
+                            no space to push the destructive action away from Done. */}
+                        <div className="flex w-full items-end justify-between gap-2">
+                            <div className="flex min-w-0 flex-col items-start gap-2">
+                                {source?.footerStart}
+                            </div>
+                            <Button variant="default" onClick={onClose}>
+                                {t("entityUi.permissionDrawer.done")}
+                            </Button>
+                        </div>
+                    </SheetFooter>
+                )}
+            </SheetContent>
+        </Sheet>
     )
 }

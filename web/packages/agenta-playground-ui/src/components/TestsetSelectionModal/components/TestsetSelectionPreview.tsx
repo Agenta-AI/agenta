@@ -1,6 +1,5 @@
 import {ReactNode} from "react"
 
-import {spacingClasses} from "@agenta/ui/styles"
 import {Input} from "antd"
 
 export interface TestsetSelectionPreviewProps {
@@ -22,7 +21,7 @@ export function TestsetSelectionPreview({
 }: TestsetSelectionPreviewProps) {
     return (
         <div
-            className={`flex flex-col flex-1 overflow-hidden ${spacingClasses.panel}`}
+            className={`flex flex-col flex-1 overflow-hidden p-4`}
             style={{minWidth: 0, minHeight: 0}}
         >
             {showSearch && (

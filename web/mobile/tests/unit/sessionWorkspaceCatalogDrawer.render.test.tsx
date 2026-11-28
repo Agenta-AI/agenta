@@ -18,7 +18,7 @@ import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-// The real drawer is a portalled EnhancedDrawer over the catalog's own network hooks; neither is
+// The real drawer is a portalled Sheet over the catalog's own network hooks; neither is
 // this file's subject. The stand-in keeps the ONE property that matters: it reads the same atom,
 // so it appears exactly when an opener would have opened the real one.
 vi.mock("@agenta/entity-ui/gatewayTool", async () => {

@@ -9,7 +9,7 @@ import {memo, useMemo} from "react"
 import {environmentMolecule} from "@agenta/entities/environment"
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
-import {FormattedDate, cn, textColors} from "@agenta/ui"
+import {FormattedDate} from "@agenta/ui"
 import {Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -29,7 +29,7 @@ interface MetadataSidebarProps {
 function MetadataField({label, children}: {label: string; children: React.ReactNode}) {
     return (
         <div className="flex flex-col gap-1.5">
-            <span className={cn("text-label", textColors.muted)}>{label}</span>
+            <span className="text-label text-muted-foreground">{label}</span>
             <div>{children}</div>
         </div>
     )
@@ -68,9 +68,7 @@ const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarP
         >
             {/* Header */}
             <div className="px-4 pt-4 pb-3">
-                <Text className={cn("text-label font-semibold", textColors.secondary)}>
-                    Details
-                </Text>
+                <Text className="text-label font-semibold text-muted-foreground">Details</Text>
             </div>
 
             {/* Metadata fields */}
@@ -96,17 +94,14 @@ const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarP
 
                 {isEvaluator && evaluatorSlug && (
                     <MetadataField label="Slug">
-                        <Text className={cn("break-all leading-relaxed", textColors.primary)}>
+                        <Text className="break-all leading-relaxed text-foreground">
                             {evaluatorSlug}
                         </Text>
                     </MetadataField>
                 )}
 
                 <MetadataField label="Date created">
-                    <FormattedDate
-                        date={workflowData.created_at}
-                        className={cn(textColors.primary)}
-                    />
+                    <FormattedDate date={workflowData.created_at} className="text-foreground" />
                 </MetadataField>
 
                 <MetadataField label="Created by">
