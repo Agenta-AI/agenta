@@ -1,0 +1,227 @@
+---
+slug: internal-ai-agent-platform-build-vs-buy
+title: "Internal AI Agent Platform: Build vs. Buy for CTOs (and the Open-Source Middle Ground)"
+description: "A practical CTO guide to the internal AI agent platform build vs. buy decision, comparing 3-year TCO, runtime harnesses, sandboxes, and the open-source middle ground."
+category: Engineering
+date: 2026-10-29
+author: mahmoud-mabrouk
+heroImage: /blog/internal-ai-agent-platform-build-vs-buy/hero.webp
+ogImage: /blog/internal-ai-agent-platform-build-vs-buy/hero.webp
+readingTime: 14 min read
+tags:
+  - AI Coworker
+  - Company Brain
+  - Open Source
+  - AI Engineering
+  - Enterprise AI
+faq:
+  - question: "Should a CTO build or buy an internal AI agent platform?"
+    answer: "For most engineering organizations, neither a 100% custom build nor a closed per-seat SaaS workspace is the right long-term architecture. Building the container sandbox, OAuth credential vault, cron scheduler, and multi-channel bot plumbing from scratch takes 6 to 12 months of undifferentiated infrastructure work. Buying a closed per-seat SaaS platform creates a compounding seat tax ($34,800 to $60,000+ per year at 100 employees) and locks company knowledge inside a vendor cloud. The most resilient architecture is the open-source middle ground: adopt an MIT-licensed AI coworker platform like Agenta for the runtime, sandboxes, and governance plane, and spend your internal engineering budget on proprietary domain skills, internal APIs, and persistent company knowledge."
+  - question: "How much does it cost to build an internal AI agent platform in-house vs. buying SaaS?"
+    answer: "Over a three-year horizon for a 100-person organization, a custom in-house build typically costs $450,000 to $900,000+ when accounting for two to four full-time engineers to build and maintain sandboxes, model gateways, OAuth connectors, and Slack or web UIs. Closed per-seat SaaS platforms like Dust ($29 per user per month) or Glean ($50+ per user per month) cost $104,400 to $180,000+ over three years in seat fees alone. An open-source platform like Agenta costs $0 in license fees when self-hosted on your own infrastructure, or $1,044 to $10,764 over three years on Agenta Cloud ($29 to $299 per month with unlimited users and no per-seat fees)."
+  - question: "Why do internal AI agent platform builds stall after the initial prototype?"
+    answer: "A working Python prototype that calls an LLM and a few tools in a notebook takes a weekend, which creates a false sense of simplicity. Moving that prototype into a multi-tenant internal platform requires 15+ non-AI infrastructure subsystems: per-session Linux and headless browser sandboxes, network egress controls, encrypted OAuth token refresh, human-in-the-loop approval gates, cron and webhook triggers, and plain-language configuration UIs so non-engineers can build without filing engineering tickets."
+  - question: "Can we use existing Claude Pro, Claude Max, or ChatGPT subscriptions with an internal agent platform?"
+    answer: "Closed enterprise SaaS platforms generally force you onto their bundled credit markups or enterprise API pools, while custom builds require raw API keys. Agenta decouples the agent harness (Claude Code, Codex, or Pi), the underlying model, and the credential source, allowing teams to connect standard provider API keys (BYOK), Agenta Cloud credits, or their existing Claude Pro/Max and ChatGPT subscriptions."
+  - question: "What is the difference between a developer agent framework like LangGraph and an internal AI coworker platform?"
+    answer: "A developer framework like LangGraph provides Python and TypeScript primitives for defining stateful execution graphs in code. It is built for software engineers shipping customer-facing product features, not as a ready-to-use workspace for non-technical departments. An internal AI coworker platform like Agenta provides the full operating layer out of the box: a shared persistent AI Drive, plain-language instructions and reusable skills, isolated Daytona computer sandboxes, approval gates, and one-click publishing to Slack, Telegram, WhatsApp, an embeddable web chat widget, and REST APIs."
+---
+
+Every CTO leading an [AI transformation](/blog/how-to-start-ai-transformation) eventually hits the same architectural fork in the road. Two senior engineers build a promising internal Slack bot over a long weekend using a Python agent SDK and a few API keys. It triages support tickets or summarizes pull requests well enough that product, marketing, finance, and operations immediately ask for fifteen more agents connected to their own tools.
+
+At that moment, leadership faces the **internal AI agent platform build vs. buy** decision:
+
+1. **Build in-house:** Assign a platform team to turn that weekend prototype into a multi-tenant internal agent runtime with sandboxes, OAuth vaults, approval gates, and a web UI.
+2. **Buy closed SaaS:** Roll out a proprietary per-seat workspace like [Dust](https://dust.tt) or [Glean](https://www.glean.com) across the company.
+3. **Adopt the open-source middle ground:** Run an [open-source AI coworker platform](https://agenta.ai) for the undifferentiated runtime and governance layers while owning your company knowledge, skills, and infrastructure.
+
+Enterprise data shows how quickly teams are reconsidering pure custom builds. According to [Menlo Ventures' State of Generative AI in the Enterprise report](https://menlovc.com/perspective/2025-the-state-of-generative-ai-in-the-enterprise/), the share of enterprise AI solutions built entirely in-house dropped from **47% in 2024 to 24% in 2025**, while **76% of organizations** shifted to buying or adopting existing platform layers so their engineers could focus on domain-specific workflows.
+
+This guide breaks down what a production internal AI agent platform actually requires under the hood, models the three-year total cost of ownership (TCO) for a 100-person organization across all four architectural paths, and gives CTOs a concrete decision matrix for choosing what to adopt and what to own.
+
+## TL;DR: The 4 architectural paths for CTOs
+
+| Architectural Path                    | Representative Stack                                                            | Time to Production              | 3-Year TCO (100-Person Org)                                                    | Who Can Build & Iterate Coworkers               | Data Sovereignty & Lock-In                               |
+| :------------------------------------ | :------------------------------------------------------------------------------ | :------------------------------ | :----------------------------------------------------------------------------- | :---------------------------------------------- | :------------------------------------------------------- |
+| **1. Pure In-House Build**            | Custom Python/TS + Temporal + Docker + Custom UI                                | 6 to 12 months                  | **$450,000 to $900,000+** (2 to 4 FTE engineers + infra)                       | Engineers only (via Git PRs)                    | Full VPC ownership, high internal maintenance debt       |
+| **2. Closed Per-Seat SaaS**           | [Dust](https://dust.tt), [Glean](https://www.glean.com)                         | 1 to 2 weeks                    | **$104,400 to $180,000+** ($29 to $50+ per user/month)                         | Technical & non-technical staff                 | Vendor cloud lock-in; memory & skills trapped in SaaS    |
+| **3. Code Framework + Managed Cloud** | [LangGraph Platform & LangSmith](https://www.langchain.com/pricing)             | 2 to 4 months                   | **$150,000 to $350,000+** ($39/dev seat + LSUs + UI eng)                       | Software & AI engineers                         | Enterprise contract required for VPC self-hosting        |
+| **4. Open-Source Middle Ground**      | [Agenta](https://agenta.ai) ([MIT GitHub](https://github.com/Agenta-AI/agenta)) | Same day (Cloud or Docker/Helm) | **$0 license** (Self-Hosted) or **$1,044 to $10,764** (Cloud, unlimited seats) | Engineers & every department (via chat or code) | 100% MIT open-source; self-host in your VPC or use Cloud |
+
+## Why the "weekend agent prototype" is a trap for engineering teams
+
+When strong engineers look at an agent loop, their first instinct is almost always to build it themselves. Calling an LLM with tool definitions in Python takes fewer than a hundred lines of code. If the goal is a single script run by one developer on their local laptop, a custom script is enough.
+
+The trap springs when that script has to become an **internal AI agent platform** used safely by fifty or five hundred employees across engineering, product, operations, sales, and support.
+
+In [Ramp Engineering's breakdown of building their internal background coding agent](https://builders.ramp.com/post/Why-we-built-our-background-agent), the team documented that the LLM prompt loop was a tiny fraction of the system. To run agents reliably in production, Ramp had to engineer **15 distinct harness and infrastructure subsystems**, including:
+
+- Ephemeral VM and container sandbox images with pre-warmed caches
+- Per-session network egress proxies and credential injection so agents never see raw secrets
+- Multiplayer session state so multiple teammates can join the same agent run from Slack, web, or Chrome extensions
+- Durable background execution queues, webhook routers, and crash recovery
+- Human-in-the-loop permission gates for destructive or external actions
+
+As [O'Reilly Radar's analysis on building your own agent platform](https://www.oreilly.com/radar/the-case-against-building-your-own-agent-platform/) notes, teams that build monolithic agent infrastructure from scratch spend 6 to 18 months maintaining plumbing while frontier models, tool protocols like the Model Context Protocol (MCP), and computer-use harnesses shift underneath them every quarter.
+
+![What an internal AI agent platform actually requires in production](/blog/internal-ai-agent-platform-build-vs-buy/internal-agent-platform-subsystems.webp)
+
+### The 7 subsystems your team actually has to build and maintain
+
+Before greenlighting an in-house platform build, walk your architecture team through the seven layers required to move beyond a developer-only script:
+
+1. **Isolated compute and headless browser sandboxes:** Every agent run that writes files, executes Python or Node scripts, runs `git` and `gh`, or inspects web pages needs an isolated Linux container and headless Chromium browser (such as a [Daytona](https://www.daytona.io) sandbox). Running untrusted tool outputs on shared worker nodes is a critical security failure.
+2. **Multi-harness execution and credential routing:** Frontier agent capabilities now depend heavily on the execution harness, not just the raw model API. Supporting [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), and [Pi](https://pi.dev) while decoupling the harness from the model and the credential source requires a clean boundary between `Application -> Agent Workflow Service -> Runner -> Harness -> Sandbox`.
+3. **Shared persistent knowledge vs. temporary session scratchpads:** An internal coworker needs a [company AI brain](/blog/how-to-build-a-company-ai-brain) that survives across sessions. If you only build stateless RAG, agents forget every correction the moment a chat ends. You need persistent shared agent files (`AI Drive`) for durable team context alongside temporary session files for scratch work.
+4. **Encrypted OAuth vault and 1,000+ tool integrations:** Connecting Slack, GitHub, Notion, Linear, HubSpot, Google Workspace, and internal databases requires OAuth token refresh loops, per-workspace scoping, and MCP server lifecycle management.
+5. **Action-level human approval gates (`Allow`, `Ask`, `Deny`):** Reading a Linear ticket or searching a codebase should run automatically (`Allow`). Sending an external customer email, posting to a company Slack channel, or deleting a schedule must pause execution and render an interactive approval card (`Ask`) or block outright on policy (`Deny`).
+6. **Durable cron schedules and webhook event subscriptions:** Autonomous coworkers do most of their valuable work when no human is typing in a chat box. That requires a five-field UTC cron scheduler and an event subscription engine with payload mapping, version pinning, and delivery logs.
+7. **Plain-language builder UX and multi-surface deployment:** If updating an agent's instructions or skills requires a pull request and a container redeploy, 80% of your company cannot build or improve coworkers. Your platform team becomes a permanent ticket queue for every prompt tweak requested by marketing, ops, or support.
+
+## Why buying closed per-seat SaaS creates a different problem
+
+Recognizing the hidden engineering cost of building those seven layers, many CTOs swing to the opposite extreme and buy a closed SaaS workspace like Dust or Glean.
+
+While closed SaaS gets a pilot running in a week, it introduces three structural problems as adoption scales across the organization:
+
+- **The compounding per-seat tax:** Closed SaaS vendors price like traditional seat-based productivity suites. At **$29 per user per month** (Dust) or **$50+ per user per month** (Glean), rolling out internal agents to 100 employees costs **$34,800 to $60,000+ every year** before a single complex background automation runs. At 300 employees, you are paying six figures annually just so occasional viewers can read an agent's output or click an approval button.
+- **Company knowledge trapped in a vendor cloud:** Every plain-language instruction, reusable skill, research synthesis, and decision log your team creates inside a closed SaaS tool is stored in a proprietary schema on the vendor's servers. If you ever switch tools or need to run workloads inside an air-gapped VPC, your operational company brain cannot be exported as a clean folder of files and container images.
+- **Locked into a single proprietary harness and credit markup:** Closed platforms wrap model calls in their own proprietary orchestration loop and credit tiers. You cannot choose between specialized coding and computer-use harnesses like [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), or [Pi](https://pi.dev), nor can your engineers attach their existing Claude Pro/Max or ChatGPT subscriptions.
+
+## 3-year TCO breakdown for a 100-person organization
+
+In [GitLab's analysis of build vs. buy TCO for agentic AI](https://about.gitlab.com/the-source/ai/the-real-cost-of-build-vs-buy-for-agentic-ai-in-regulated-industries/), researchers modeled a 200-developer organization and found that custom in-house agent platforms routinely exceed **$300,000+ per year** in ongoing engineering maintenance, compliance validation, and infrastructure overhead.
+
+Here is how the three-year cost structure compares for a typical 100-person company across all four architectural paths:
+
+![4 architectural paths for an internal AI agent platform](/blog/internal-ai-agent-platform-build-vs-buy/cto-build-vs-buy-decision-matrix.webp)
+
+| Cost Component                                   | Path 1: Build In-House (DIY Stack)                                                           | Path 2: Closed Per-Seat SaaS (Dust / Glean)                                 | Path 3: Code Framework + Cloud (LangGraph Plus/Enterprise)                         | Path 4: Open-Source Middle Ground ([Agenta](https://agenta.ai))                                                      |
+| :----------------------------------------------- | :------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------- |
+| **Platform Licensing & Seat Fees (Year 1 to 3)** | $0 software license                                                                          | **$104,400** (Dust at $29/seat/mo) to **$180,000+** (Glean at $50+/seat/mo) | **$28,080+** (20 dev seats at $39/mo) or **$150,000+** (Enterprise VPC contract)   | **$0** (Self-Hosted MIT) or **$1,044 to $10,764** (Cloud Starter $29/mo or Business $299/mo, **unlimited seats**)    |
+| **Platform Engineering & Maintenance FTEs**      | **$420,000 to $840,000+** (1 to 2 FTEs building sandboxes, auth, UI, & Slack bots)           | Low (Admin setup & connector configuration)                                 | **$120,000 to $250,000+** (Engineering custom UIs, Slack bots, & AI Drive layer)   | **Near zero** for platform plumbing; engineers focus 100% on domain skills & internal APIs                           |
+| **Compute, Sandboxes & Model Execution**         | Direct AWS/GCP + LLM API usage + [Temporal Cloud](https://temporal.io/pricing) ($100/mo min) | Bundled up to fair-use cap; overages billed via vendor credits              | $1.00 per LangChain Standard Unit (LSU) for uptime, memory, & sandboxes + LLM APIs | Own infra + BYOK / existing Claude Pro/Max or ChatGPT subscriptions, or Agenta Cloud credits ($10 per 1,000 credits) |
+| **Estimated 3-Year Total Cost**                  | **$450,000 to $900,000+**                                                                    | **$104,400 to $180,000+**                                                   | **$150,000 to $350,000+**                                                          | **$0 license + infra** (Self-Hosted) or **$1,044 to $10,764 + usage** (Agenta Cloud)                                 |
+
+## Deep dive: Evaluating the 4 concrete platform options
+
+To make this comparison concrete, let's examine the leading platforms representing the open-source middle ground, the closed per-seat SaaS category, and the developer framework category.
+
+### 1. Agenta: The Open-Source Middle Ground (MIT License, Cloud or Self-Hosted)
+
+![Agenta open-source AI coworker platform workspace](/blog/internal-ai-agent-platform-build-vs-buy/agenta.webp)
+
+[Agenta](https://agenta.ai) is an [open-source AI coworker platform](https://github.com/Agenta-AI/agenta) (MIT license) built specifically to solve the CTO's build vs. buy dilemma. Instead of forcing you to choose between spending nine months building container sandboxes and paying $50 per employee per month for a closed cloud, Agenta gives you the complete AI coworker runtime, shared company brain, and multi-channel deployment stack under a permissive MIT license.
+
+#### Why CTOs choose Agenta over building in-house or buying per-seat SaaS
+
+- **Clean 5-layer runtime architecture:** Agenta separates the `Application`, `Agent Workflow Service`, `Runner`, `Harness`, and `Sandbox`. Every coworker runs inside its own isolated [Daytona](https://www.daytona.io) Linux computer and headless Chromium browser with `git`, `gh`, Python, Node, and PDF/data tooling pre-installed.
+- **Decoupled harness, model, and credential:** You can run coworkers on [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), or [Pi](https://pi.dev), pick the best frontier model for each workflow, and authenticate using standard API keys (BYOK), Agenta Cloud credits, or your team's existing **Claude Pro/Max and ChatGPT subscriptions** (see our guide to setting up a [company brain for Claude](/blog/company-brain-for-claude)).
+- **Shared persistent knowledge (`AI Drive`) + temporary session files:** Coworkers read and write durable Markdown documents, reports, and playbooks in persistent shared agent files (`AI Drive`) that compound across sessions, while keeping scratch work isolated in temporary session files.
+- **Plain-language coworker building with revision history:** Operations, marketing, support, and product leads can create and refine coworkers, plain-language instructions, and reusable skills simply by chatting with the agent, while every configuration change is versioned with atomic revision commits.
+- **Built-in governance, schedules, and 1,000+ integrations:** Tool permissions (`Allow`, `Ask`, `Deny`) pause sensitive actions for human approval. Built-in five-field UTC cron schedules and webhook event subscriptions trigger background runs automatically.
+- **Deploy once, use across every surface:** Publish any coworker to the Agenta web app, Slack channels, Telegram, WhatsApp, an [embeddable web chat widget](https://agenta.ai/docs/guides/embed-an-agent) (`Publish > Embed`), or the public REST API and Python SDK.
+
+#### Agenta pricing and deployment
+
+- **Open Source Self-Hosted (Docker Compose or Kubernetes Helm):** **Free forever** under the MIT license, with unlimited users, unlimited agents, and unlimited automations on your own cloud or VPC.
+- **Agenta Cloud:** **Hobby** ($0 forever, 500 signup bonus credits + up to 750 free credits/month, 2 team members), **Starter** ($29/month, **unlimited team members with no per-seat fee**, 2,900 credits/month, 20 concurrent tasks), **Business** ($299/month, **unlimited team members**, 32,000 credits/month, 50 concurrent tasks, SSO, RBAC, SOC 2 Type II), and **Enterprise** (custom SLA and dedicated support). Additional Cloud credits cost $10 per 1,000 credits.
+
+---
+
+### 2. Dust: Closed Per-Seat SaaS AI Coworker Workspace
+
+![Dust enterprise AI agent workspace](/blog/internal-ai-agent-platform-build-vs-buy/dust.webp)
+
+[Dust](https://dust.tt) is a commercial SaaS platform that connects company knowledge sources (Notion, Slack, Google Drive, GitHub, Zendesk) to custom team assistants.
+
+#### Where Dust fits and where CTOs hit limits
+
+- **Strengths:** Dust offers polished managed OAuth connectors, permission-aware retrieval across synced workspace documents, and a clean web and Slack interface that non-technical teams can adopt in days.
+- **Architectural and TCO trade-offs:**
+  - **Per-seat pricing tax:** Dust charges **$29 per user per month** on its Pro plan (plus fair-use message caps) and custom per-seat contracts on Enterprise. Every employee who interacts with an assistant requires a paid seat, which scales linearly with headcount ($34,800/year for 100 users; $104,400 over three years).
+  - **Closed cloud hosting:** Although Dust publishes parts of its codebase on GitHub for transparency, it is operated as a closed multi-tenant SaaS product with no supported self-hosted MIT community edition.
+  - **Proprietary execution loop:** Teams cannot swap in open coding harnesses like Claude Code, Codex, or Pi on their own Daytona container sandboxes or bring their own Claude Pro/Max subscriptions.
+
+---
+
+### 3. Glean: Enterprise Search Suite with Layered Agent Builder
+
+![Glean Work AI and enterprise search platform](/blog/internal-ai-agent-platform-build-vs-buy/glean.webp)
+
+[Glean](https://www.glean.com) started as an enterprise workplace search engine and expanded into "Work AI" with an agent builder layered on top of its permission-indexed enterprise knowledge graph.
+
+#### Where Glean fits and where CTOs hit limits
+
+- **Strengths:** For Fortune 500 enterprises with thousands of employees and fragmented legacy permissions across SharePoint, Jira, Salesforce, and ServiceNow, Glean's ACL-aware search index is mature and turnkey.
+- **Architectural and TCO trade-offs:**
+  - **High enterprise minimum contracts:** Industry benchmarks and procurement data place Glean at roughly **$50+ per user per month** with typical annual contract minimums starting around **$50,000 to $60,000+ per year** ($180,000+ over three years for a 100-person org).
+  - **Search-first rather than computer-sandbox-first:** Glean excels at synthesizing answers from indexed SaaS documents, but it is not an open-source computer-use runtime where coworkers spin up isolated Linux containers, run full CLI toolchains, maintain a transparent Markdown `AI Drive`, and ship code or interactive web apps.
+
+---
+
+### 4. LangGraph Platform & LangSmith: Developer Code Framework + Managed Runtime
+
+![LangGraph Platform and LangSmith developer observability](/blog/internal-ai-agent-platform-build-vs-buy/langgraph.webp)
+
+[LangGraph](https://www.langchain.com/langgraph) (by LangChain) is an open-source Python and TypeScript library for building stateful, cyclic agent graphs in code, paired with the commercial [LangGraph Platform and LangSmith](https://www.langchain.com/pricing) control plane. If you are comparing low-level orchestration stacks, see our [guide to AI agent orchestration platforms](/blog/best-ai-agent-orchestration-platforms) and [open-source AI agent platforms](/blog/best-open-source-ai-agent-platforms).
+
+#### Where LangGraph fits and where CTOs hit limits
+
+- **Strengths:** When your software engineers are embedding a tightly deterministic state machine inside your core customer-facing SaaS product, LangGraph gives developers fine-grained programmatic control over nodes, edges, and checkpoints.
+- **Architectural and TCO trade-offs for an internal company platform:**
+  - **Not a ready-to-use coworker platform for non-engineers:** Adopting LangGraph for internal company operations is still a **build** decision. Your engineers must build and maintain the end-user web chat UI, the shared persistent `AI Drive`, the Slack/Telegram/WhatsApp publishing layer, the credential vault, and the plain-language skill editor.
+  - **Proprietary control plane and LSU metering:** While the core Python/JS SDK is MIT-licensed, the managed LangGraph Platform and LangSmith observability layer are proprietary. Pricing starts at **$39 per developer seat per month** on the Plus tier plus **$1.00 per LangChain Standard Unit (LSU)** for deployment uptime, memory, database storage, and sandboxes, while self-hosted VPC deployment requires a custom Enterprise contract.
+
+## The CTO decision framework: What to adopt vs. what to build internally
+
+The smartest engineering organizations in 2026 treat an internal AI agent platform the same way they treat Kubernetes, Postgres, or CI/CD: **never build undifferentiated runtime plumbing from scratch, and never rent a closed black box that taxes every employee seat.**
+
+Use this two-part architectural rule to allocate your engineering budget:
+
+### Layer 1: Adopt an open-source foundation for runtime plumbing
+
+Use an MIT-licensed platform like [Agenta](https://agenta.ai) out of the box for:
+
+- **Container and browser sandboxing:** Let Agenta and Daytona manage per-session Linux containers, headless Chromium, and filesystem boundaries.
+- **Harness and model abstraction:** Run [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), and [Pi](https://pi.dev) with your own API keys or existing Claude Pro/Max and ChatGPT subscriptions without rewriting orchestration code when a new model drops.
+- **Governance, schedules, and approval cards:** Use built-in `Allow / Ask / Deny` tool permissions, encrypted credential storage, cron schedules, and webhook subscriptions.
+- **Multi-surface delivery:** Publish coworkers to Slack, Telegram, WhatsApp, an [embeddable web chat widget](https://agenta.ai/docs/guides/embed-an-agent), and REST APIs with zero custom bot boilerplate.
+
+### Layer 2: Build and own your company-specific intelligence
+
+Focus 100% of your internal engineering and operator time on the assets that actually differentiate your business:
+
+- **Persistent shared agent files (`AI Drive`):** Curate your product architecture docs, customer ICP definitions, operational playbooks, and decision logs inside a shared durable folder structure that compounds across every run.
+- **Reusable domain skills and plain-language instructions:** Empower domain leads in engineering, ops, marketing, finance, and support to encode their best workflows into versioned skills.
+- **Proprietary internal MCP servers and APIs:** Have your engineers expose internal billing, telemetry, or warehouse tools as clean MCP endpoints or CLI scripts that any governed coworker in Agenta can call safely.
+
+### Quick checklist: Which path fits your organization?
+
+- **Choose the open-source middle ground ([Agenta](https://agenta.ai))** if you want same-day deployment (self-hosted via Docker/Helm under the MIT license or on Agenta Cloud starting at $29/month with unlimited seats), isolated Linux/browser sandboxes, multi-harness support (`Claude Code`, `Codex`, `Pi`), a shared persistent `AI Drive`, and plain-language coworker building for every department.
+- **Choose a developer code framework ([LangGraph](https://www.langchain.com/langgraph) + [Temporal](https://temporal.io))** only if you are embedding a custom, code-only state machine inside your external commercial software product and have dedicated engineers to build the surrounding application UI.
+- **Choose a closed per-seat SaaS tool ([Dust](https://dust.tt) or [Glean](https://www.glean.com))** only if you have zero engineering capacity to run a container or manage API keys, do not need full Linux/browser sandboxes, and are comfortable paying $35,000 to $180,000+ over three years in per-seat licensing.
+
+Ready to skip six months of sandbox and bot plumbing without paying a per-seat SaaS tax? Explore the [Agenta GitHub repository](https://github.com/Agenta-AI/agenta) to self-host under the MIT license, or [start free on Agenta Cloud](https://cloud.agenta.ai/) with unlimited team members on every paid plan.
+
+## Frequently asked questions
+
+### Should a CTO build or buy an internal AI agent platform?
+
+For most engineering organizations, neither a 100% custom build nor a closed per-seat SaaS workspace is the right long-term architecture. Building the container sandbox, OAuth credential vault, cron scheduler, and multi-channel bot plumbing from scratch takes 6 to 12 months of undifferentiated infrastructure work. Buying a closed per-seat SaaS platform creates a compounding seat tax ($34,800 to $60,000+ per year at 100 employees) and locks company knowledge inside a vendor cloud. The most resilient architecture is the open-source middle ground: adopt an MIT-licensed AI coworker platform like Agenta for the runtime, sandboxes, and governance plane, and spend your internal engineering budget on proprietary domain skills, internal APIs, and persistent company knowledge.
+
+### How much does it cost to build an internal AI agent platform in-house vs. buying SaaS?
+
+Over a three-year horizon for a 100-person organization, a custom in-house build typically costs $450,000 to $900,000+ when accounting for two to four full-time engineers to build and maintain sandboxes, model gateways, OAuth connectors, and Slack or web UIs. Closed per-seat SaaS platforms like Dust ($29 per user per month) or Glean ($50+ per user per month) cost $104,400 to $180,000+ over three years in seat fees alone. An open-source platform like Agenta costs $0 in license fees when self-hosted on your own infrastructure, or $1,044 to $10,764 over three years on Agenta Cloud ($29 to $299 per month with unlimited users and no per-seat fees).
+
+### Why do internal AI agent platform builds stall after the initial prototype?
+
+A working Python prototype that calls an LLM and a few tools in a notebook takes a weekend, which creates a false sense of simplicity. Moving that prototype into a multi-tenant internal platform requires 15+ non-AI infrastructure subsystems: per-session Linux and headless browser sandboxes, network egress controls, encrypted OAuth token refresh, human-in-the-loop approval gates, cron and webhook triggers, and plain-language configuration UIs so non-engineers can build without filing engineering tickets.
+
+### Can we use existing Claude Pro, Claude Max, or ChatGPT subscriptions with an internal agent platform?
+
+Closed enterprise SaaS platforms generally force you onto their bundled credit markups or enterprise API pools, while custom builds require raw API keys. Agenta decouples the agent harness (Claude Code, Codex, or Pi), the underlying model, and the credential source, allowing teams to connect standard provider API keys (BYOK), Agenta Cloud credits, or their existing Claude Pro/Max and ChatGPT subscriptions.
+
+### What is the difference between a developer agent framework like LangGraph and an internal AI coworker platform?
+
+A developer framework like LangGraph provides Python and TypeScript primitives for defining stateful execution graphs in code. It is built for software engineers shipping customer-facing product features, not as a ready-to-use workspace for non-technical departments. An internal AI coworker platform like Agenta provides the full operating layer out of the box: a shared persistent AI Drive, plain-language instructions and reusable skills, isolated Daytona computer sandboxes, approval gates, and one-click publishing to Slack, Telegram, WhatsApp, an embeddable web chat widget, and REST APIs.
