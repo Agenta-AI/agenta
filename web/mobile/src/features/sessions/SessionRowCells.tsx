@@ -210,7 +210,7 @@ export const SessionRowCells = ({
                                     onClick={() => onTogglePin(vm.id)}
                                 >
                                     {/* One control: a pinned row keeps the same pin, filled. */}
-                                    <PushPin size={14} weight={vm.isPinned ? "fill" : "regular"} />
+                                    <PushPin size={14} weight={vm.isPinned ? "fill" : undefined} />
                                 </RowActionButton>
                                 {/* Renaming an owned chat is its owner's verb. */}
                                 {notOwner ? null : (

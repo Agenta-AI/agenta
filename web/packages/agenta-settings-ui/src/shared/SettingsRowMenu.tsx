@@ -82,7 +82,7 @@ export const SettingsRowMenu = ({items, label}: {items: SettingsRowMenuItem[]; l
                             aria-label={menuLabel}
                             className="hover:bg-accent"
                         >
-                            <DotsThreeVertical aria-hidden weight="bold" />
+                            <DotsThreeVertical aria-hidden />
                         </Button>
                     }
                     items={shown.flatMap((item) =>
@@ -133,7 +133,7 @@ export const SettingsRowMenu = ({items, label}: {items: SettingsRowMenuItem[]; l
                             // Accent is translucent, so on the row's accent hover it still shows.
                             className={`hover:bg-accent`}
                         >
-                            <DotsThreeVertical aria-hidden weight="bold" />
+                            <DotsThreeVertical aria-hidden />
                         </Button>
                     </DropdownMenuTrigger>
                 </SimpleTooltip>

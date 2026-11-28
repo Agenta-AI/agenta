@@ -453,11 +453,7 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
                 className="inline-flex items-center gap-1 cursor-pointer select-none truncate"
                 onClick={handleClick}
             >
-                {isCollapsed ? (
-                    <CaretRight size={12} weight="bold" />
-                ) : (
-                    <CaretDown size={12} weight="bold" />
-                )}
+                {isCollapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
                 <span className="truncate">{displayName}</span>
                 <span className="text-muted-foreground text-meta font-normal">({childCount})</span>
             </span>
@@ -690,11 +686,7 @@ const GroupHeaderTitle = memo(function GroupHeaderTitle({
             className="inline-flex items-center gap-1 cursor-pointer select-none"
             onClick={handleClick}
         >
-            {isCollapsed ? (
-                <CaretRight size={12} weight="bold" />
-            ) : (
-                <CaretDown size={12} weight="bold" />
-            )}
+            {isCollapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
             <span>{title}</span>
             <span className="text-muted-foreground text-meta font-normal">({childCount})</span>
         </span>

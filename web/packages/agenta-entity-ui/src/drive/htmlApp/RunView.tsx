@@ -374,7 +374,7 @@ export function RunView({
                     aria-label={t("entityUi.driveApp.backToPreviousPage")}
                     className="px-1.5"
                 >
-                    <CaretLeft weight="bold" className="size-3" />
+                    <CaretLeft className="size-3" />
                     {t("entityUi.driveApp.back")}
                 </Button>
             ) : null}
@@ -386,7 +386,7 @@ export function RunView({
                         onClick={onAllowEditing}
                         className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-solid border-border bg-secondary px-2 text-caption text-muted-foreground hover:text-foreground"
                     >
-                        <LockSimple weight="bold" className="size-3" />
+                        <LockSimple className="size-3" />
                         {t("entityUi.driveApp.readOnlyAllowEditing")}
                     </button>
                 </Tooltip>

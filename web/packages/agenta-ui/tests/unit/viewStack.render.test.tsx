@@ -61,6 +61,7 @@ const FormBody = ({params, target, nav}: ViewProps<{name: string}>) => {
         dirty: value !== "",
         valid: value !== "invalid",
         save: () => saveImpl(),
+        leaveDescription: `leave ${params.name}`,
     })
     seen.push({target, push: nav.push})
     return (
@@ -108,6 +109,45 @@ const pickerView: ViewDef<{name: string}> = defineView({
     Component: PickerBody,
 })
 
+/** An "immediate" view whose body still reports a dirty form: leaving must not ask. */
+const ImmediateFormBody = () => {
+    useViewTitle("toggles")
+    useViewForm({dirty: true, valid: true, save: async () => true})
+    return <span>immediate body</span>
+}
+const immediateFormView: ViewDef<{name: string}> = defineView({
+    id: "test.immediateForm",
+    apply: "immediate",
+    Component: ImmediateFormBody,
+})
+
+/** A form that stays open after its Save lands, as the automation view does. */
+const StayingFormBody = ({params}: ViewProps<{name: string}>) => {
+    const [value, setValue] = useState("")
+    useViewTitle(params.name)
+    useViewForm({
+        dirty: value !== "",
+        valid: true,
+        closeOnSave: false,
+        save: async () => {
+            const ok = await saveImpl()
+            if (ok === true) setValue("")
+            return ok
+        },
+    })
+    return (
+        <label>
+            {`field ${params.name}`}
+            <input value={value} onChange={(e) => setValue(e.target.value)} />
+        </label>
+    )
+}
+const stayingFormView: ViewDef<{name: string}> = defineView({
+    id: "test.stayingForm",
+    apply: "on_save",
+    Component: StayingFormBody,
+})
+
 let stackRef: ViewStack | null = null
 const Root = () => {
     const stack = useViewStack()
@@ -131,6 +171,7 @@ const renderHost = (onEscapeAtRoot?: () => void) =>
 
 const type = (name: string, value: string) =>
     fireEvent.change(screen.getByLabelText(`field ${name}`), {target: {value}})
+const dialog = () => screen.queryByTestId("unsaved-changes-dialog")
 const answer = (label: string) => fireEvent.click(screen.getByRole("button", {name: label}))
 
 describe("ViewStackHost", () => {
@@ -182,9 +223,8 @@ describe("ViewStackHost", () => {
         expect(stackRef?.depth).toBe(1)
     })
 
-    it("a form chosen in a picker over a dirty parent drops the parent's edits without asking", async () => {
-        const save = vi.fn(async () => true)
-        saveImpl = save
+    it("a form chosen in a picker over a dirty parent asks about the parent first", async () => {
+        saveImpl = async () => true
         renderHost()
         fireEvent.click(screen.getByText("open skill"))
         await screen.findByLabelText("field skill")
@@ -192,14 +232,17 @@ describe("ViewStackHost", () => {
         fireEvent.click(screen.getByText("open picker"))
         await screen.findByText("picker at depth 2")
         fireEvent.click(screen.getByText("choose"))
+        await waitFor(() => expect(dialog()).toBeTruthy())
+        expect(screen.getByText("leave skill")).toBeTruthy()
+        answer("Keep editing")
+        await waitFor(() => expect(dialog()).toBeNull())
+        expect(screen.getByText("picker at depth 2")).toBeTruthy()
+        fireEvent.click(screen.getByText("choose"))
+        await waitFor(() => expect(dialog()).toBeTruthy())
+        answer("Discard")
         await screen.findByLabelText("field chosen")
-        expect(screen.queryByRole("alertdialog")).toBeNull()
-        expect(save).not.toHaveBeenCalled()
         // The parent mounted again from saved data, so only the new form can be dirty.
         expect(stackRef?.dirty).toBe(false)
-        fireEvent.click(await screen.findByText("crumb:skill"))
-        const parent = (await screen.findByLabelText("field skill")) as HTMLInputElement
-        expect(parent.value).toBe("")
     })
 
     it("takes the breadcrumb title from useViewTitle", async () => {
@@ -217,31 +260,23 @@ describe("ViewStackHost", () => {
         type("skill", "edited")
         answer("Cancel")
         await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
-        expect(screen.queryByRole("alertdialog")).toBeNull()
+        expect(dialog()).toBeNull()
     })
 
-    it("back from a dirty view drops its edits without asking or saving", async () => {
-        const save = vi.fn(async () => true)
-        saveImpl = save
+    it("guarded back: Keep editing keeps the view and resolves false", async () => {
         renderHost()
         fireEvent.click(screen.getByText("open skill"))
         await screen.findByLabelText("field skill")
         type("skill", "edited")
-        let left: boolean | undefined
-        act(() => {
-            void stackRef!.back().then((r) => (left = r))
-        })
-        await waitFor(() => expect(left).toBe(true))
-        expect(screen.queryByLabelText("field skill")).toBeNull()
-        expect(screen.queryByRole("alertdialog")).toBeNull()
-        expect(save).not.toHaveBeenCalled()
-        // Opened again, the view starts from saved data.
-        fireEvent.click(screen.getByText("open skill"))
-        const field = (await screen.findByLabelText("field skill")) as HTMLInputElement
-        expect(field.value).toBe("")
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        expect(screen.getByText("leave skill")).toBeTruthy()
+        answer("Keep editing")
+        await waitFor(() => expect(dialog()).toBeNull())
+        expect((screen.getByLabelText("field skill") as HTMLInputElement).value).toBe("edited")
     })
 
-    it("Escape on a dirty view leaves without saving", async () => {
+    it("guarded back: Discard leaves without saving", async () => {
         const save = vi.fn(async () => true)
         saveImpl = save
         renderHost()
@@ -249,51 +284,52 @@ describe("ViewStackHost", () => {
         await screen.findByLabelText("field skill")
         type("skill", "edited")
         fireEvent.keyDown(screen.getByLabelText("field skill"), {key: "Escape"})
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Discard")
         await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
-        expect(screen.queryByRole("alertdialog")).toBeNull()
         expect(save).not.toHaveBeenCalled()
     })
 
-    it("the root crumb on a dirty view closes it without saving", async () => {
-        const save = vi.fn(async () => true)
-        saveImpl = save
+    it("guarded back: Save changes saves, then leaves; a failed save stays", async () => {
+        let ok = false
+        saveImpl = async () => ok
         renderHost()
         fireEvent.click(screen.getByText("open skill"))
         await screen.findByLabelText("field skill")
         type("skill", "edited")
         fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Save changes")
+        // The failure shows in the dialog, which asks again; the view keeps its edits.
+        await screen.findByRole("alert")
+        expect(dialog()).toBeTruthy()
+        expect((screen.getByLabelText("field skill") as HTMLInputElement).value).toBe("edited")
+
+        ok = true
+        answer("Save changes")
         await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
-        expect(save).not.toHaveBeenCalled()
     })
 
-    it("a Back held behind a child's Save does not also close the parent", async () => {
+    it("a second Back while Save changes runs is dropped", async () => {
         const pending = deferred()
         saveImpl = () => pending.promise
         renderHost()
         fireEvent.click(screen.getByText("open skill"))
         await screen.findByLabelText("field skill")
-        fireEvent.click(screen.getByText("open child form"))
-        await screen.findByLabelText("field connect")
-        type("connect", "child edit")
-        answer("Save")
-        await screen.findByText("Saving…")
-        let first: boolean | undefined
-        let second: boolean | undefined
-        act(() => {
-            void stackRef!.back().then((r) => (first = r))
-            void stackRef!.back().then((r) => (second = r))
-        })
+        type("skill", "edited")
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Save changes")
+        await waitFor(() => expect(dialog()).toBeNull())
+        fireEvent.click(screen.getByText("crumb:Agent"))
         await act(async () => pending.resolve(true))
-        // Save closed the child; the held Back belonged to the child, so the parent stays.
-        await screen.findByText("here:skill")
-        await waitFor(() => expect(first).toBe(false))
-        expect(second).toBe(false)
-        expect(screen.getByLabelText("field skill")).toBeTruthy()
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+        await new Promise((r) => setTimeout(r, 20))
+        expect(dialog()).toBeNull()
     })
 
-    it("closing from a picker over a dirty parent drops the parent's edits", async () => {
-        const save = vi.fn(async () => false)
-        saveImpl = save
+    it("a failed Save changes of a parent under a picker shows the error", async () => {
+        saveImpl = async () => false
         renderHost()
         fireEvent.click(screen.getByText("open skill"))
         await screen.findByLabelText("field skill")
@@ -301,27 +337,31 @@ describe("ViewStackHost", () => {
         fireEvent.click(screen.getByText("open picker"))
         await screen.findByText("picker at depth 2")
         fireEvent.click(screen.getByText("crumb:Agent"))
-        await waitFor(() => expect(screen.queryByText("picker at depth 2")).toBeNull())
-        expect(screen.queryByLabelText("field skill")).toBeNull()
-        expect(screen.getByText("root body")).toBeTruthy()
-        expect(save).not.toHaveBeenCalled()
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Save changes")
+        await screen.findByRole("alert")
+        answer("Keep editing")
+        await waitFor(() => expect(dialog()).toBeNull())
+        expect(screen.getByText("picker at depth 2")).toBeTruthy()
     })
 
-    it("closeAll over a dirty child form resolves at once", async () => {
+    it("Save changes before a child form remounts the parent from saved data", async () => {
+        saveImpl = async () => true
         renderHost()
         fireEvent.click(screen.getByText("open skill"))
         await screen.findByLabelText("field skill")
         type("skill", "edited")
         fireEvent.click(screen.getByText("open child form"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Save changes")
         await screen.findByLabelText("field connect")
         type("connect", "child edit")
-        let closed: boolean | undefined
+        // Only the child is dirty now, so closing asks about the child.
         act(() => {
-            void stackRef!.closeAll().then((r) => (closed = r))
+            void stackRef!.closeAll()
         })
-        await waitFor(() => expect(closed).toBe(true))
-        expect(screen.queryByLabelText("field connect")).toBeNull()
-        expect(stackRef?.depth).toBe(0)
+        await screen.findByTestId("unsaved-changes-dialog")
+        expect(screen.getByText("leave connect")).toBeTruthy()
     })
 
     it("the view takes no input while its Save runs, and a held Escape does not close the parent", async () => {
@@ -343,18 +383,16 @@ describe("ViewStackHost", () => {
         expect(screen.getByLabelText("field skill")).toBeTruthy()
     })
 
-    it("Save is disabled while the edits are not valid", async () => {
+    it("Save changes is disabled while the edits are not valid", async () => {
         renderHost()
         fireEvent.click(screen.getByText("open skill"))
         await screen.findByLabelText("field skill")
-        type("skill", "edited")
-        expect((screen.getByRole("button", {name: "Save"}) as HTMLButtonElement).disabled).toBe(
-            false,
-        )
         type("skill", "invalid")
-        expect((screen.getByRole("button", {name: "Save"}) as HTMLButtonElement).disabled).toBe(
-            true,
-        )
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        expect(
+            (screen.getByRole("button", {name: "Save changes"}) as HTMLButtonElement).disabled,
+        ).toBe(true)
     })
 
     it("Save is pending: a second click is ignored and navigation waits", async () => {
@@ -412,9 +450,106 @@ describe("ViewStackHost", () => {
         )
         expect(screen.queryByRole("alert")).toBeNull()
         expect((screen.getByLabelText("field skill") as HTMLInputElement).value).toBe("edited")
+        // From the unsaved-changes dialog, "stay" keeps the person on the view.
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Save changes")
+        await waitFor(() => expect(dialog()).toBeNull())
+        expect(screen.getByLabelText("field skill")).toBeTruthy()
         result = true
         answer("Save")
         await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+    })
+
+    it("a view that leaves by itself while the dialog asks leaves once the question ends", async () => {
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        // The view's step ends (for example the sign-in window reports back) under the dialog.
+        fireEvent.click(screen.getByText("leave by itself"))
+        expect(screen.getByLabelText("field skill")).toBeTruthy()
+        answer("Keep editing")
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+    })
+
+    it("open is refused when the person keeps editing", async () => {
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        let opened: boolean | undefined
+        act(() => {
+            void stackRef!.open(formView, {name: "other"}, AGENT).then((r) => (opened = r))
+        })
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Keep editing")
+        await waitFor(() => expect(opened).toBe(false))
+        expect(screen.getByLabelText("field skill")).toBeTruthy()
+    })
+
+    it("a picker opens over a dirty parent; closeAll asks with the parent's description", async () => {
+        const save = vi.fn(async () => true)
+        saveImpl = save
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        fireEvent.click(screen.getByText("open picker"))
+        await screen.findByText("picker at depth 2")
+        expect(dialog()).toBeNull()
+        expect(stackRef?.dirty).toBe(true)
+
+        let closed: boolean | undefined
+        act(() => {
+            void stackRef!.closeAll().then((r) => (closed = r))
+        })
+        await screen.findByTestId("unsaved-changes-dialog")
+        expect(screen.getByText("leave skill")).toBeTruthy()
+        answer("Save changes")
+        await waitFor(() => expect(closed).toBe(true))
+        expect(save).toHaveBeenCalledTimes(1)
+    })
+
+    it("a child with its own form asks first; Discard resets the parent and opens the child", async () => {
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        type("skill", "edited")
+        fireEvent.click(screen.getByText("open child form"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Discard")
+        await screen.findByLabelText("field connect")
+        fireEvent.click(await screen.findByText("crumb:skill"))
+        const parent = (await screen.findByLabelText("field skill")) as HTMLInputElement
+        expect(parent.value).toBe("")
+    })
+
+    it("a Back held behind a child's Save does not also close the parent", async () => {
+        const pending = deferred()
+        saveImpl = () => pending.promise
+        renderHost()
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        fireEvent.click(screen.getByText("open child form"))
+        await screen.findByLabelText("field connect")
+        type("connect", "child edit")
+        answer("Save")
+        await screen.findByText("Saving…")
+        let first: boolean | undefined
+        let second: boolean | undefined
+        act(() => {
+            void stackRef!.back().then((r) => (first = r))
+            void stackRef!.back().then((r) => (second = r))
+        })
+        await act(async () => pending.resolve(true))
+        // Save closed the child; the held Back belonged to the child, so the parent stays.
+        await screen.findByText("here:skill")
+        await waitFor(() => expect(first).toBe(false))
+        expect(second).toBe(false)
+        expect(screen.getByLabelText("field skill")).toBeTruthy()
     })
 
     it("a view that leaves by itself while its Save runs leaves once the save ends", async () => {
@@ -433,52 +568,90 @@ describe("ViewStackHost", () => {
         await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
     })
 
-    it("open over a dirty view drops its edits and opens the new view", async () => {
+    it("the Save button is disabled while the edits are not valid", async () => {
         renderHost()
         fireEvent.click(screen.getByText("open skill"))
         await screen.findByLabelText("field skill")
         type("skill", "edited")
-        let opened: boolean | undefined
-        act(() => {
-            void stackRef!.open(formView, {name: "other"}, AGENT).then((r) => (opened = r))
-        })
-        await waitFor(() => expect(opened).toBe(true))
-        expect(await screen.findByLabelText("field other")).toBeTruthy()
-        expect(screen.queryByLabelText("field skill")).toBeNull()
+        expect((screen.getByRole("button", {name: "Save"}) as HTMLButtonElement).disabled).toBe(
+            false,
+        )
+        type("skill", "invalid")
+        expect((screen.getByRole("button", {name: "Save"}) as HTMLButtonElement).disabled).toBe(
+            true,
+        )
     })
 
-    it("a picker opens over a dirty parent; closeAll drops the edits without saving", async () => {
+    it("leaving a view opened with no change never asks", async () => {
         const save = vi.fn(async () => true)
         saveImpl = save
         renderHost()
         fireEvent.click(screen.getByText("open skill"))
         await screen.findByLabelText("field skill")
-        type("skill", "edited")
-        fireEvent.click(screen.getByText("open picker"))
-        await screen.findByText("picker at depth 2")
-        // The picker keeps the parent's edits while it is open.
-        expect(stackRef?.dirty).toBe(true)
-
+        expect(stackRef?.dirty).toBe(false)
+        // Escape, the root crumb, back and closeAll all leave at once.
+        fireEvent.keyDown(screen.getByLabelText("field skill"), {key: "Escape"})
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+        fireEvent.click(screen.getByText("open skill"))
+        await screen.findByLabelText("field skill")
         let closed: boolean | undefined
         act(() => {
             void stackRef!.closeAll().then((r) => (closed = r))
         })
         await waitFor(() => expect(closed).toBe(true))
+        expect(dialog()).toBeNull()
         expect(save).not.toHaveBeenCalled()
-        expect(screen.queryByRole("alertdialog")).toBeNull()
     })
 
-    it("a child with its own form resets a dirty parent and opens without asking", async () => {
+    it("an edit undone back to the loaded value does not ask", async () => {
         renderHost()
         fireEvent.click(screen.getByText("open skill"))
         await screen.findByLabelText("field skill")
         type("skill", "edited")
-        fireEvent.click(screen.getByText("open child form"))
-        await screen.findByLabelText("field connect")
-        expect(screen.queryByRole("alertdialog")).toBeNull()
-        fireEvent.click(await screen.findByText("crumb:skill"))
-        const parent = (await screen.findByLabelText("field skill")) as HTMLInputElement
-        expect(parent.value).toBe("")
+        expect(stackRef?.dirty).toBe(true)
+        type("skill", "")
+        expect(stackRef?.dirty).toBe(false)
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await waitFor(() => expect(screen.queryByLabelText("field skill")).toBeNull())
+        expect(dialog()).toBeNull()
+    })
+
+    it("an immediate view never asks, even with a form that reports edits", async () => {
+        renderHost()
+        act(() => {
+            void stackRef!.open(immediateFormView, {name: "toggles"}, AGENT)
+        })
+        await screen.findByText("immediate body")
+        expect(stackRef?.dirty).toBe(false)
+        fireEvent.keyDown(screen.getByText("immediate body"), {key: "Escape"})
+        await waitFor(() => expect(screen.queryByText("immediate body")).toBeNull())
+        expect(dialog()).toBeNull()
+    })
+
+    it("a view that stays open after Save still leaves from Save changes", async () => {
+        const save = vi.fn(async () => true)
+        saveImpl = save
+        renderHost()
+        act(() => {
+            void stackRef!.open(stayingFormView, {name: "automation"}, PROJECT)
+        })
+        await screen.findByLabelText("field automation")
+        type("automation", "edited")
+        answer("Save")
+        await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+        // The Save button keeps the view open, with no failure line.
+        expect(screen.getByLabelText("field automation")).toBeTruthy()
+        expect(screen.queryByRole("alert")).toBeNull()
+        type("automation", "edited again")
+        fireEvent.click(screen.getByText("crumb:Agent"))
+        await screen.findByTestId("unsaved-changes-dialog")
+        answer("Save changes")
+        await waitFor(() => expect(screen.queryByLabelText("field automation")).toBeNull())
+        expect(save).toHaveBeenCalledTimes(2)
     })
 
     it("Escape at the root calls onEscapeAtRoot; with a clean view it goes back", async () => {
@@ -529,6 +702,7 @@ describe("useViewOpener", () => {
             dirty: true,
             valid: true,
             save: async () => true,
+            leaveDescription: "leave connect",
             saveLabel: "Connect",
         })
         return <span>connect body</span>

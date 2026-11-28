@@ -59,6 +59,7 @@ const ProviderConnectionViewBody = ({params}: ViewProps<ProviderConnectionViewPa
     useViewForm({
         dirty: card?.dirty ?? false,
         valid: card?.canSave ?? false,
+        leaveDescription: t("entityUi.providerList.formLeaveDescription"),
         saveLabel: t("entityUi.providerList.saveConnection"),
         save: async () => {
             if (!card || !(await card.submit())) return false

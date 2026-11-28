@@ -1,11 +1,7 @@
 // @vitest-environment jsdom
-import {
-    activeUserIdAtom,
-    betaDeveloperModeFlagAtom,
-    navSimplifiedOverrideAtom,
-} from "@agenta/shared/state"
+import {activeUserIdAtom, classicAppFlagAtom, navSimplifiedOverrideAtom} from "@agenta/shared/state"
 import {createStore} from "jotai"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, describe, expect, it} from "vitest"
 
 import {enabledDeveloperViewsAtom} from "@/features/developer/developerViewAccess"
 import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
@@ -15,15 +11,11 @@ const store = (beta: boolean) => {
     const s = createStore()
     s.set(activeUserIdAtom, "u1")
     s.set(navSimplifiedOverrideAtom, false)
-    s.set(betaDeveloperModeFlagAtom, beta)
+    s.set(classicAppFlagAtom, !beta)
     return s
 }
 
-beforeEach(() => {
-    vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
-})
 afterEach(() => {
-    vi.unstubAllGlobals()
     localStorage.clear()
 })
 

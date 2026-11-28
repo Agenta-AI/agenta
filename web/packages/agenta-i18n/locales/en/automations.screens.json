@@ -41,6 +41,8 @@
     "setUpAutomation": "Set up an automation",
     "agentMeta": "Agent",
     "detailFallbackTitle": "Automation",
+    "leaveTitle": "Leave without saving?",
+    "leaveMessage": "This automation has changes you haven't saved. Leaving discards them.",
     "noLongerExists": "This automation no longer exists.",
     "noLongerExistsBody": "Someone deleted it, or this link is old. Go back to see this agent's automations.",
     "backToAutomations": "Back to automations",

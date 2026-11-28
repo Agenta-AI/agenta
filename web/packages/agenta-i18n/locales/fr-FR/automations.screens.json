@@ -41,6 +41,8 @@
     "setUpAutomation": "Configurer une automatisation",
     "agentMeta": "Agent",
     "detailFallbackTitle": "Automatisation",
+    "leaveTitle": "Quitter sans enregistrer ?",
+    "leaveMessage": "Cette automatisation comporte des modifications non enregistrées. Si vous quittez, elles seront perdues.",
     "noLongerExists": "Cette automatisation n’existe plus.",
     "noLongerExistsBody": "Quelqu’un l’a supprimée, ou ce lien est ancien. Revenez en arrière pour voir les automatisations de cet agent.",
     "backToAutomations": "Retour aux automatisations",

@@ -22,7 +22,8 @@ const AgentaWordmark = (props: SVGProps<SVGSVGElement>) => (
     </svg>
 )
 
-const AgentaMark = (props: SVGProps<SVGSVGElement>) => (
+/** The mark alone; the project switcher shows it beside the project name. */
+export const AgentaMark = (props: SVGProps<SVGSVGElement>) => (
     <svg viewBox="0 0 171 140" role="img" aria-label="Agenta" fill="none" {...props}>
         <path
             className={MARK_CLASS}

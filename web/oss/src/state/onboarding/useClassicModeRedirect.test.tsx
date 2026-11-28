@@ -50,8 +50,6 @@ describe("useClassicModeRedirect", () => {
     beforeEach(() => {
         ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
         replace.mockClear()
-        // The deployment offers beta developer mode (`AGENTA_BETA_DEVELOPER_MODE=true`).
-        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
         location.pathname = "/auth"
         Object.defineProperty(window, "location", {value: location, writable: true})
         Object.defineProperty(window, "localStorage", {value: localStorage, writable: true})
@@ -107,7 +105,7 @@ describe("useClassicModeRedirect", () => {
         // A browser with no gate cookie yet (a new device, or cleared cookies), on a /w page.
         const openW = async (
             pathname: string,
-            stored: {developerMode?: boolean; beta?: boolean},
+            stored: {developerMode?: boolean; classicApp?: boolean; oldBeta?: boolean},
         ) => {
             localStorage.clear()
             localStorage.setItem(ACTIVE_USER_ID_KEY, userId)
@@ -117,10 +115,16 @@ describe("useClassicModeRedirect", () => {
                     String(!stored.developerMode),
                 )
             }
-            if (stored.beta !== undefined) {
+            if (stored.classicApp !== undefined) {
+                localStorage.setItem(
+                    `agenta:settings:${userId}:classic-app`,
+                    JSON.stringify(stored.classicApp),
+                )
+            }
+            if (stored.oldBeta !== undefined) {
                 localStorage.setItem(
                     `agenta:settings:${userId}:beta-developer-mode`,
-                    JSON.stringify(stored.beta),
+                    JSON.stringify(stored.oldBeta),
                 )
             }
             document.cookie = "agenta-classic-mode=; path=/; max-age=0"
@@ -146,30 +150,37 @@ describe("useClassicModeRedirect", () => {
             ["by choice", true],
             ["by default", undefined],
         ] as const) {
-            it(`${label}, beta on: writes 0, then goes to the same page in /m`, async () => {
-                await openW("/w/ws-1/p/proj-1/apps", {developerMode, beta: true})
+            it(`${label}, classic app off (default): writes 0, then goes to the same page in /m`, async () => {
+                await openW("/w/ws-1/p/proj-1/apps", {developerMode})
 
                 expect(replace).toHaveBeenCalledWith("/m/w/ws-1/p/proj-1/apps")
                 expect(cookieAtNavigation).toEqual(["0"])
             })
 
-            it(`${label}, beta on: a /w developer page goes to the matching /m page`, async () => {
-                await openW("/w/ws-1/p/proj-1/evaluations", {developerMode, beta: true})
+            it(`${label}, classic app off: a /w developer page goes to the matching /m page`, async () => {
+                for (const page of ["evaluations", "prompts", "observability"]) {
+                    replace.mockClear()
+                    await openW(`/w/ws-1/p/proj-1/${page}`, {developerMode, classicApp: false})
+                    expect(replace).toHaveBeenCalledWith(`/m/w/ws-1/p/proj-1/${page}`)
+                }
+            })
+
+            it(`${label}, classic app off: ignores the old beta developer mode value`, async () => {
+                await openW("/w/ws-1/p/proj-1/evaluations", {developerMode, oldBeta: false})
 
                 expect(replace).toHaveBeenCalledWith("/m/w/ws-1/p/proj-1/evaluations")
             })
 
-            it(`${label}, beta on: stays on a /w page that /m lacks`, async () => {
-                await openW("/w/ws-1/p/proj-1/evaluations/results/compare", {
-                    developerMode,
-                    beta: true,
-                })
+            it(`${label}: stays on a /w page that /m lacks`, async () => {
+                await openW("/w/ws-1/p/proj-1/evaluations/results/compare", {developerMode})
 
                 expect(replace).not.toHaveBeenCalled()
             })
 
-            it(`${label}, beta off: stays in /w, as before`, async () => {
-                await openW("/w/ws-1/p/proj-1/apps", {developerMode, beta: false})
+            it(`${label}, classic app on: stays in /w, as before`, async () => {
+                for (const page of ["apps", "evaluations", "prompts", "observability"]) {
+                    await openW(`/w/ws-1/p/proj-1/${page}`, {developerMode, classicApp: true})
+                }
 
                 expect(replace).not.toHaveBeenCalled()
             })

@@ -1,6 +1,7 @@
 {
     "accountsStay": "每个人自己的账号仍保持连接。",
     "appLoadError": "无法加载此应用。",
+    "connectLeaveDescription": "保存更改以在此项目中连接该应用，还是放弃更改？",
     "connectionStays": "连接仍保留在项目中。",
     "removeFromAgent": "从 Agent 中移除",
     "removeTitle": "要从此 Agent 中移除 {{name}} 吗？",

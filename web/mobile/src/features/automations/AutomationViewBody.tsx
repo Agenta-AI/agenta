@@ -46,11 +46,10 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
     useViewForm({
         dirty: editor.dirty,
         valid: true,
-        // The automation stays open after Save; a failed save says so itself.
-        save: async () => {
-            await editor.save()
-            return "stay"
-        },
+        // The automation stays open after Save; a failed save says so itself, so it stays too.
+        closeOnSave: false,
+        save: async () => (await editor.save()) || "stay",
+        leaveDescription: t("automations.screens.leaveMessage"),
     })
 
     const openRuns = useCallback(
