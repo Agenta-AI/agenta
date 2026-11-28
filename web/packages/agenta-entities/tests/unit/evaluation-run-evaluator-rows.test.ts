@@ -255,6 +255,7 @@ describe("passed test cases", () => {
                 row("s3", {a: {ok: bool(false)}}),
             ],
             keys,
+            new Set(),
         )
 
         expect(result).toEqual({passed: 1, total: 3})
@@ -267,6 +268,17 @@ describe("passed test cases", () => {
                 row("s2", {a: {score: {type: "numeric/continuous"}}}),
             ],
             keys,
+            new Set(),
+        )
+
+        expect(result).toEqual({passed: 1, total: 1})
+    })
+
+    it("A test case that did not run is not counted, even with binary values", () => {
+        const result = passedTestCases(
+            [row("s1", {a: {ok: bool(true)}}), row("s2", {a: {ok: bool(false)}})],
+            keys,
+            new Set(["s2"]),
         )
 
         expect(result).toEqual({passed: 1, total: 1})
@@ -276,6 +288,7 @@ describe("passed test cases", () => {
         const result = passedTestCases(
             [row("s1", {a: {ok: bool(true)}}), row("s1", {b: {safe: bool(false)}})],
             keys,
+            new Set(),
         )
 
         expect(result).toEqual({passed: 0, total: 1})
@@ -286,7 +299,7 @@ describe("passed test cases", () => {
             row(`s${index}`, {a: {ok: bool(true)}}),
         )
 
-        expect(passedTestCases(rows, keys)).toBeNull()
+        expect(passedTestCases(rows, keys, new Set())).toBeNull()
     })
 })
 
@@ -380,43 +393,65 @@ describe("run tiles", () => {
 })
 
 describe("failed test cases", () => {
-    const errors = (sum: number) => ({
-        "attributes.ag.metrics.errors.cumulative": {type: "numeric/continuous", count: 1, sum},
-    })
-    const keys = {invocationStepKeys: ["app"], evaluatorStepKeys: ["judge", "tone"]}
+    const evaluatorStepKeys = ["judge", "tone"]
+    const rows = ["s1", "s2", "s3", "s4"].map((id) => ({scenario_id: id, data: {}}))
+    const failed = (scenarioId: string, stepKey: string) => ({scenarioId, stepKey})
 
-    it("An application error means the test case did not run; an evaluator error is counted per step", () => {
+    it("A failed application step means the test case did not run; a failed evaluator step is counted per step", () => {
         const failures = runFailures(
+            rows,
             [
-                {scenario_id: "s1", data: {app: errors(1)}},
-                {scenario_id: "s2", data: {app: errors(0), judge: errors(1), tone: errors(1)}},
-                {scenario_id: "s3", data: {app: errors(0), judge: errors(1)}},
-                {scenario_id: "s4", data: {app: errors(0)}},
+                failed("s1", "app"),
+                failed("s1", "judge"),
+                failed("s2", "judge"),
+                failed("s2", "tone"),
+                failed("s3", "judge"),
             ],
-            keys,
+            evaluatorStepKeys,
         )
 
         expect(failures).toEqual({
             total: 4,
             notRun: 1,
+            notRunIds: new Set(["s1"]),
             evaluatorFailed: 2,
             byStep: {judge: 2, tone: 1},
         })
     })
 
-    it("An evaluator with no value and no error did not apply, and is not a failure", () => {
-        const failures = runFailures([{scenario_id: "s1", data: {app: errors(0), tone: {}}}], keys)
+    it("An error the application recovered from is not a failure: only the stored step status counts", () => {
+        const recovered = {
+            scenario_id: "s1",
+            data: {
+                app: {
+                    "attributes.ag.metrics.errors.cumulative": {type: "numeric/continuous", sum: 1},
+                },
+            },
+        }
 
-        expect(failures).toEqual({total: 1, notRun: 0, evaluatorFailed: 0, byStep: {}})
+        expect(runFailures([recovered], [], evaluatorStepKeys)).toMatchObject({
+            total: 1,
+            notRun: 0,
+            evaluatorFailed: 0,
+        })
     })
 
-    it("A full page of rows means the failures are not available", () => {
-        const rows = Array.from({length: SCENARIO_METRICS_LIMIT}, (_, index) => ({
+    it("A test case whose application failed before it wrote a row still counts", () => {
+        expect(runFailures(rows, [failed("s5", "app")], evaluatorStepKeys)).toMatchObject({
+            total: 5,
+            notRun: 1,
+        })
+    })
+
+    it("A full page of rows or of failed steps means the failures are not available", () => {
+        const many = Array.from({length: SCENARIO_METRICS_LIMIT}, (_, index) => ({
             scenario_id: `s${index}`,
             data: {},
         }))
+        const manyFailed = many.map((row) => failed(row.scenario_id, "app"))
 
-        expect(runFailures(rows, keys)).toBeNull()
+        expect(runFailures(many, [], evaluatorStepKeys)).toBeNull()
+        expect(runFailures(rows, manyFailed, evaluatorStepKeys)).toBeNull()
     })
 
     it("Failures change the test cases, passed and errors tiles", () => {
@@ -427,13 +462,19 @@ describe("failed test cases", () => {
             binaryStats: [binary(20, 74)],
             passed: {status: "ready", passed: 16, total: 94},
             metricsPending: false,
-            failures: {total: 100, notRun: 6, evaluatorFailed: 3, byStep: {judge: 3}},
+            failures: {
+                total: 100,
+                notRun: 6,
+                notRunIds: new Set(["s1", "s2", "s3", "s4", "s5", "s6"]),
+                evaluatorFailed: 3,
+                byStep: {judge: 3},
+            },
         })
         const byId = Object.fromEntries(tiles.map((tile) => [tile.id, tile]))
 
         expect(byId.testCases).toMatchObject({
-            value: "94 of 100",
-            detail: {kind: "notRun", count: 6},
+            value: "94",
+            detail: {kind: "notRun", count: 6, total: 100},
         })
         expect(byId.passed.detail).toEqual({
             kind: "testCasesPassed",

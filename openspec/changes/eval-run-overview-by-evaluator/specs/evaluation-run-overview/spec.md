@@ -44,6 +44,14 @@ The "Passed" tile SHALL show the share of test cases whose binary values are all
 - **WHEN** a test case has the values true and true for two binary metrics and no value for a third
 - **THEN** that test case counts as passed
 
+#### Scenario: A test case with no binary value, or that did not run, is not counted
+- **WHEN** a test case has no binary value (its only binary evaluator failed), or its application step failed
+- **THEN** that test case is in neither the passed count nor the total of the "Passed" tile
+
+#### Scenario: An error the application recovered from
+- **WHEN** a traced call inside the application raised an error, the application still returned an output, and its step result is a success
+- **THEN** that test case ran, and the "Test cases" tile does not count it as "did not run"
+
 #### Scenario: No binary metric
 - **WHEN** no evaluator of the run has a binary metric
 - **THEN** the page shows no "Passed" tile and the other five tiles
@@ -62,7 +70,7 @@ The "Passed" tile SHALL show the share of test cases whose binary values are all
 
 ### Requirement: Failed test cases
 
-When the per-test-case rows are available, the Overview tab SHALL show the test cases that did not run (the application step reported an error) and the test cases an evaluator failed on (an evaluator step reported an error), and the "Passed" tile SHALL count only the test cases that ran.
+When the per-test-case rows are available, the Overview tab SHALL show the test cases that did not run (the stored result of the application step is a failure) and the test cases an evaluator failed on (the stored result of an evaluator step is a failure), and the "Passed" tile SHALL count only the test cases that ran and have a binary value.
 
 #### Scenario: Some test cases did not run
 - **WHEN** a run of 100 test cases has 6 where the application returned an error and 3 more where one evaluator failed

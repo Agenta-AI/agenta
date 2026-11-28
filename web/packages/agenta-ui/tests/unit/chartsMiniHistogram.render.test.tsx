@@ -34,6 +34,35 @@ describe("MiniHistogram", () => {
         )
     })
 
+    it("Mini histogram tells its bar titles as the chart's accessible description", () => {
+        render(
+            <MiniHistogram
+                label="score"
+                start="0"
+                end="1"
+                bars={[
+                    {key: "0", share: 0.5, title: "0 to 0.5: 1 of 2 test cases"},
+                    {key: "1", share: 0},
+                    {key: "2", share: 0.5, title: "0.5 to 1: 1 of 2 test cases"},
+                ]}
+            />,
+        )
+
+        const chart = screen.getByRole("img", {name: "score"})
+        const description = document.getElementById(chart.getAttribute("aria-describedby") ?? "")
+        expect(description?.textContent).toBe(
+            "0 to 0.5: 1 of 2 test cases; 0.5 to 1: 1 of 2 test cases",
+        )
+    })
+
+    it("Mini histogram without bar titles has no description", () => {
+        render(<MiniHistogram label="score" start="0" end="1" bars={[{key: "0", share: 1}]} />)
+
+        expect(screen.getByRole("img", {name: "score"}).hasAttribute("aria-describedby")).toBe(
+            false,
+        )
+    })
+
     it("Mini histogram keeps a small count visible and never draws over the top", () => {
         const {container} = render(
             <MiniHistogram

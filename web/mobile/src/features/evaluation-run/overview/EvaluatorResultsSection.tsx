@@ -74,7 +74,7 @@ export const EvaluatorResultsSection = ({
         )
     }
     if (evaluatorMetrics.length === 0 && pending) {
-        return <EvaluatorTableSkeleton label="Preparing evaluator metrics" />
+        return <EvaluatorTableSkeleton label={t("evaluations.runOverview.preparingMetrics")} />
     }
     if (evaluatorMetrics.length === 0) {
         if (online) {

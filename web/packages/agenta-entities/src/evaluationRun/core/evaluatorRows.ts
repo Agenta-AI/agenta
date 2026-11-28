@@ -239,18 +239,20 @@ function scenarioBinaryValue(raw: unknown): boolean | null {
 }
 
 /**
- * Test cases whose binary values are all true, over the test cases with a binary value. A missing
- * value does not fail; a test case with no binary value is not counted. Null when the rows are not
- * all there (a full page of {@link SCENARIO_METRICS_LIMIT} rows).
+ * Test cases whose binary values are all true, over the test cases that ran and have a binary
+ * value. A missing value does not fail; a test case with no binary value is not counted, and
+ * neither is a test case that did not run (`notRunIds`, from {@link runFailures}). Null when the
+ * rows are not all there (a full page of {@link SCENARIO_METRICS_LIMIT} rows).
  */
 export function passedTestCases(
     rows: readonly ScenarioMetricRowInput[],
     binaryMetrics: readonly {stepKey: string; metricKey: string}[],
+    notRunIds: ReadonlySet<string>,
 ): {passed: number; total: number} | null {
     if (rows.length >= SCENARIO_METRICS_LIMIT) return null
     const byScenario = new Map<string, (boolean | null)[]>()
     for (const row of rows) {
-        if (!row.scenario_id) continue
+        if (!row.scenario_id || notRunIds.has(row.scenario_id)) continue
         const data = isRecord(row.data) ? row.data : {}
         const values = binaryMetrics.map(({stepKey, metricKey}) => {
             const bucket = data[stepKey]
@@ -269,60 +271,66 @@ export function passedTestCases(
     return {passed, total}
 }
 
-/** The errors metric every step reports, application and evaluator alike. */
-const ERRORS_KEY = "attributes.ag.metrics.errors.cumulative"
+/** One step of one test case whose stored result is `failure` or `errors`. */
+export interface FailedStepInput {
+    scenarioId: string
+    stepKey: string
+}
 
-/** Failed test cases, read from the per-test-case rows. */
+/** Failed test cases, read from the per-test-case rows and the failed step results. */
 export interface RunFailures {
-    /** Test cases with a per-test-case row. */
+    /** Test cases with a per-test-case row or a failed step. */
     total: number
-    /** Test cases whose application step reported an error. */
+    /** Test cases whose application step failed. */
     notRun: number
-    /** Test cases that ran but where at least one evaluator reported an error. */
+    /** The ids of those test cases; "Passed" does not count them. */
+    notRunIds: ReadonlySet<string>
+    /** Test cases that ran but where at least one evaluator step failed. */
     evaluatorFailed: number
-    /** By evaluator step key: the test cases that ran where that evaluator reported an error. */
+    /** By evaluator step key: the test cases that ran where that evaluator step failed. */
     byStep: Record<string, number>
 }
 
-const stepErrored = (bucket: unknown) => {
-    if (!isRecord(bucket)) return false
-    const stats = normalizeMetricStats(bucket[ERRORS_KEY])
-    return (stats?.sum ?? stats?.mean ?? 0) > 0
-}
-
 /**
- * The test cases that did not run (an application step reported an error) and the ones an
- * evaluator failed on, from the errors metric of each step in the per-test-case rows. Null when the
- * rows are not all there. A missing evaluator value without an error (the evaluator did not apply)
- * is not a failure.
+ * The test cases that did not run (a step that is not an evaluator failed: the application) and
+ * the ones an evaluator failed on, from the stored status of each step result. The trace errors metric is not used: it also
+ * counts an error inside the application that the application recovered from. Null when the rows
+ * or the failed steps are not all there (a full page of {@link SCENARIO_METRICS_LIMIT}). A missing
+ * evaluator value without a failed step (the evaluator did not apply) is not a failure.
  */
 export function runFailures(
     rows: readonly ScenarioMetricRowInput[],
-    {
-        invocationStepKeys,
-        evaluatorStepKeys,
-    }: {invocationStepKeys: readonly string[]; evaluatorStepKeys: readonly string[]},
+    failedSteps: readonly FailedStepInput[],
+    evaluatorStepKeys: readonly string[],
 ): RunFailures | null {
-    if (rows.length >= SCENARIO_METRICS_LIMIT) return null
-    const byScenario = new Map<string, Record<string, unknown>>()
-    for (const row of rows) {
-        if (!row.scenario_id) continue
-        const data = isRecord(row.data) ? row.data : {}
-        byScenario.set(row.scenario_id, {...byScenario.get(row.scenario_id), ...data})
+    if (rows.length >= SCENARIO_METRICS_LIMIT || failedSteps.length >= SCENARIO_METRICS_LIMIT) {
+        return null
     }
-    let notRun = 0
+    // A test case whose application failed before it wrote a trace has no row, but is one.
+    const scenarioIds = new Set([
+        ...rows.flatMap((row) => (row.scenario_id ? [row.scenario_id] : [])),
+        ...failedSteps.map((step) => step.scenarioId),
+    ])
+    const failedByScenario = new Map<string, Set<string>>()
+    for (const {scenarioId, stepKey} of failedSteps) {
+        failedByScenario.set(
+            scenarioId,
+            (failedByScenario.get(scenarioId) ?? new Set()).add(stepKey),
+        )
+    }
+    const notRunIds = new Set<string>()
     let evaluatorFailed = 0
     const byStep: Record<string, number> = {}
-    for (const data of byScenario.values()) {
-        if (invocationStepKeys.some((key) => stepErrored(data[key]))) {
-            notRun += 1
+    for (const [scenarioId, failed] of failedByScenario) {
+        if ([...failed].some((key) => !evaluatorStepKeys.includes(key))) {
+            notRunIds.add(scenarioId)
             continue
         }
-        const failed = evaluatorStepKeys.filter((key) => stepErrored(data[key]))
-        if (failed.length > 0) evaluatorFailed += 1
-        for (const key of failed) byStep[key] = (byStep[key] ?? 0) + 1
+        const failedEvaluators = evaluatorStepKeys.filter((key) => failed.has(key))
+        if (failedEvaluators.length > 0) evaluatorFailed += 1
+        for (const key of failedEvaluators) byStep[key] = (byStep[key] ?? 0) + 1
     }
-    return {total: byScenario.size, notRun, evaluatorFailed, byStep}
+    return {total: scenarioIds.size, notRun: notRunIds.size, notRunIds, evaluatorFailed, byStep}
 }
 
 // ============================================================================
@@ -339,12 +347,15 @@ export type RunTileDetail =
     | {kind: "perTrace"}
     | {kind: "total"}
     | {kind: "testCasesPassed"; passed: number; total: number; thatRan: boolean}
-    | {kind: "notRun"; count: number}
+    | {kind: "notRun"; count: number; total: number}
     | {kind: "errorsSplit"; runs: number; evaluator: number}
 
 export interface RunTile {
     id: RunTileId
-    /** The formatted value, "—" when there is none, "…" while it loads. */
+    /**
+     * The formatted value, "—" when there is none, "…" while it loads. A "Test cases" tile with a
+     * `notRun` detail holds the count that ran; the view writes "{ran} of {total}".
+     */
     value: string
     detail: RunTileDetail | null
     /** The "Passed" tile only: true binary values over all binary values of the run. */
@@ -430,8 +441,8 @@ export function runTiles({
         failures && notRun > 0
             ? {
                   id: "testCases" as const,
-                  value: `${failures.total - notRun} of ${failures.total}`,
-                  detail: {kind: "notRun", count: notRun} as const,
+                  value: String(failures.total - notRun),
+                  detail: {kind: "notRun", count: notRun, total: failures.total} as const,
                   assertions: null,
               }
             : tile(

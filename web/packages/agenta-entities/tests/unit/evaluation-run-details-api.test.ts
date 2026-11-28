@@ -1,8 +1,14 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {postMock, queryMetrics} = vi.hoisted(() => ({postMock: vi.fn(), queryMetrics: vi.fn()}))
+const {postMock, queryMetrics, queryResults} = vi.hoisted(() => ({
+    postMock: vi.fn(),
+    queryMetrics: vi.fn(),
+    queryResults: vi.fn(),
+}))
 
-vi.mock("@agenta/sdk/resources", () => ({getEvaluationsClient: () => ({queryMetrics})}))
+vi.mock("@agenta/sdk/resources", () => ({
+    getEvaluationsClient: () => ({queryMetrics, queryResults}),
+}))
 
 vi.mock("@agenta/shared/api", () => ({
     axios: {post: postMock},
@@ -12,6 +18,7 @@ vi.mock("@agenta/shared/api", () => ({
 import {
     queryEvaluationScenariosPage,
     queryRunLevelMetrics,
+    queryRunFailedSteps,
     queryRunScenarioMetrics,
 } from "../../src/evaluationRun"
 
@@ -20,6 +27,7 @@ const scenario = (id: string) => ({id, run_id: "run-1", status: "success"})
 beforeEach(() => {
     postMock.mockReset()
     queryMetrics.mockReset()
+    queryResults.mockReset()
 })
 
 describe("run details API", () => {
@@ -114,6 +122,32 @@ describe("run details API", () => {
 
         await expect(
             queryRunScenarioMetrics({projectId: "p1", runId: "run-1", limit: 5000}),
+        ).rejects.toThrow()
+    })
+
+    it("Failed steps query asks for the failure and errors results of one run, at most the limit", async () => {
+        queryResults.mockResolvedValue({
+            count: 1,
+            results: [{run_id: "run-1", scenario_id: "s1", step_key: "app", status: "failure"}],
+        })
+
+        const failed = await queryRunFailedSteps({projectId: "p1", runId: "run-1", limit: 5000})
+
+        expect(queryResults).toHaveBeenCalledWith(
+            {
+                result: {run_ids: ["run-1"], statuses: ["failure", "errors"]},
+                windowing: {limit: 5000},
+            },
+            {queryParams: {project_id: "p1"}},
+        )
+        expect(failed).toEqual([{scenarioId: "s1", stepKey: "app"}])
+    })
+
+    it("Failed steps query throws when the response has the wrong shape", async () => {
+        queryResults.mockResolvedValue({results: "nope"})
+
+        await expect(
+            queryRunFailedSteps({projectId: "p1", runId: "run-1", limit: 5000}),
         ).rejects.toThrow()
     })
 })

@@ -3,20 +3,26 @@ import type {ReactNode} from "react"
 import {
     binaryCounts,
     categorySegments,
-    format3Sig,
-    formatMean,
     histogramBarsOf,
     isUnitScale,
     type EvaluatorRowMetric,
 } from "@agenta/entities/evaluationRun"
-import {useT} from "@agenta/i18n"
+import {formatNumber, useT} from "@agenta/i18n"
 import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
 import {MiniHistogram, ShareBar} from "@agenta/ui/components/presentational/charts"
 
 /** `data-1` to `data-6` in order, then again from `data-1` (COLOR-05). */
 const dataColor = (index: number) => `var(--data-${(index % 6) + 1})`
 
-const percent = (share: number) => `${Math.round(share * 100)}%`
+// Numbers in the chosen language: "75 %" and "0,82" in German.
+const percent = (share: number) => formatNumber(share, {style: "percent", maximumFractionDigits: 0})
+/** 3 significant digits, as `format3Sig`. */
+const sig3 = (value: number) => formatNumber(value, {maximumSignificantDigits: 3})
+/** A mean on 0 to 1 with 2 decimals, else 3 significant digits, as `formatMean`. */
+const mean = (value: number, unitScale: boolean) =>
+    unitScale
+        ? formatNumber(value, {minimumFractionDigits: 2, maximumFractionDigits: 2})
+        : sig3(value)
 
 /** One metric of an evaluator row, drawn by its kind: binary, numeric or categorical. */
 export const MetricCell = ({
@@ -65,7 +71,7 @@ export const MetricCell = ({
             sub = t("evaluations.runOverview.noResultsYet")
         }
     } else if (kind === "numeric") {
-        value = stats.mean === undefined ? "—" : formatMean(stats.mean, isUnitScale(stats))
+        value = stats.mean === undefined ? "—" : mean(stats.mean, isUnitScale(stats))
         sub =
             noResult > 0
                 ? t("evaluations.runOverview.meanNoResult", {noResult})
@@ -76,14 +82,14 @@ export const MetricCell = ({
             body = (
                 <MiniHistogram
                     label={label}
-                    start={format3Sig(bars[0].from)}
-                    end={format3Sig(bars[bars.length - 1].to)}
+                    start={sig3(bars[0].from)}
+                    end={sig3(bars[bars.length - 1].to)}
                     bars={bars.map((bar, index) => ({
                         key: String(index),
                         share: bar.share,
                         title: t("evaluations.runOverview.binTooltip", {
-                            from: format3Sig(bar.from),
-                            to: format3Sig(bar.to),
+                            from: sig3(bar.from),
+                            to: sig3(bar.to),
                             count: bar.count,
                             total,
                         }),

@@ -1,10 +1,12 @@
+import {useId} from "react"
+
 import {cn} from "../../ui/utils"
 
 export interface MiniHistogramBar {
     key: string
     /** 0..1: the bar's height. */
     share: number
-    /** Tooltip of the bar. */
+    /** Tooltip of the bar. The titles also make the chart's accessible description. */
     title?: string
 }
 
@@ -34,30 +36,45 @@ export function MiniHistogram({
     color?: string
     className?: string
 }) {
+    const descriptionId = useId()
+    // An `img` hides its children from assistive technology, so the bar titles are told here.
+    const description = bars.flatMap((bar) => (bar.title ? [bar.title] : [])).join("; ")
     return (
-        <div role="img" aria-label={label} className={cn("flex flex-col gap-px", className)}>
-            <div className="flex h-5 items-end gap-0.5 border-0 border-b border-solid border-border">
-                {bars.map((bar) => (
-                    <div
-                        key={bar.key}
-                        data-bar={bar.key}
-                        title={bar.title}
-                        className="flex h-full min-w-0 flex-1 items-end"
-                    >
+        <>
+            <div
+                role="img"
+                aria-label={label}
+                aria-describedby={description ? descriptionId : undefined}
+                className={cn("flex flex-col gap-px", className)}
+            >
+                <div className="flex h-5 items-end gap-0.5 border-0 border-b border-solid border-border">
+                    {bars.map((bar) => (
                         <div
-                            className="w-full rounded-t-xs"
-                            style={{
-                                height: `${(bar.share > 0 ? Math.max(MIN_VISIBLE, Math.min(1, bar.share)) : 0) * 100}%`,
-                                backgroundColor: color,
-                            }}
-                        />
-                    </div>
-                ))}
+                            key={bar.key}
+                            data-bar={bar.key}
+                            title={bar.title}
+                            className="flex h-full min-w-0 flex-1 items-end"
+                        >
+                            <div
+                                className="w-full rounded-t-xs"
+                                style={{
+                                    height: `${(bar.share > 0 ? Math.max(MIN_VISIBLE, Math.min(1, bar.share)) : 0) * 100}%`,
+                                    backgroundColor: color,
+                                }}
+                            />
+                        </div>
+                    ))}
+                </div>
+                <div className="flex justify-between text-caption tabular-nums text-muted-foreground">
+                    <span>{start}</span>
+                    <span>{end}</span>
+                </div>
             </div>
-            <div className="flex justify-between text-caption tabular-nums text-muted-foreground">
-                <span>{start}</span>
-                <span>{end}</span>
-            </div>
-        </div>
+            {description ? (
+                <span id={descriptionId} hidden>
+                    {description}
+                </span>
+            ) : null}
+        </>
     )
 }

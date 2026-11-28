@@ -11,7 +11,11 @@ import {getEvaluationsClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {z} from "zod"
 
-import {evaluationMetricsResponseSchema, type EvaluationMetric} from "../core"
+import {
+    evaluationMetricsResponseSchema,
+    evaluationResultsResponseSchema,
+    type EvaluationMetric,
+} from "../core"
 
 export const evaluationRunScenarioSchema = z.object({
     id: z.string(),
@@ -110,4 +114,33 @@ export async function queryRunScenarioMetrics({
         {queryParams: {project_id: projectId}},
     )
     return parseOrThrow(evaluationMetricsResponseSchema, response, "scenario metrics").metrics
+}
+
+/** One step of one test case whose result is `failure` or `errors`. */
+export interface FailedStep {
+    scenarioId: string
+    stepKey: string
+}
+
+/**
+ * `POST /evaluations/results/query` for the step results of one run whose status is `failure` or
+ * `errors`, at most `limit` rows. The stored step status tells whether a step failed; the trace
+ * errors metric does not, because it also counts errors that the application recovered from.
+ */
+export async function queryRunFailedSteps({
+    projectId,
+    runId,
+    limit,
+}: {
+    projectId: string
+    runId: string
+    limit: number
+}): Promise<FailedStep[]> {
+    const response = await getEvaluationsClient().queryResults(
+        {result: {run_ids: [runId], statuses: ["failure", "errors"]}, windowing: {limit}},
+        {queryParams: {project_id: projectId}},
+    )
+    return parseOrThrow(evaluationResultsResponseSchema, response, "failed results").results.map(
+        (result) => ({scenarioId: result.scenario_id, stepKey: result.step_key}),
+    )
 }

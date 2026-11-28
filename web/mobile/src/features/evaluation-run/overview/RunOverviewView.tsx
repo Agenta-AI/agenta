@@ -57,27 +57,18 @@ export const RunOverviewView = ({
 
     const failures = useMemo(() => {
         if (scenarioMetrics.status !== "ready") return null
-        const evaluatorStepKeys = (references?.evaluators ?? []).map((e) => e.stepKey)
-        // The app step reports cost, duration and tokens; an evaluator step is never one.
-        const invocationStepKeys = [
-            ...new Set(
-                metrics.flatMap((metric) =>
-                    metric.kind === "invocation" &&
-                    metric.stepKey &&
-                    !evaluatorStepKeys.includes(metric.stepKey)
-                        ? [metric.stepKey]
-                        : [],
-                ),
-            ),
-        ]
-        return runFailures(scenarioMetrics.rows, {invocationStepKeys, evaluatorStepKeys})
-    }, [scenarioMetrics, references, metrics])
+        return runFailures(
+            scenarioMetrics.rows,
+            scenarioMetrics.failedSteps,
+            (references?.evaluators ?? []).map((evaluator) => evaluator.stepKey),
+        )
+    }, [scenarioMetrics, references])
 
     const tiles = useMemo(() => {
         const binary = rows.flatMap((row) => row.metrics.filter((m) => m.kind === "binary"))
         const counted =
             scenarioMetrics.status === "ready"
-                ? passedTestCases(scenarioMetrics.rows, binary)
+                ? passedTestCases(scenarioMetrics.rows, binary, failures?.notRunIds ?? new Set())
                 : null
         const passed: PassedState =
             scenarioMetrics.status === "ready"

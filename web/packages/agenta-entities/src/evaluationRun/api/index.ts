@@ -38,8 +38,10 @@ export {
     evaluationRunScenarioSchema,
     queryEvaluationScenariosPage,
     queryRunLevelMetrics,
+    queryRunFailedSteps,
     queryRunScenarioMetrics,
     type EvaluationRunScenario,
+    type FailedStep,
     type EvaluationScenariosPage,
     type EvaluationScenariosPageParams,
 } from "./runDetails"

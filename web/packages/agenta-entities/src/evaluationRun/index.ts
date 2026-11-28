@@ -290,8 +290,10 @@ export {
     // Run details
     queryEvaluationScenariosPage,
     queryRunLevelMetrics,
+    queryRunFailedSteps,
     queryRunScenarioMetrics,
     type EvaluationRunScenario,
+    type FailedStep,
     type EvaluationScenariosPage,
     type EvaluationScenariosPageParams,
     // Live evaluation queries

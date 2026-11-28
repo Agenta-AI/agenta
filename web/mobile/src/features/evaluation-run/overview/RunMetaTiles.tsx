@@ -52,7 +52,14 @@ export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online
                     className="box-border flex min-w-0 flex-col gap-0.5 rounded-lg border border-solid border-border px-4 py-3"
                 >
                     <span className="truncate text-meta text-muted-foreground">{label(tile)}</span>
-                    <span className="text-metric tabular-nums text-foreground">{tile.value}</span>
+                    <span className="text-metric tabular-nums text-foreground">
+                        {tile.detail?.kind === "notRun"
+                            ? t("evaluations.runOverview.testCasesRan", {
+                                  ran: tile.value,
+                                  total: tile.detail.total,
+                              })
+                            : tile.value}
+                    </span>
                     {tile.detail ? (
                         <span
                             className={`truncate text-meta ${

@@ -6,6 +6,7 @@ import {
     runReferencesAtomFamily,
     runScenarioMetricsQueryAtomFamily,
     type EvaluationMetric,
+    type FailedStep,
     type RunMetricEntry,
 } from "@agenta/entities/evaluationRun"
 import {testsetQueryAtomFamily, testsetRevisionHeaderAtomFamily} from "@agenta/entities/testset"
@@ -77,13 +78,14 @@ export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
 }
 
 /**
- * The per-test-case rows behind the "Passed" tile and the failed test cases. They load once the
- * run has finished; a running or online run never reads them, so they are not available there.
+ * The per-test-case rows behind the "Passed" tile, and the failed step results behind the failed
+ * test cases. They load once the run has finished; a running or online run never reads them, so
+ * they are not available there.
  */
 export type ScenarioMetricsState =
     | {status: "pending"}
     | {status: "unavailable"}
-    | {status: "ready"; rows: EvaluationMetric[]}
+    | {status: "ready"; rows: EvaluationMetric[]; failedSteps: FailedStep[]}
 
 /** Everything the Overview tab of one run reads. The run facts are in the header's meta line. */
 export function useRunOverview(runId: string) {
@@ -122,7 +124,7 @@ export function useRunOverview(runId: string) {
     }, [scenarioQuery.isError, scenarioQuery.error])
 
     const scenarioMetrics: ScenarioMetricsState = scenarioQuery.isSuccess
-        ? {status: "ready", rows: scenarioQuery.data}
+        ? {status: "ready", ...scenarioQuery.data}
         : scenarioQuery.fetchStatus === "fetching"
           ? {status: "pending"}
           : {status: "unavailable"}

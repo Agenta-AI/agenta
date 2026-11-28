@@ -113,9 +113,11 @@ The rule, for each `numeric/continuous` output of an evaluator step, in this ord
 
 1. The output schema declares `minimum` and `maximum` for the number, and every value of the run is in that range: 10 bins on that range.
 2. Else every value of the run is in 0 to 1: 10 bins on 0 to 1.
-3. Else today's bins: the run's own min to max with `ceil(sqrt(n))` bins.
+3. Else 10 bins on the run's own min to max.
 
-"Every value is in the range" is checked in the SQL. A declared range alone is not enough: a value below `vmin` would drop out of the histogram (`T:1507-1511`). A value outside the declared range breaks the evaluator's own schema, so rule 3 is the right fallback. With a fitting range, one value or min = max still gets the 10 bins of the range.
+The rules are tried in this order for every score, so a declared range that the values do not fit falls through to rule 2. Example: a schema declares 1 to 5 and the values are 0.2 and 0.8. Rule 1 does not apply (0.2 is below 1), rule 2 does: 10 bins on 0 to 1.
+
+"Every value is in the range" is checked in the SQL. A declared range alone is not enough: a value below `vmin` would drop out of the histogram (`T:1507-1511`). With a fitting range, one value or min = max still gets the 10 bins of the range.
 
 Where the change goes:
 
@@ -123,25 +125,25 @@ Where the change goes:
 | --- | --- |
 | Only in `S:1660-1666`: set `vmin`, `vmax`, `bins` on the spec | Rule 1 only. Rule 2 depends on the data, which the service does not know before the query. Values below the range are lost. |
 | Change the SQL default for every spec without options | No new field. Changes the public `/tracing/analytics` result for every caller, also outside evaluations. |
-| **Two new optional `MetricSpec` fields `vmin_hint` and `vmax_hint`: a range that the SQL uses only when every value fits it** | Rules 1 to 3 in one SQL condition. Callers that do not send them get today's result. One additive field pair on a public request model. |
+| Two new optional public `MetricSpec` fields `vmin_hint` and `vmax_hint`: a range that the SQL uses only when every value fits it | Rules 1 to 3 in one SQL condition. One additive field pair on a public request model, which other callers can send. |
+| **An internal subclass `ScoreMetricSpec(MetricSpec)` with `declared_min` and `declared_max`, built only by the evaluations service** | Rules 1 to 3 in one SQL condition. The public `/tracing/analytics` request does not change. (Built in PR 8629.) |
 
 Exact places:
 
-- `api/oss/src/core/tracing/dtos.py:270-277`: add `vmin_hint: Optional[float] = None` and `vmax_hint: Optional[float] = None` to `MetricSpec`. `vmin` and `vmax` keep their meaning and win over the hints.
-- `T:1085-1107`: add the two columns to `specs_values`. `T:1191-1194`, `T:1254-1257`, `T:1276-1279`: carry them like `vmin`/`vmax`.
-- `T:1367-1385`: `hint_fits` = both hints set and data `vmin >= vmin_hint` and data `vmax <= vmax_hint`. `chosen_min` = `vmin_opt`, else `vmin_hint` when `hint_fits`, else data `vmin`. Same for `chosen_max`. `chosen_bins` = `bins_opt`, else 10 when `hint_fits`, else `ceil(sqrt(n))`.
-- `T:1393`: the one-bin shortcut applies only when `hint_fits` is false.
+- `api/oss/src/core/tracing/dtos.py`: add `ScoreMetricSpec(MetricSpec)` with `declared_min: Optional[float]` and `declared_max: Optional[float]`. `vmin`, `vmax` and `bins` keep their meaning and win over the rule.
+- `T:1085-1107`: add the columns `score_rule`, `declared_min` and `declared_max` to `specs_values`. `T:1191-1194`, `T:1254-1257`, `T:1276-1279`: carry them like `vmin`/`vmax`.
+- `T:1367-1385`: `fits_declared` = a score spec with both bounds and data `vmin >= declared_min` and data `vmax <= declared_max`; `fits_unit` = a score spec with data `vmin >= 0` and `vmax <= 1`. `chosen_min` = `vmin_opt`, else `declared_min` when `fits_declared`, else 0 when `fits_unit`, else data `vmin`. Same for `chosen_max`. `chosen_bins` = `bins_opt`, else 10 for a score spec, else `ceil(sqrt(n))`.
+- `T:1393`: the one-bin shortcut does not apply to a score spec.
 - `api/oss/src/core/evaluations/utils.py:210-217`: for a `number` with numeric `minimum` and `maximum`, add `"minimum"` and `"maximum"` to the returned dict.
-- `S:1596-1603`: carry `minimum` and `maximum` into `steps_metrics_keys` for the evaluator output paths only (not `DEFAULT_METRICS`, which holds cost, duration, tokens and errors).
-- `S:1660-1666`: for a `numeric/continuous` evaluator output, set `vmin_hint`/`vmax_hint` to the declared range, else to 0 and 1. Invocation metrics get no hints.
+- `S:1596-1603`: mark the evaluator output paths with `"score": True` and carry `minimum` and `maximum` into `steps_metrics_keys` (not `DEFAULT_METRICS`, which holds cost, duration, tokens and errors).
+- `S:1660-1666`: a `numeric/continuous` path marked as a score gets a `ScoreMetricSpec` with the declared range (or none). Invocation metrics get a plain `MetricSpec`.
 
-Interface check (design-interfaces lens) for `vmin_hint` and `vmax_hint`:
+Interface check (design-interfaces lens) for `declared_min` and `declared_max`:
 
 - Role: configuration of the computation (a binning policy), not data and not metadata.
-- Owner: the caller of the analytics query. Lifetime: one request. Never stored: the stored metric rows keep the `hist` shape `{bin, count, interval, density}`, only the edges change.
-- Name: the `v` prefix matches `vmin`/`vmax` in the same model. A plain `range` is not used, because `range` is already a field of the computed blob (`T` continuous blocks).
+- Owner: the evaluations service. Lifetime: one refresh. Never stored: the stored metric rows keep the `hist` shape `{bin, count, interval, density}`, only the edges change.
 - Stored contracts: none change. The metric keys with `minimum`/`maximum` live only in memory; the run mappings and the other callers copy `path` and `type` only (`S:1848-1875`, `S:3925-3935`, `S:5116-5125`). An inferred schema (`S:1572-1589`) has no range, so rule 2 or 3 applies.
-- Public request: `/tracing/analytics` accepts the two optional fields. Additive; document them in the API reference.
+- Public request: none. `/tracing/analytics` callers cannot send a `ScoreMetricSpec`, so their result does not change.
 
 The web page:
 
@@ -177,7 +179,7 @@ Up to six tiles, in this order.
 "Passed" rules:
 
 - An assertion is one value of a binary metric for one test case.
-- A test case passed when every binary value it has is true. A binary metric with no value for that test case does not make it fail. A test case with no binary value at all is not counted.
+- A test case passed when every binary value it has is true. A binary metric with no value for that test case does not make it fail. A test case with no binary value at all is not counted, and neither is a test case that did not run (below). So the count is over the test cases that ran and have at least one binary value: "{passed} of {n} that ran" uses that `n`.
 - The value and the first line come from the per-test-case rows: one request per run, `POST /evaluations/metrics/query` with `{metrics: {run_ids: [runId], scenario_ids: true}, windowing: {limit: 5000}}`, read by a new atom `runScenarioMetricsQueryAtomFamily(runId)` that loads when the run has finished. It reads again on "Try again" after a failure, after an annotation save or a re-run on the run page, and when the overview opens again after 30 s (the stale time of the run-level metrics). It never polls on a timer: a running run would send a large request every 5 s (design review, 2026-11-27). A running run shows "—" in the "Passed" value until it finishes. The browser computes the count. This can move to the server later as a run-level field.
 - "92 of 138 assertions true" comes from the run-level `frequency` of every binary metric (true count over true plus false count). It needs no per-test-case data.
 - A run with no binary metric shows no "Passed" tile (five tiles).
@@ -187,7 +189,7 @@ Up to six tiles, in this order.
 
 Failed test cases (decision page question 5, built as the recommended option A; still open with Mahmoud):
 
-- The same per-test-case rows give the errors metric of each step for each test case. A test case "did not run" when an application step reported an error. An evaluator "failed" on a test case that ran when that evaluator step reported an error. The application steps are the steps with invocation metrics that are not evaluator steps.
+- The stored status of each step result tells which steps failed: one `POST /evaluations/results/query` with `{result: {run_ids: [runId], statuses: ["failure", "errors"]}, windowing: {limit: 5000}}`, read with the per-test-case rows. A test case "did not run" when a step that is not an evaluator step (the application) failed. An evaluator "failed" on a test case that ran when that evaluator step failed. The trace errors metric is not used for this: it also counts an error inside the application that the application recovered from.
 - When there is at least one such test case: a red alert above the tiles with the two counts and a "Show test cases" link to the Scenarios tab (the link does not filter the table); the "Test cases" tile shows "{ran} of {total}" and "{n} did not run"; "Passed" counts only the test cases that ran ("{passed} of {ran} that ran"); the "Errors" tile shows the failed test cases with "{runs} runs, {evaluator} evaluator", as on the canvas page "run with failed test cases". Each row shows a striped "no result" part for the test cases its evaluator failed on.
 - Without failures, or without the per-test-case rows, the tiles keep the run-level values above and no alert shows.
 
@@ -287,14 +289,14 @@ Every new string. Strings from the mockups are marked (m); strings Mahmoud gave 
 - Toolbar: "Search evaluators and metrics" (m), "Filter" (m), "Filter: all evaluators" (m), "Evaluator" (plain), "Group: evaluator" (m), "Sort: lowest first" (m), "Sort: name" (plain), "Sort: largest drop first" (m), "Lowest first", "Name", "Largest drop first" (plain), "No evaluators match this search." (plain).
 - Table: "Evaluator" (m), "Metrics" (plain), "{n} metrics" and "1 metric" (m), "mean" (m), "{passed} of {total}" (m), "{passed} passed, {failed} failed" (m), "{from} to {to}: {count} of {total} test cases" (m), axis end labels from the bins, for example "0" and "1" (m), "No results yet" (plain), "Passed" (m), "Failed" (m), "Score distribution: every chart goes from 0 to 1, and bar height is the share of test cases" (m, when every histogram is on 0 to 1), "Score distribution: bar height is the share of test cases" (m, shortened, when a histogram has another range), "Over time" (plain).
 - Compare: "Summary" (m), "Change" (m), "newest" (m), "before" (m), "Cost per test case" (m), "Duration per test case" (m), "Tokens per test case" (m), "The change column compares the newest evaluation with the one before it." (m), "Metrics, one line per evaluation" (m), "+{n} points", "−{n} points" (m), "no change" (m), "The {k} metrics that changed most between the two newest evaluations, of {n}." (m), "Every metric of these evaluations." (plain), "Radar chart with one shape per evaluation" (m, aria).
-- Kept as they are: "Unable to load evaluator metrics", "Unable to refresh evaluator metrics. The scores below may be out of date.", "Try again", "Preparing evaluator metrics", "No metric values generated", "No evaluator metrics available", "Temporal evaluator metrics" and their descriptions, and the human-run annotate prompt (`M/overview/MetricCardsSection.tsx:50-117`).
+- Kept as they are: "Unable to load evaluator metrics", "Unable to refresh evaluator metrics. The scores below may be out of date.", "Try again", "No metric values generated", "No evaluator metrics available", "Temporal evaluator metrics" and their descriptions, and the human-run annotate prompt (`M/overview/MetricCardsSection.tsx:50-117`).
 
 ## Risks / Trade-offs
 
 - **Size of the per-test-case request.** It grows with test cases × evaluators × metrics. The 5,000-row limit keeps a very large run from loading a huge response; such a run shows "—" in the "Passed" value. Part A measures the response size of the dev copy runs and records it in the PR. Moving the count to the server removes the request later.
 - **Old runs keep old bins** until their metrics are refreshed. No backfill in this change.
 - **"On a 0 to 1 scale" is read from the data** when the schema declares no range. A 0 to 10 score whose values in this run are all 0 or 1 is binned and charted as 0 to 1. Accepted; a declared range avoids it.
-- **A public request field is added** (`vmin_hint`, `vmax_hint` on `MetricSpec`). Additive; callers that do not send it get today's result.
+- **No public request field is added.** The score rule lives in the internal `ScoreMetricSpec`, so `/tracing/analytics` callers get today's result.
 - **Two steps of one evaluator in compare** share one row (`E/core/runCompare.ts:221`). Rare; documented, as today.
 - **Compare colors change** from `--ag-chart-series-*` to `--data-*` on the chips and the scenario compare rows too. Intended (COLOR-05).
 - **Test cases tile** counts traced test cases (`count` of duration). A test case that failed before it made a trace is not counted. The Errors tile shows those errors.

@@ -4,11 +4,15 @@ import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {postMock, queryMetrics} = vi.hoisted(() => ({postMock: vi.fn(), queryMetrics: vi.fn()}))
+const {postMock, queryMetrics, queryResults} = vi.hoisted(() => ({
+    postMock: vi.fn(),
+    queryMetrics: vi.fn(),
+    queryResults: vi.fn(),
+}))
 
 vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/sdk/resources")>()),
-    getEvaluationsClient: () => ({queryMetrics}),
+    getEvaluationsClient: () => ({queryMetrics, queryResults}),
 }))
 
 vi.mock("@agenta/shared/api", async (importOriginal) => ({
@@ -57,6 +61,8 @@ beforeEach(() => {
     postMock.mockReset()
     queryMetrics.mockReset()
     queryMetrics.mockResolvedValue({count: 0, metrics: []})
+    queryResults.mockReset()
+    queryResults.mockResolvedValue({count: 0, results: []})
     store.set(queryClientAtom, new QueryClient())
     store.set(projectIdAtom, "p1")
 })
@@ -570,7 +576,7 @@ describe("per-test-case metrics query", () => {
         return stop
     }
 
-    it("A finished run reads its per-test-case rows once, with no poll", async () => {
+    it("A finished run reads its per-test-case rows and failed steps once, with no poll", async () => {
         const run = {...auto.run, id: "run-done", status: "success"}
         const client = new QueryClient()
         client.setQueryData(evaluationRunQueryKey(run.id), run)
@@ -580,6 +586,11 @@ describe("per-test-case metrics query", () => {
         await vi.waitFor(() => expect(queryMetrics).toHaveBeenCalledTimes(1))
         expect(queryMetrics.mock.calls[0][0]).toEqual({
             metrics: {run_ids: [run.id], scenario_ids: true},
+            windowing: {limit: 5000},
+        })
+        expect(queryResults).toHaveBeenCalledTimes(1)
+        expect(queryResults.mock.calls[0][0]).toEqual({
+            result: {run_ids: [run.id], statuses: ["failure", "errors"]},
             windowing: {limit: 5000},
         })
         const query = client
@@ -600,6 +611,7 @@ describe("per-test-case metrics query", () => {
         const stops = [watch(running.id), watch(liveRun.id)]
         await new Promise((resolve) => setTimeout(resolve, 50))
         expect(queryMetrics).not.toHaveBeenCalled()
+        expect(queryResults).not.toHaveBeenCalled()
         stops.forEach((stop) => stop())
     })
 })

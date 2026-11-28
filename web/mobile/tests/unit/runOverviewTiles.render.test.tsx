@@ -128,6 +128,7 @@ describe("run overview tiles", () => {
                 scenarioMetrics: {
                     status: "ready",
                     rows: [binaryRow("s1", {success: true}), binaryRow("s2", {success: false})],
+                    failedSteps: [],
                 },
             }),
         )
@@ -175,9 +176,6 @@ describe("run overview tiles", () => {
     })
 
     it("Failed test cases show the alert, the ran count and the no result part of a cell", () => {
-        const errors = (sum: number) => ({
-            "attributes.ag.metrics.errors.cumulative": {type: "numeric/continuous", sum},
-        })
         render(
             view({
                 metrics: [
@@ -186,13 +184,15 @@ describe("run overview tiles", () => {
                 ],
                 scenarioMetrics: {
                     status: "ready",
+                    // s2 did not run: its evaluator value does not count in "Passed".
                     rows: [
-                        binaryRow("s1", {success: true}, {app: errors(0)}),
-                        binaryRow("s2", {}, {app: errors(1)}),
-                        {
-                            ...binaryRow("s3", {}, {app: errors(0)}),
-                            data: {app: errors(0), "ev-step": errors(1)},
-                        } as EvaluationMetric,
+                        binaryRow("s1", {success: true}),
+                        binaryRow("s2", {success: false}),
+                        binaryRow("s3", {}),
+                    ],
+                    failedSteps: [
+                        {scenarioId: "s2", stepKey: "app"},
+                        {scenarioId: "s3", stepKey: "ev-step"},
                     ],
                 },
             }),
@@ -258,7 +258,8 @@ describe("evaluator table", () => {
         expect(cell("success")?.querySelector('[role="img"]')?.getAttribute("title")).toBe(
             "3 passed, 1 failed",
         )
-        expect(cell("score")?.textContent).toBe("score0.75 mean0.51")
+        // The text after the axis ends is the histogram's hidden accessible description.
+        expect(cell("score")?.textContent).toMatch(/^score0\.75 mean0\.51(0\.5 to 0\.75)/)
         expect(cell("score")?.querySelector("[data-bar='0']")?.getAttribute("title")).toBe(
             "0.5 to 0.75: 2 of 4 test cases",
         )
