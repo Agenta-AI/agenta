@@ -20,18 +20,20 @@ vi.mock("@agenta/annotation", async (importOriginal) => {
 })
 vi.mock("@agenta/ui/app-message", () => ({message: {success: vi.fn(), error: vi.fn()}}))
 
-const header = vi.hoisted(() => ({atom: null as unknown}))
+const header = vi.hoisted(() => ({atom: null as unknown, none: null as unknown}))
 vi.mock("@agenta/entities/evaluationRun", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entities/evaluationRun")>()),
-    runHeaderAtomFamily: () => header.atom,
+    // Only the saved run's header has a kind, so a read of another run would fail the tests.
+    runHeaderAtomFamily: (runId: string) => (runId === "run-1" ? header.atom : header.none),
 }))
-
-import {callsOf, fakeStore, handlers, resetSession} from "../support/annotationSessionFake"
 
 import {useSubmitAnnotations} from "@/features/annotations/useSubmitAnnotations"
 
+import {callsOf, fakeStore, handlers, resetSession} from "../support/annotationSessionFake"
+
 const runHeader = atom({kind: "auto"})
 header.atom = runHeader
+header.none = atom(null)
 const setKind = (kind: string) => fakeStore.set(runHeader as PrimitiveAtom<{kind: string}>, {kind})
 
 let save: () => Promise<void> = async () => undefined

@@ -315,6 +315,25 @@ describe("annotation in run scope", () => {
         })
     })
 
+    it("A run save that does not mark the scenario complete writes the annotation and leaves the scenario status", async () => {
+        const answer = http.post.getMockImplementation()
+        http.post.mockImplementation(async (url: string, ...rest: unknown[]) => {
+            if (url.endsWith("/evaluations/scenarios/query")) {
+                return {data: {scenarios: [{id: SCENARIO, status: "failure"}]}}
+            }
+            return answer?.(url, ...rest)
+        })
+        await openRunForm()
+        await annotationFormController.set.submitAnnotations({
+            scenarioId: SCENARIO,
+            markComplete: false,
+        })
+
+        expect(bodyOf("http://api.test/simple/traces/")).toBeDefined()
+        expect(bodyOf("http://api.test/evaluations/results/")).toBeDefined()
+        expect(bodyOf("http://api.test/evaluations/scenarios/")).toBeUndefined()
+    })
+
     it("An annotation result listed before the app result is not taken for the app output", async () => {
         // Another evaluator of the run already annotated this scenario, and the API lists that
         // annotation's result first.

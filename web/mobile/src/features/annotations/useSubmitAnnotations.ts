@@ -23,7 +23,8 @@ export type OnAnnotationsSaved = (saved: {scenarioId: string; replacedTraceIds: 
  * Saves one scenario's annotations. In a queue, a first save marks the scenario completed and the
  * session opens the next one that needs review ("Mark completed and next"); a save on a completed
  * scenario updates it and stays ("Update"). In a run, every save is
- * "Annotate" and needs a change. Every entry point (the footer, the keyboard, the annotate sheets)
+ * "Annotate" and needs a change; it marks the scenario complete only in a human run, and keeps
+ * the status of an automatic or SDK run. Every entry point (the footer, the keyboard, the annotate sheets)
  * shares these rules and these messages.
  */
 export const useSubmitAnnotations = (
