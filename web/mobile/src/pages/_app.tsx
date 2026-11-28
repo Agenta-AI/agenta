@@ -4,7 +4,7 @@ import "@/lib/prismManualMode"
 import {registerDriveMarkdown} from "@agenta/entity-ui/drive"
 import {DEFAULT_PAGE_TITLE} from "@agenta/shared/utils"
 import AppMessageContext from "@agenta/ui/app-message"
-import {iconWeight} from "@agenta/ui/design/icons"
+import {iconStrokeAttr, iconWeight} from "@agenta/ui/design/icons"
 import {useVisualViewportHeight} from "@agenta/ui/hooks"
 import {IconContext} from "@phosphor-icons/react"
 import type {AppProps} from "next/app"
@@ -31,7 +31,7 @@ registerDriveMarkdown(DriveMarkdownRenderer)
 
 // Every Phosphor icon draws at the design system weight (ICON-01). One stable object, so the
 // context never changes identity between renders.
-const ICON_DEFAULTS = {weight: iconWeight}
+const ICON_DEFAULTS = {weight: iconWeight, [iconStrokeAttr]: ""}
 
 // Deliberately minimal: no provider fleet (the desktop _app's ~10 providers
 // are the reason this app exists as a separate bundle). AppProviders holds

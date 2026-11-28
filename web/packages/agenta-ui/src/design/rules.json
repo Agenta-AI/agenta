@@ -196,10 +196,10 @@
             "rules": [
                 {
                     "id": "ICON-01",
-                    "rule": "Phosphor, bold weight, only",
-                    "why": "Two stroke weights side by side look like two products. Regular strokes are 1px at 16px and look faint at the 12 to 16px icon sizes.",
+                    "rule": "Phosphor, one weight: regular plus a 1.6-unit outline (17.6 units, about 27% lighter than bold)",
+                    "why": "Two stroke weights side by side look like two products. Plain regular strokes look faint at the 12 to 16px icon sizes, and bold looks heavy, so the app draws regular paths with a thin outline in the same color.",
                     "avoid": "`lucide-react` or a second icon library; a `weight` prop other than `fill`; a filled icon that does not show a state",
-                    "do": "Phosphor with no `weight` prop: the app sets `iconWeight` from `design/icons.ts` once, through `IconContext`. Pass `weight=\"fill\"` only to show a state, and `undefined` (not `\"regular\"`) for the off state",
+                    "do": "Phosphor with no `weight` prop: the app sets `iconWeight` and the `data-icon-stroke` outline from `design/icons.ts` once, through `IconContext`; the outline rule is in `web/mobile/src/styles/globals.css`. Pass `weight=\"fill\"` only to show a state, and `undefined` (not `\"regular\"`) for the off state",
                     "checkedBy": ["ratchet", "lint", "review"]
                 },
                 {

@@ -374,7 +374,7 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** Settings with live chat and help, plus Invite Teammate in beta developer mode. */
+/** Invite Teammate in beta developer mode, above Settings with live chat and help. */
 export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => {
     const t = useT(navigationCatalog, commonCatalog)
     const version = useMobileVersion()
@@ -421,7 +421,7 @@ export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => 
         [projectId, projectURL, version, t],
     )
     return useMemo(
-        () => (inviteItems.length ? [...items, ...inviteItems] : items),
+        () => (inviteItems.length ? [...inviteItems, ...items] : items),
         [inviteItems, items],
     )
 }
