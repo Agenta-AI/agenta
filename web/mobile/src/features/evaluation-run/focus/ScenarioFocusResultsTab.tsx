@@ -69,8 +69,10 @@ const metricValue = (value: unknown): unknown => {
  * Each evaluator of the run on one test case: its metrics with their kinds, and its state. An
  * evaluator with an error is `error`; one with values is `done`; one with none yet is `pending`
  * while the test case runs or while its values did not load, and `notRun` when the app call
- * failed. An evaluator with no result on a finished test case whose app call did not fail is left
- * out: it gave nothing for this test case, and it would read as a failed app call.
+ * failed. An evaluator that ran (its step has a trace) but gave none of the run's mapped values is
+ * `done` with no metrics, so its row keeps the trace button. An evaluator with no result and no
+ * trace on a finished test case whose app call did not fail is left out: it gave nothing for this
+ * test case, and it would read as a failed app call.
  */
 export function scenarioEvaluatorResults(
     row: ScenarioRow,
@@ -92,13 +94,16 @@ export function scenarioEvaluatorResults(
                     kind: cell.metricKind ?? null,
                 }))
                 .filter((metric) => metric.value !== undefined)
+            const ran = Boolean(row.steps[group.key]?.traceId)
             const state: EvaluatorResultState = error
                 ? "error"
                 : metrics.length > 0
                   ? "done"
                   : (open && !appFailed) || row.valuesFailed
                     ? "pending"
-                    : "notRun"
+                    : ran
+                      ? "done"
+                      : "notRun"
             return {
                 id: group.key,
                 name,

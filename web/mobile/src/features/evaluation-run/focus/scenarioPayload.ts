@@ -19,16 +19,21 @@ const plain = (value: unknown) => (value === undefined ? null : value)
 
 /**
  * Named values as one object. A name that repeats (two apps of one run both write `outputs`)
- * gets " 2", " 3" after it, so no value hides another.
+ * gets " 2", " 3" after it, so no value hides another. A name that does not repeat keeps its
+ * name: the numbering skips every name in the list, and a name such as `constructor` is a name,
+ * not an inherited property.
  */
 export function valuesByName(entries: readonly (readonly [string, unknown])[]) {
-    const values: Record<string, unknown> = {}
+    const names = new Set(entries.map(([name]) => name))
+    const values = new Map<string, unknown>()
     for (const [name, value] of entries) {
         let key = name
-        for (let n = 2; key in values; n++) key = `${name} ${n}`
-        values[key] = value
+        for (let n = 2; values.has(key) || (key !== name && names.has(key)); n++) {
+            key = `${name} ${n}`
+        }
+        values.set(key, value)
     }
-    return values
+    return Object.fromEntries(values)
 }
 
 /**

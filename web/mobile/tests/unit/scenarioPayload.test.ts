@@ -14,6 +14,24 @@ describe("scenarioPayload", () => {
         ).toEqual({outputs: "a", "outputs 2": "b", "outputs 3": "c"})
     })
 
+    it("never renames a name that does not repeat", () => {
+        expect(
+            valuesByName([
+                ["constructor", 1],
+                ["toString", 2],
+                ["__proto__", 3],
+            ]),
+        ).toEqual(JSON.parse('{"constructor": 1, "toString": 2, "__proto__": 3}'))
+        // "outputs 2" is a column of its own: the second "outputs" takes "outputs 3".
+        expect(
+            valuesByName([
+                ["outputs", "a"],
+                ["outputs", "b"],
+                ["outputs 2", "c"],
+            ]),
+        ).toEqual({outputs: "a", "outputs 3": "b", "outputs 2": "c"})
+    })
+
     it("keeps a multiple choice a list, also with one label", () => {
         const row = {
             cells: {

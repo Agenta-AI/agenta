@@ -382,6 +382,23 @@ const withEvaluatorWithoutResult: typeof answerRequest = (runId, serverState, ur
     return answer
 }
 
+/** The evaluator without a result ran: its step has a trace, but none of the mapped values. */
+const withEvaluatorTraceWithoutValues: typeof answerRequest = (runId, serverState, url, body) => {
+    const answer = withEvaluatorWithoutResult(runId, serverState, url, body)
+    if (url.endsWith("/evaluations/results/query")) {
+        const results = (answer.data?.results ?? []) as {
+            scenario_id: string
+            step_key: string
+            trace_id?: string
+        }[]
+        const byScenario = new Map(results.map((result) => [result.scenario_id, result]))
+        for (const [scenarioId, result] of byScenario) {
+            results.push({...result, step_key: "ev0", trace_id: `${scenarioId}-ev0-trace`})
+        }
+    }
+    return answer
+}
+
 /** A second evaluator, "Aaa check", that passes, listed before Exact Match. */
 const withTwoEvaluators: typeof answerRequest = (runId, serverState, url, body) => {
     const answer = answerRequest(runId, serverState, url, body)
@@ -819,6 +836,16 @@ describe("scenario focus drawer", () => {
         expect(rows).not.toContain("Not run")
         expect(rows.toLowerCase()).not.toContain("aaa")
         expect(rows).toContain("1 evaluator")
+    })
+
+    it("An evaluator that ran but gave no mapped value keeps its row and trace button", async () => {
+        await mount("sc-1", {}, "auto", withEvaluatorTraceWithoutValues)
+        await openTab("Results")
+        const rows = section("Evaluators").textContent ?? ""
+        expect(rows).not.toContain("Not run")
+        expect(rows).toContain("2 evaluators")
+        await click("Open Aaa Check trace")
+        expect(store.get(traceDrawerTraceIdAtom)).toBe("sc-1-ev0-trace")
     })
 
     it("A finished test case with no evaluator result says so, not that the run has none", async () => {
