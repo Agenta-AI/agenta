@@ -106,11 +106,16 @@ export function removeNewlinesAndTabs(input: string): string {
  * converting tabs, while filtering out zero-width spaces.
  *
  * @param editor - The Lexical editor instance
+ * @param exact - Send the lines as shown, without trimming the end
  * @returns The editor content as a plain string with newlines
  */
-export function $getEditorCodeAsString(_editor?: LexicalEditor): string {
+export function $getEditorCodeAsString(
+    _editor?: LexicalEditor,
+    {exact = false}: {exact?: boolean} = {},
+): string {
     const root = $getRoot()
     let result = ""
+    const lines: string[] = []
 
     for (const block of root.getChildren()) {
         if (!$isCodeBlockNode(block)) continue
@@ -137,9 +142,12 @@ export function $getEditorCodeAsString(_editor?: LexicalEditor): string {
             }
 
             result += lineText + "\n"
+            lines.push(lineText)
         }
     }
 
+    // `exact`: the lines as shown, with the empty lines and spaces at the end.
+    if (exact) return lines.join("\n")
     // For diff editor and YAML support, we need to preserve newlines
     // Only remove zero-width spaces and trim end
     return result.trimEnd()

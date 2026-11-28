@@ -5,7 +5,6 @@ import {
     parseCodeString,
     textMatchesValue,
     toCodeString,
-    withShownEnd,
     type CodeFormat,
     type CodeParseError,
 } from "@agenta/entity-ui/testcase"
@@ -79,11 +78,7 @@ export const CodeField = ({
                 <SharedEditor
                     key={`${editorId}-shared`}
                     initialValue={text}
-                    handleChange={
-                        onChange
-                            ? (sent) => onTextChange(withShownEnd(sent, text, format))
-                            : undefined
-                    }
+                    handleChange={onChange ? onTextChange : undefined}
                     editorType="border"
                     className={cn("min-h-15 overflow-hidden", error && "!border-destructive")}
                     disableDebounce
@@ -96,6 +91,9 @@ export const CodeField = ({
                         language: format,
                         showLineNumbers: true,
                         disableLongText: true,
+                        // Shown as given and sent as shown: in YAML the end of the text can be
+                        // part of the last value.
+                        exactText: true,
                     }}
                 />
             </EditorProvider>

@@ -178,6 +178,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             disableCodeFoldingPlugin = false,
             disableIndentationPlugin = false,
             useNativeCodeNodes = false,
+            exactText = false,
             ariaLabel,
             diffExtensionConfig,
             ...rest
@@ -255,7 +256,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                                 if (!editor.isEditable()) return
                                 const textContent = useNativeCodeNodes
                                     ? $getNativeCodeAsString()
-                                    : $getEditorCodeAsString(editor)
+                                    : $getEditorCodeAsString(editor, {exact: exactText})
                                 onChange({value: textContent, textContent, tokens: []})
                             })
                         }, LARGE_DOC_ON_CHANGE_DEBOUNCE_MS)
@@ -270,7 +271,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             const serializeStartMs = getNow()
                             const textContent = useNativeCodeNodes
                                 ? $getNativeCodeAsString()
-                                : $getEditorCodeAsString(_editor)
+                                : $getEditorCodeAsString(_editor, {exact: exactText})
                             const serializeMs = getNow() - serializeStartMs
                             const result = {
                                 value: textContent,
@@ -356,7 +357,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 },
                 COMMAND_PRIORITY_HIGH,
             )
-        }, [codeOnly, editor, id, isLargeRichTextDoc, onChange, useNativeCodeNodes])
+        }, [codeOnly, editor, exactText, id, isLargeRichTextDoc, onChange, useNativeCodeNodes])
 
         const [view, setView] = useState<"code" | "form">("code")
         const [jsonValue, setJsonValue] = useState<Record<string, unknown>>({})
@@ -823,6 +824,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             disableLongText={disableLongText}
                             loadingFallback={loadingFallback}
                             useNativeCodeNodes={useNativeCodeNodes}
+                            exactText={exactText}
                             ariaLabel={ariaLabel}
                             isDiffView={Boolean(diffExtensionConfig)}
                         />
@@ -1155,6 +1157,7 @@ const Editor = ({
     disableIndentationPlugin = false,
     skipScroll = false,
     useNativeCodeNodes = false,
+    exactText = false,
     ...rest
 }: EditorProps) => {
     // Stabilize id across renders (same pattern as EditorProvider above).
@@ -1201,6 +1204,7 @@ const Editor = ({
                     disableIndentationPlugin={disableIndentationPlugin}
                     skipScroll={skipScroll}
                     useNativeCodeNodes={useNativeCodeNodes}
+                    exactText={exactText}
                     ariaLabel={ariaLabel}
                 />
             ) : (
@@ -1281,6 +1285,7 @@ const Editor = ({
                         disableIndentationPlugin={disableIndentationPlugin}
                         skipScroll={skipScroll}
                         useNativeCodeNodes={useNativeCodeNodes}
+                        exactText={exactText}
                         ariaLabel={ariaLabel}
                     />
                 </EditorProvider>

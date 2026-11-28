@@ -24,7 +24,6 @@ import {
     textMatchesValue,
     type CodeParseError,
     toCodeString,
-    withShownEnd,
     type RootDrawerViewMode,
 } from "./codeFormat"
 import type {TestcaseDataEditorColumn, TestcaseDataEditorProps} from "./TestcaseDataEditor.types"
@@ -97,22 +96,21 @@ function FullPayloadCodeEditor({
     const editorId = `testcase-root-${format}-editor`
     // Text that does not parse stays in the editor and says why; it never reaches the testcase.
     const [parseError, setParseError] = useState<CodeParseError | null>(null)
-    const [jsonText, setJsonText] = useState(displayValue)
+    const [codeText, setCodeText] = useState(displayValue)
     const typedText = useRef(displayValue)
     // Resync only on an outside change, so the user's own edit is never rewritten.
     useEffect(() => {
         if (textMatchesValue(typedText.current, format, editableValue)) return
         typedText.current = displayValue
-        setJsonText(displayValue)
+        setCodeText(displayValue)
         setParseError(null)
     }, [displayValue, editableValue, format])
 
     const handleChange = useCallback(
-        (sent: string) => {
+        (next: string) => {
             if (!editable || !onChange) return
-            const next = withShownEnd(sent, displayValue, format)
             typedText.current = next
-            if (format === "json") setJsonText(next)
+            setCodeText(next)
             const error = codeParseError(next, format)
             const parsed = error ? null : parseCodeString<unknown>(next, format, null)
             // A test case is an object: a list, a text or an empty text never replaces it.
@@ -121,7 +119,7 @@ function FullPayloadCodeEditor({
             if (!record || deepEqual(record, editableValue)) return
             onChange(mergeTestcaseCodeEditorValue(value, record, columns))
         },
-        [columns, displayValue, editable, editableValue, format, onChange, value],
+        [columns, editable, editableValue, format, onChange, value],
     )
 
     const errorNote = parseError ? (
@@ -130,60 +128,30 @@ function FullPayloadCodeEditor({
         </p>
     ) : null
 
-    if (format === "json") {
-        return (
-            <div className="px-6 py-4">
-                <EditorProvider key={editorId} codeOnly language="json" showToolbar={false}>
-                    <SharedEditor
-                        key={`${editorId}-shared`}
-                        initialValue={jsonText}
-                        handleChange={editable ? handleChange : undefined}
-                        editorType="border"
-                        className="min-h-15 overflow-hidden"
-                        disableDebounce
-                        noProvider
-                        syncWithInitialValueChanges
-                        disabled={!editable}
-                        state={editable ? undefined : "readOnly"}
-                        editorProps={{
-                            codeOnly: true,
-                            language: "json",
-                            showLineNumbers: true,
-                            disableLongText: true,
-                        }}
-                    />
-                </EditorProvider>
-                {errorNote}
-            </div>
-        )
-    }
-
+    // The editor shows the text as given and sends it as shown (`exactText`): in YAML the
+    // spaces and line breaks at the end can be part of the last value.
     return (
         <div className="px-6 py-4">
-            <EditorProvider
-                key={`${editorId}-provider`}
-                id={editorId}
-                initialValue={displayValue}
-                showToolbar={false}
-                codeOnly
-                language="yaml"
-            >
+            <EditorProvider key={editorId} codeOnly language={format} showToolbar={false}>
                 <SharedEditor
-                    id={editorId}
-                    initialValue={displayValue}
-                    value={displayValue}
+                    key={`${editorId}-shared`}
+                    initialValue={codeText}
                     handleChange={editable ? handleChange : undefined}
                     editorType="border"
-                    className="min-h-50 overflow-hidden"
+                    className={
+                        format === "json" ? "min-h-15 overflow-hidden" : "min-h-50 overflow-hidden"
+                    }
                     disableDebounce
                     noProvider
+                    syncWithInitialValueChanges
                     disabled={!editable}
                     state={editable ? undefined : "readOnly"}
                     editorProps={{
                         codeOnly: true,
-                        language: "yaml",
+                        language: format,
                         showLineNumbers: true,
                         disableLongText: true,
+                        exactText: format === "yaml",
                     }}
                 />
             </EditorProvider>
@@ -274,6 +242,8 @@ export function TestcaseDataEditor({
         return (
             <div className={className}>
                 <FullPayloadCodeEditor
+                    // Each format has its own draft: the JSON text is not the YAML editor's text.
+                    key={controlledRootViewMode}
                     value={resolvedValue}
                     onChange={editable ? onChange : undefined}
                     format={controlledRootViewMode as "json" | "yaml"}

@@ -6,7 +6,6 @@ import {
     parseCodeString,
     textMatchesValue,
     toCodeString,
-    withShownEnd,
 } from "../../src/testcase/codeFormat"
 
 const metadata = [
@@ -174,28 +173,9 @@ describe("text round trip", () => {
             for (const format of ["json", "yaml"] as const) {
                 const text = toCodeString(value, format)
                 expect(parseCodeString(text, format, Symbol("failed"))).toStrictEqual(value)
-                // As the code editor sends it back: without the end of the text.
-                const sent = withShownEnd(text.trimEnd(), text, format)
-                expect(parseCodeString(sent, format, Symbol("failed"))).toStrictEqual(value)
             }
         },
     )
-})
-
-describe("withShownEnd", () => {
-    it("puts back the end of the YAML text the editor was given while the last line is the same", () => {
-        expect(withShownEnd("x: |+\n  a", "x: |+\n  a\n\n", "yaml")).toBe("x: |+\n  a\n\n")
-        expect(withShownEnd("y: 2\nx: |+\n  a", "y: 1\nx: |+\n  a\n\n", "yaml")).toBe(
-            "y: 2\nx: |+\n  a\n\n",
-        )
-    })
-
-    it("takes an edit of the last value as sent, and JSON as sent", () => {
-        expect(withShownEnd("x: |+\n  goodbye", "x: |+\n  hello\n\n\n", "yaml")).toBe(
-            "x: |+\n  goodbye",
-        )
-        expect(withShownEnd('{"a": 2}  ', '{"a": 1}', "json")).toBe('{"a": 2}  ')
-    })
 })
 
 describe("codeErrorText for the whole test case", () => {

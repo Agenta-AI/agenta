@@ -78,6 +78,11 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     skipScroll?: boolean
     /** Use Lexical built-in CodeNode flow instead of custom CodeBlock/CodeLine nodes */
     useNativeCodeNodes?: boolean
+    /**
+     * Code only: show the given text as it is (no JSON or YAML reformat) and send the text as
+     * shown, with the spaces and line breaks at its end. Off by default.
+     */
+    exactText?: boolean
     /** Accessible name for the contenteditable (role=textbox) */
     ariaLabel?: string
 }
@@ -111,6 +116,8 @@ export interface EditorPluginsProps {
     loadingFallback?: "skeleton" | "none" | "static"
     /** Use Lexical built-in CodeNode flow instead of custom CodeBlock/CodeLine nodes */
     useNativeCodeNodes?: boolean
+    /** Code only: show and send the text exactly (see `EditorProps.exactText`). */
+    exactText?: boolean
     /** When true, skip interactive code editor plugins (diff mode) */
     isDiffView?: boolean
     /** Accessible name for the contenteditable (role=textbox) */

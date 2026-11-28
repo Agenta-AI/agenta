@@ -87,6 +87,7 @@ const EditorPlugins = ({
     disableLongText,
     loadingFallback = "skeleton",
     useNativeCodeNodes = false,
+    exactText = false,
     isDiffView = false,
     ariaLabel,
 }: EditorPluginsProps) => {
@@ -170,6 +171,7 @@ const EditorPlugins = ({
                             language={language ?? "json"}
                             onPropertyClick={onPropertyClick}
                             disableLongText={disableLongText}
+                            exactText={exactText}
                         />
                     )}
                     <TabIndentationPlugin />

@@ -166,22 +166,22 @@ describe("Testcase editor round trip", () => {
     const section = (name: string) =>
         host.querySelector<HTMLElement>(`section[aria-label="${name}"]`)
 
-    /**
-     * Types in the code editor of a field as a user does: the editor state gets `to` in place of
-     * `from` in one of its text pieces, and the editor sends its text.
-     */
-    const editCode = async (key: string, from: string, to: string) => {
+    /** The code editor inside `scope`, once it has loaded. */
+    const codeEditorIn = async (scope: Element | null | undefined) => {
         // The code editor loads on its first use.
-        for (
-            let tries = 0;
-            tries < 100 && !section(key)?.querySelector("[contenteditable]");
-            tries++
-        ) {
+        for (let tries = 0; tries < 100 && !scope?.querySelector("[contenteditable]"); tries++) {
             await flush()
         }
-        const element = section(key)?.querySelector("[contenteditable]")
-        const editor = (element as unknown as {__lexicalEditor?: LexicalEditorLike} | null)
-            ?.__lexicalEditor
+        const element = scope?.querySelector("[contenteditable]")
+        return (element as unknown as {__lexicalEditor?: LexicalEditorLike} | null)?.__lexicalEditor
+    }
+
+    /**
+     * Types in a code editor as a user does: the editor state gets `to` in place of `from` in
+     * one of its text pieces, and the editor sends its text.
+     */
+    const editCodeIn = async (scope: Element | null | undefined, from: string, to: string) => {
+        const editor = await codeEditorIn(scope)
         const state = editor?.getEditorState().toJSON() as {root: TextPiece}
         let found = false
         const walk = (piece: TextPiece) => {
@@ -193,6 +193,24 @@ describe("Testcase editor round trip", () => {
         }
         walk(state.root)
         expect(found).toBe(true)
+        await act(async () => editor?.setEditorState(editor.parseEditorState(state)))
+        await flush()
+    }
+    const editCode = (key: string, from: string, to: string) => editCodeIn(section(key), from, to)
+
+    /** Changes the code lines of an editor as a user does, for example removes the last ones. */
+    const editLines = async (
+        scope: Element | null | undefined,
+        change: (lines: TextPiece[]) => TextPiece[],
+    ) => {
+        const editor = await codeEditorIn(scope)
+        const state = editor?.getEditorState().toJSON() as {root: TextPiece}
+        const blockOf = (piece: TextPiece): TextPiece | undefined =>
+            piece.children?.[0]?.type === "code-line"
+                ? piece
+                : piece.children?.map(blockOf).find(Boolean)
+        const block = blockOf(state.root) as TextPiece
+        block.children = change(block.children ?? [])
         await act(async () => editor?.setEditorState(editor.parseEditorState(state)))
         await flush()
     }
@@ -265,14 +283,44 @@ describe("Testcase editor round trip", () => {
         )
     })
 
-    it("a YAML edit of the last value keeps the line breaks the user sent, not the old ones", async () => {
+    it("a YAML edit of the last value keeps the line breaks still on screen", async () => {
         const row = storedRow({note: {x: "hello\n\n\n"}})
         await content(row.id, "form")
         await showAs("note", "YAML")
 
         await editCode("note", "hello", "goodbye")
 
-        expect(row.data()).toStrictEqual({note: {x: "goodbye\n"}})
+        expect(row.data()).toStrictEqual({note: {x: "goodbye\n\n\n"}})
+    })
+
+    it("deleting the blank lines at the end of a YAML value stores what is on screen", async () => {
+        const row = storedRow({note: {x: "hello\n\n\n"}})
+        await content(row.id, "form")
+        await showAs("note", "YAML")
+
+        await editLines(section("note"), (lines) => lines.slice(0, 2))
+
+        expect(row.data()).toStrictEqual({note: {x: "hello\n"}})
+    })
+
+    it("a YAML edit keeps the end of a nested value, a folded value and a key of line breaks", async () => {
+        const nested = storedRow({a: 1, m: {n: "hello\n\n"}})
+        await content(nested.id, "yaml")
+        await editCodeIn(host, "hello", "bye")
+        expect(nested.data()).toStrictEqual({a: 1, m: {n: "bye\n\n"}})
+
+        const long = `${"word ".repeat(30)}end\n\n`
+        const folded = storedRow({note: {x: long}})
+        await content(folded.id, "form")
+        await showAs("note", "YAML")
+        await editCode("note", "end", "stop")
+        expect(folded.data()).toStrictEqual({note: {x: long.replace("end", "stop")}})
+
+        const breaks = storedRow({obj: {a: 1, x: "\n\n"}})
+        await content(breaks.id, "form")
+        await showAs("obj", "YAML")
+        await editCode("obj", "x", "y")
+        expect(breaks.data()).toStrictEqual({obj: {a: 1, y: "\n\n"}})
     })
 
     it("a text that grows past the fold while the user types keeps its editor", async () => {

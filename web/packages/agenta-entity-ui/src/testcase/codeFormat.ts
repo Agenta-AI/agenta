@@ -29,21 +29,6 @@ export function toCodeString(value: unknown, format: CodeFormat): string {
     return JSON.stringify(value ?? null, null, 2) ?? ""
 }
 
-const lastLine = (text: string) => text.trimEnd().split("\n").pop() ?? ""
-
-/**
- * The YAML text the code editor sends, with the end it drops put back. The editor sends its text
- * without the spaces and line breaks at the end, and in YAML they can be part of the last value
- * (a text that keeps its last line breaks, `|+`). `shown` is the text the editor was given. The
- * end goes back only while the last line is the shown one: an edit of the last value is taken
- * as sent. JSON text is taken as sent: its end holds no value.
- * Remove this when the shared code editor sends its text as shown (`$getEditorCodeAsString`).
- */
-export function withShownEnd(text: string, shown: string, format: CodeFormat): string {
-    if (format !== "yaml" || lastLine(text) !== lastLine(shown)) return text
-    return text.trimEnd() + shown.slice(shown.trimEnd().length)
-}
-
 /** The value of the text, or `fallback` when it does not parse. Empty YAML is `null`. */
 export function parseCodeString<T = unknown>(value: string, format: CodeFormat, fallback: T): T {
     try {
