@@ -1,5 +1,5 @@
 import type {RunTile, RunTileDetail} from "@agenta/entities/evaluationRun"
-import {useT} from "@agenta/i18n"
+import {formatNumber, useT} from "@agenta/i18n"
 import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
 
 /** The run's totals as tiles: test cases, passed, cost, duration, tokens, errors. */
@@ -26,19 +26,19 @@ export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online
             case "testCasesPassed":
                 return value.thatRan
                     ? t("evaluations.runOverview.testCasesThatRan", {
-                          passed: value.passed,
-                          total: value.total,
+                          passed: formatNumber(value.passed),
+                          total: formatNumber(value.total),
                       })
                     : t("evaluations.runOverview.testCasesPassed", {
-                          passed: value.passed,
-                          total: value.total,
+                          passed: formatNumber(value.passed),
+                          total: formatNumber(value.total),
                       })
             case "notRun":
                 return t("evaluations.runOverview.notRun", {count: value.count})
             case "errorsSplit":
                 return t("evaluations.runOverview.errorsSplit", {
-                    runs: value.runs,
-                    evaluator: value.evaluator,
+                    runs: formatNumber(value.runs),
+                    evaluator: formatNumber(value.evaluator),
                 })
         }
     }
@@ -55,8 +55,9 @@ export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online
                     <span className="text-metric tabular-nums text-foreground">
                         {tile.detail?.kind === "notRun"
                             ? t("evaluations.runOverview.testCasesRan", {
-                                  ran: tile.value,
-                                  total: tile.detail.total,
+                                  // The value of a not run tile is the count that ran.
+                                  ran: formatNumber(Number(tile.value)),
+                                  total: formatNumber(tile.detail.total),
                               })
                             : tile.value}
                     </span>
@@ -73,7 +74,10 @@ export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online
                     ) : null}
                     {tile.assertions ? (
                         <span className="text-caption text-muted-foreground">
-                            {t("evaluations.runOverview.assertionsTrue", tile.assertions)}
+                            {t("evaluations.runOverview.assertionsTrue", {
+                                passed: formatNumber(tile.assertions.passed),
+                                total: formatNumber(tile.assertions.total),
+                            })}
                         </span>
                     ) : null}
                 </div>

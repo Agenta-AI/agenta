@@ -214,6 +214,63 @@ describe("run overview tiles", () => {
     })
 })
 
+describe("run overview tiles: counts and incomplete data", () => {
+    it("Counts in the tiles use the locale's digit grouping", () => {
+        const notRun = Array.from({length: 1000}, (_, i) => ({scenarioId: `x${i}`, stepKey: "app"}))
+        render(
+            view({
+                metrics: [evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN)],
+                scenarioMetrics: {
+                    status: "ready",
+                    rows: [binaryRow("s1", {success: true})],
+                    failedSteps: notRun,
+                },
+            }),
+        )
+        expect(tile("testCases")).toMatch(/^Test cases1 of 1,001/)
+    })
+
+    it("When the failed steps fill the page, Passed shows a dash, not a count that may hold cases that did not run", () => {
+        // s2's application failed, but its failed step is past the page of 5000 failed steps.
+        const evaluatorFailures = Array.from({length: 5000}, (_, i) => ({
+            scenarioId: `e${i}`,
+            stepKey: "ev-step",
+        }))
+        render(
+            view({
+                metrics: [evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN)],
+                scenarioMetrics: {
+                    status: "ready",
+                    rows: [binaryRow("s1", {success: true}), binaryRow("s2", {success: true})],
+                    failedSteps: evaluatorFailures,
+                },
+            }),
+        )
+        expect(tile("passed")).toBe("Passed—3 of 4 assertions true")
+    })
+
+    it("A test case that did not run counts as neither passed nor failed", () => {
+        render(
+            view({
+                metrics: [evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN)],
+                scenarioMetrics: {
+                    status: "ready",
+                    rows: [
+                        binaryRow("s1", {success: true}),
+                        binaryRow("s2", {success: true}),
+                        binaryRow("s3", {success: false}),
+                    ],
+                    failedSteps: [
+                        {scenarioId: "s2", stepKey: "app"},
+                        {scenarioId: "s3", stepKey: "app"},
+                    ],
+                },
+            }),
+        )
+        expect(tile("passed")).toContain("100%1 of 1 that ran")
+    })
+})
+
 describe("evaluator table", () => {
     it("One row per evaluator: binary, numeric, then categorical, text left out", () => {
         render(
