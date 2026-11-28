@@ -17,7 +17,7 @@ export {
 export {
     advancedNavHiddenAtom,
     betaDeveloperModeActiveAtom,
-    betaDeveloperModeFlagAtom,
+    classicAppFlagAtom,
     classicModeEnabledAtom,
     navSimplifiedDefaultAtom,
     navSimplifiedOverrideAtom,

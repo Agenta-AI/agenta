@@ -81,7 +81,7 @@ export const DriveTypeMark = ({path, size = "mini"}: {path: string; size?: "tile
 
 /**
  * The folder glyph, open while expanded / current. An icon takes the text color (LOUD-04,
- * COLOR-05) and the regular weight (ICON-01). `drawing` is for the large grid glyph, a drawing
+ * COLOR-05) and the app icon weight (ICON-01). `drawing` is for the large grid glyph, a drawing
  * rather than an icon: it keeps the filled shape, still neutral.
  */
 export const DriveFolderGlyph = ({
@@ -99,7 +99,7 @@ export const DriveFolderGlyph = ({
     return (
         <Glyph
             size={size}
-            weight={drawing ? "fill" : "regular"}
+            weight={drawing ? "fill" : undefined}
             className={`shrink-0 text-muted-foreground ${className}`}
         />
     )

@@ -41,6 +41,8 @@
     "setUpAutomation": "设置自动化",
     "agentMeta": "Agent",
     "detailFallbackTitle": "自动化",
+    "leaveTitle": "不保存就离开？",
+    "leaveMessage": "这个自动化有尚未保存的更改。离开后这些更改会被丢弃。",
     "noLongerExists": "这个自动化已不存在。",
     "noLongerExistsBody": "它已被删除，或者此链接已过期。返回查看此 Agent 的自动化。",
     "backToAutomations": "返回自动化",

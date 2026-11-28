@@ -422,7 +422,6 @@ export const ApprovalCard = ({
                     >
                         <CaretRight
                             size={11}
-                            weight="bold"
                             className={`shrink-0 transition-transform ${detailsOpen ? "rotate-90" : ""}`}
                         />
                         {/* The count sits in the label so the size is known before opening. */}

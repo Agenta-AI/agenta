@@ -1,6 +1,7 @@
 {
     "accountsStay": "Le compte de chaque personne reste connecté.",
     "appLoadError": "Impossible de charger cette app.",
+    "connectLeaveDescription": "Enregistrer vos modifications pour connecter l’app dans ce projet, ou les abandonner ?",
     "connectionStays": "La connexion reste dans le projet.",
     "removeFromAgent": "Retirer de l’agent",
     "removeTitle": "Retirer {{name}} de cet agent ?",

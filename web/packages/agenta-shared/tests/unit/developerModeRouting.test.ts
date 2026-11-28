@@ -1,4 +1,4 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {beforeEach, describe, expect, it} from "vitest"
 
 // The suite runs on `node`. The cookie reader only needs `localStorage` (see classicMode.test.ts).
 const entries: Record<string, string> = {}
@@ -52,18 +52,19 @@ interface UserState {
     createdAt: string
     /** The Developer Mode switch, when the user set it. `undefined` is the signup-era default. */
     developerMode?: boolean
-    beta?: boolean
+    /** The "Use classic app" switch, when the user set it. */
+    classicApp?: boolean
 }
 
-const cookieFor = ({createdAt, developerMode, beta}: UserState) => {
+const cookieFor = ({createdAt, developerMode, classicApp}: UserState) => {
     localStorage.clear()
     localStorage.setItem(ACTIVE_USER_ID_KEY, "u")
     if (developerMode !== undefined) {
         // The stored override is "simplified", the opposite of Developer Mode.
         localStorage.setItem("agenta:onboarding:u:nav-simplified-override", String(!developerMode))
     }
-    if (beta !== undefined) {
-        localStorage.setItem("agenta:settings:u:beta-developer-mode", JSON.stringify(beta))
+    if (classicApp !== undefined) {
+        localStorage.setItem("agenta:settings:u:classic-app", JSON.stringify(classicApp))
     }
     return readSettledClassicModeCookie(profile(createdAt))
 }
@@ -94,21 +95,26 @@ const W_PAGE = "/w/ws/p/p/apps"
 const W_UNMAPPED = "/w/ws/p/p/evaluations"
 const W_SETTINGS = "/w/ws/p/p/settings"
 
-describe("beta developer mode routing", () => {
+describe("Developer Mode routing", () => {
     beforeEach(() => {
         localStorage.clear()
-        // The deployment offers beta developer mode (`AGENTA_BETA_DEVELOPER_MODE=true`).
-        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
     })
-    afterEach(() => vi.unstubAllGlobals())
 
-    describe("Developer Mode on, beta on: /w addresses send a desktop browser to /m", () => {
+    describe("Developer Mode on, classic app off (the default): /w addresses send a desktop browser to /m", () => {
         const rows: [string, UserState][] = [
-            ["explicit choice", {createdAt: OLD, developerMode: true, beta: true}],
-            ["on by default (old account)", {createdAt: OLD, beta: true}],
+            ["explicit choice", {createdAt: OLD, developerMode: true}],
+            ["on by default (old account)", {createdAt: OLD}],
+            [
+                "classic app turned off again",
+                {createdAt: OLD, developerMode: true, classicApp: false},
+            ],
         ]
 
         for (const [label, state] of rows) {
+            it(`${label}: publishes 0`, () => {
+                expect(cookieFor(state)).toBe("0")
+            })
+
             it(`${label}: desktop /w pages that /m has go to /m`, () => {
                 const cookie = cookieFor(state)
                 expect(gate(decideDesktopGate, "/w", DESKTOP_UA, cookie)).toMatchObject({
@@ -131,26 +137,47 @@ describe("beta developer mode routing", () => {
                 expect(gate(decideMobileGate, W_PAGE, DESKTOP_UA, cookie)).toEqual(PASS)
                 expect(gate(decideMobileGate, W_PAGE, PHONE_UA, cookie)).toEqual(PASS)
             })
-
-            it(`${label}: a phone goes to /m for any /w page, as with no cookie`, () => {
-                const cookie = cookieFor(state)
-                expect(gate(decideDesktopGate, W_PAGE, PHONE_UA, cookie)).toEqual(toM(W_PAGE))
-                for (const page of ["/w", W_UNMAPPED]) {
-                    const decision = gate(decideDesktopGate, page, PHONE_UA, cookie)
-                    expect(decision.kind).toBe("redirect")
-                    expect(decision).toEqual(gate(decideDesktopGate, page, PHONE_UA, null))
-                }
-            })
         }
+
+        it("ignores the old beta developer mode switch", () => {
+            for (const beta of ["true", "false"]) {
+                localStorage.clear()
+                localStorage.setItem(ACTIVE_USER_ID_KEY, "u")
+                localStorage.setItem("agenta:onboarding:u:nav-simplified-override", "false")
+                localStorage.setItem("agenta:settings:u:beta-developer-mode", beta)
+                expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
+            }
+        })
     })
 
-    describe("unchanged from v0.128.7", () => {
-        it("Developer Mode off: publishes 0 and lives in /m, beta or not", () => {
+    describe("Developer Mode on, classic app on: as before", () => {
+        it("on by choice: /m sends the user to /w, phone included", () => {
+            const cookie = cookieFor({createdAt: OLD, developerMode: true, classicApp: true})
+            expect(cookie).toBe("1")
+            expect(gate(decideMobileGate, W_PAGE, DESKTOP_UA, cookie)).toEqual({
+                kind: "redirect",
+                location: W_PAGE,
+            })
+            expect(gate(decideDesktopGate, W_PAGE, DESKTOP_UA, cookie)).toEqual(PASS)
+            expect(gate(decideDesktopGate, W_PAGE, PHONE_UA, cookie)).toEqual(PASS)
+        })
+
+        it("on by default: no cookie, the device decides", () => {
+            const cookie = cookieFor({createdAt: OLD, classicApp: true})
+            expect(cookie).toBeNull()
+            expect(gate(decideDesktopGate, W_PAGE, DESKTOP_UA, cookie)).toEqual(PASS)
+            expect(gate(decideDesktopGate, W_PAGE, PHONE_UA, cookie)).toEqual(toM(W_PAGE))
+            expect(gate(decideMobileGate, W_PAGE, DESKTOP_UA, cookie)).toEqual(PASS)
+        })
+    })
+
+    describe("Developer Mode off", () => {
+        it("publishes 0 and lives in /m, classic app or not", () => {
             for (const state of [
                 {createdAt: OLD, developerMode: false},
-                {createdAt: OLD, developerMode: false, beta: true},
+                {createdAt: OLD, developerMode: false, classicApp: true},
                 {createdAt: NEW},
-                {createdAt: NEW, beta: true},
+                {createdAt: NEW, classicApp: true},
             ]) {
                 const cookie = cookieFor(state)
                 expect(cookie).toBe("0")
@@ -158,46 +185,12 @@ describe("beta developer mode routing", () => {
                 expect(gate(decideMobileGate, W_PAGE, DESKTOP_UA, cookie)).toEqual(PASS)
             }
         })
+    })
 
-        it("Developer Mode on by choice, beta off: /m sends the user to /w, phone included", () => {
-            for (const beta of [undefined, false]) {
-                const cookie = cookieFor({createdAt: OLD, developerMode: true, beta})
-                expect(cookie).toBe("1")
-                expect(gate(decideMobileGate, W_PAGE, DESKTOP_UA, cookie)).toEqual({
-                    kind: "redirect",
-                    location: W_PAGE,
-                })
-                expect(gate(decideDesktopGate, W_PAGE, DESKTOP_UA, cookie)).toEqual(PASS)
-                expect(gate(decideDesktopGate, W_PAGE, PHONE_UA, cookie)).toEqual(PASS)
-            }
-        })
-
-        it("Developer Mode on by default, beta off: no cookie, the device decides", () => {
-            for (const beta of [undefined, false]) {
-                const cookie = cookieFor({createdAt: OLD, beta})
-                expect(cookie).toBeNull()
-                expect(gate(decideDesktopGate, W_PAGE, DESKTOP_UA, cookie)).toEqual(PASS)
-                expect(gate(decideDesktopGate, W_PAGE, PHONE_UA, cookie)).toEqual(toM(W_PAGE))
-                expect(gate(decideMobileGate, W_PAGE, DESKTOP_UA, cookie)).toEqual(PASS)
-            }
-        })
-
-        it("turning beta off stores Developer Mode as a choice, so /m sends the user to /w", () => {
-            // Both switches store Developer Mode on together with beta off.
-            for (const createdAt of [OLD, NEW]) {
-                const cookie = cookieFor({createdAt, developerMode: true, beta: false})
-                expect(cookie).toBe("1")
-                expect(gate(decideMobileGate, W_PAGE, DESKTOP_UA, cookie)).toEqual({
-                    kind: "redirect",
-                    location: W_PAGE,
-                })
-            }
-        })
-
-        it("leaves the cookie alone until the profile lands", () => {
-            localStorage.setItem(ACTIVE_USER_ID_KEY, "u")
-            localStorage.setItem("agenta:settings:u:beta-developer-mode", "true")
-            expect(readSettledClassicModeCookie(null)).toBeUndefined()
-        })
+    it("publishes 0 before the profile lands, unless the classic app is on", () => {
+        localStorage.setItem(ACTIVE_USER_ID_KEY, "u")
+        expect(readSettledClassicModeCookie(null)).toBe("0")
+        localStorage.setItem("agenta:settings:u:classic-app", "true")
+        expect(readSettledClassicModeCookie(null)).toBeUndefined()
     })
 })

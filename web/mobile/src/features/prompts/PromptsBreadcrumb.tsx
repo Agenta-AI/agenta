@@ -93,7 +93,7 @@ export const PromptsBreadcrumb = ({
                         className={CRUMB_BUTTON}
                         onClick={() => onOpenFolder(null)}
                     >
-                        <HouseIcon size={16} weight={atRoot ? "fill" : "regular"} />
+                        <HouseIcon size={16} weight={atRoot ? "fill" : undefined} />
                     </button>
                 </BreadcrumbItem>
                 {chain.map((folder, index) => {

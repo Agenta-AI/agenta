@@ -93,6 +93,10 @@ export type ViewSaveResult = boolean | "stay"
 
 /** What an "on_save" view reports. An "immediate" view reports nothing. */
 export interface ViewForm {
+    /**
+     * True only when the form differs from what the view loaded. Opening a view and leaving it
+     * with no change, or with a change undone, must not count: leaving a dirty form asks.
+     */
     dirty: boolean
     valid: boolean
     /**
@@ -102,9 +106,12 @@ export interface ViewForm {
      * Resolve "stay" for a step of a form with several steps: the step worked and the view stays
      * open, with no failure text. Resolve "stay" too when the form refuses a save for its own field
      * errors: they say what is wrong, so the stack adds no failure line next to them. A view that leaves by itself later (the last step ends outside
-     * the Save press) calls `nav.cancel()`.
+     * the Save press) calls `nav.cancel()`. From the unsaved-changes dialog, "stay" keeps the
+     * person on the view, as "Keep editing" does.
      */
     save: () => Promise<ViewSaveResult>
+    /** Text of the unsaved-changes dialog for this view (it names what Save writes). */
+    leaveDescription?: string
     /** Why Save is disabled while the form is invalid ("Add a client ID"), as Save's tooltip. */
     invalidReason?: string
     /** The Save button's label when the view names its action (for example "Connect"). */
@@ -125,8 +132,14 @@ export interface ViewForm {
     back?: () => void
     /** The name of the step that `back` returns to, for the phone's back label. */
     backTitle?: string
+    /** The unsaved-changes dialog's title, in place of the generic one. */
+    leaveTitle?: string
+    /** `false`: the unsaved-changes dialog offers only Keep editing and Discard. */
+    leaveCanSave?: false
     /** Save stays enabled while the form is clean (a "Done" that only closes). */
     saveWhenClean?: true
+    /** `false`: the view stays open after its Save lands. "Save changes" in the dialog still leaves. */
+    closeOnSave?: false
 }
 
 /** For the container's root and for the container itself. */

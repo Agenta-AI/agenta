@@ -74,7 +74,8 @@ export function useConnectForm({
     owners,
     onCreated,
 }: ConnectFormInput) {
-    const [chosenOwner, setOwner] = useState<ConnectionOwner>(owners?.[0] ?? "project")
+    const [initialOwner] = useState<ConnectionOwner>(owners?.[0] ?? "project")
+    const [chosenOwner, setOwner] = useState(initialOwner)
     // The allowed owners can change while the form is open (the switch was still loading):
     // a choice that is no longer allowed falls back to the first allowed owner.
     const owner = owners?.includes(chosenOwner) ? chosenOwner : (owners?.[0] ?? "project")
@@ -112,7 +113,8 @@ export function useConnectForm({
     )
 
     const availableModes = resolveAvailableModes(authSchemes)
-    const [selectedMode, setSelectedMode] = useState<AuthMode>(availableModes[0] || "oauth")
+    const [initialMode] = useState<AuthMode>(availableModes[0] || "oauth")
+    const [selectedMode, setSelectedMode] = useState(initialMode)
 
     const setName = useCallback((next: string) => {
         setNameTouched(true)
@@ -192,6 +194,8 @@ export function useConnectForm({
         loading,
         submit,
         valid: Boolean(name.trim()),
+        /** A field differs from what the form opened with; the filled-in name is not an edit. */
+        dirty: name !== seedName || chosenOwner !== initialOwner || selectedMode !== initialMode,
     }
 }
 
