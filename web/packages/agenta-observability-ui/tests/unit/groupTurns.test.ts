@@ -1,7 +1,7 @@
 import type {TraceSpanNode} from "@agenta/observability"
 import {describe, expect, it} from "vitest"
 
-import {countTurns, groupTurns, userMessageOf} from "../../src/traceDrawer/groupTurns"
+import {countTurns, groupTurns} from "../../src/traceDrawer/groupTurns"
 
 const node = (
     id: string,
@@ -87,18 +87,35 @@ describe("groupTurns", () => {
         expect(rows?.map((row) => row.spans.map((span) => span.span_id))).toEqual([[], ["b"]])
     })
 
-    it("labels a turn with the last user message of its input", () => {
-        expect(
-            userMessageOf(
-                node("a", [
-                    {role: "user", content: "Earlier question"},
-                    {role: "assistant", content: "Earlier answer"},
-                    {role: "user", content: "This turn"},
+    it("labels a turn with the last user message of the span that starts it", () => {
+        const history = (texts: string[]) =>
+            texts.flatMap((text) => [
+                {role: "user", content: text},
+                {role: "assistant", content: `Answer to ${text}`},
+            ])
+        const rows = groupTurns(
+            root([
+                node("a", {messages: history(["Earlier question"])}),
+                node("b", {messages: history(["Earlier question", "This turn"])}, [
+                    "2026-11-27T10:00:02Z",
+                    "2026-11-27T10:00:03Z",
                 ]),
-            ),
-        ).toBe("This turn")
-        expect(userMessageOf(node("b", {role: "user", content: "One message"}))).toBe("One message")
-        expect(userMessageOf(node("c", {prompt: "not a message"}))).toBeNull()
+            ]),
+        )
+        expect(rows?.map((row) => row.message)).toEqual(["Earlier question", "This turn"])
+    })
+
+    it("keeps one exchange as one turn when sibling LLM calls repeat its history", () => {
+        // An agent whose LLM calls sit under the root: the second call carries the same history.
+        const call = (id: string, times: [string, string]) =>
+            node(id, {prompt: [{role: "user", content: "Plan the outreach"}]}, times)
+        const one = root([
+            call("llm-1", ["2026-11-27T10:00:00Z", "2026-11-27T10:00:01Z"]),
+            node("tool", {command: "ls"}, ["2026-11-27T10:00:02Z", "2026-11-27T10:00:03Z"]),
+            call("llm-2", ["2026-11-27T10:00:04Z", "2026-11-27T10:00:05Z"]),
+        ])
+        expect(countTurns(one)).toBe(1)
+        expect(groupTurns(one)).toBeNull()
     })
 
     it("leaves the duration empty while the turn runs", () => {
@@ -107,6 +124,19 @@ describe("groupTurns", () => {
                 userTurn("a", "First", ["2026-11-27T10:00:00Z", "2026-11-27T10:00:01Z"]),
                 userTurn("b", "Second", ["2026-11-27T10:00:04Z", null]),
             ]),
+        )
+        expect(rows?.[1].durationMs).toBeNull()
+        expect(rows?.[0].durationMs).toBe(1000)
+    })
+
+    it("leaves the duration empty while a span inside the turn runs", () => {
+        const running = node("tool", {command: "ls"}, ["2026-11-27T10:00:05Z", null], [], "b")
+        const b = {
+            ...userTurn("b", "Second", ["2026-11-27T10:00:04Z", "2026-11-27T10:00:06Z"]),
+            children: [running],
+        } as TraceSpanNode
+        const rows = groupTurns(
+            root([userTurn("a", "First", ["2026-11-27T10:00:00Z", "2026-11-27T10:00:01Z"]), b]),
         )
         expect(rows?.[1].durationMs).toBeNull()
     })

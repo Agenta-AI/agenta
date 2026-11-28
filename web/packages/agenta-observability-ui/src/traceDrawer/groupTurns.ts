@@ -7,10 +7,7 @@
  */
 
 import {groupTraceTurns, type TraceSpan} from "@agenta/entities/trace"
-import {getAgDataInputs, type TraceSpanNode} from "@agenta/observability"
-import {isChatMessagesArray, readValueMessage} from "@agenta/shared/utils"
-
-import {isSpanRunning} from "./spanRunning"
+import type {TraceSpanNode} from "@agenta/observability"
 
 export interface TraceTurnRow {
     /** 1 for the first turn. */
@@ -23,36 +20,6 @@ export interface TraceTurnRow {
     spans: TraceSpanNode[]
     /** From the first start to the last end of the turn's spans, in ms; null while running. */
     durationMs: number | null
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === "object" && value !== null && !Array.isArray(value)
-
-/** The text of the last user message in a list of messages, or null. */
-const lastUserText = (messages: unknown[]): string | null => {
-    for (let index = messages.length - 1; index >= 0; index--) {
-        const message = readValueMessage(messages[index])
-        if (message.role === "user" && message.text.trim()) return message.text.trim()
-    }
-    return null
-}
-
-/**
- * The label of a turn row: the last user message in the span's input (the input itself as
- * messages or one message, or messages under one of its keys).
- */
-export function userMessageOf(span: TraceSpanNode | undefined): string | null {
-    const inputs = getAgDataInputs(span)
-    if (isChatMessagesArray(inputs)) return lastUserText(inputs)
-    if (!isRecord(inputs)) return null
-    if (typeof inputs.role === "string") return lastUserText([inputs])
-    for (const value of Object.values(inputs)) {
-        if (isChatMessagesArray(value)) {
-            const text = lastUserText(value)
-            if (text) return text
-        }
-    }
-    return null
 }
 
 const flatten = (node: TraceSpanNode): TraceSpanNode[] => [
@@ -77,19 +44,17 @@ export function groupTurns(
     const all = flatten(turnsOf)
     const turns = groupTraceTurns(all as unknown as TraceSpan[])
     if (turns.length < 2) return null
-    const byId = new Map(all.map((span) => [span.span_id, span]))
     const children = (root.children ?? []) as TraceSpanNode[]
     return turns.map((turn, index) => {
         const members = new Set(turn.spans.map((span) => span.span_id))
         return {
             index: index + 1,
-            message: userMessageOf(byId.get(turn.spanId)),
+            message: turn.userText,
             spanId: turn.spanId,
             spans: children.filter((child) => members.has(child.span_id)),
+            // The shared rule gives no end while a span of the turn runs.
             durationMs:
-                turn.startTime !== null &&
-                turn.endTime !== null &&
-                !turn.spans.some((span) => isSpanRunning(span as unknown as TraceSpanNode))
+                turn.startTime !== null && turn.endTime !== null
                     ? Math.max(0, turn.endTime - turn.startTime)
                     : null,
         }
