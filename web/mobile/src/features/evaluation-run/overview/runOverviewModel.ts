@@ -71,9 +71,10 @@ export function runOverviewModel({
             : null
 
     const binary = rows.flatMap((row) => row.metrics.filter((m) => m.kind === "binary"))
+    // Without the complete failed steps, a test case that did not run could count as passed.
     const counted =
-        scenarioMetrics.status === "ready"
-            ? passedTestCases(scenarioMetrics.rows, binary, failures?.notRunIds ?? new Set())
+        scenarioMetrics.status === "ready" && failures
+            ? passedTestCases(scenarioMetrics.rows, binary, failures.notRunIds)
             : null
     const passed: PassedState =
         scenarioMetrics.status === "ready"
