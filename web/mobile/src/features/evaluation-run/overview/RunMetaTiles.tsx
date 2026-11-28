@@ -1,9 +1,22 @@
+import type {ReactNode} from "react"
+
 import type {RunTile, RunTileDetail} from "@agenta/entities/evaluationRun"
 import {formatNumber, useT} from "@agenta/i18n"
 import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
 
-/** The run's totals as tiles: test cases, passed, cost, duration, tokens, errors. */
-export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online: boolean}) => {
+/**
+ * The run's totals as tiles: test cases, passed, cost, duration, tokens, errors; `children` adds
+ * tiles of their own after them (evaluator agreement).
+ */
+export const RunMetaTiles = ({
+    tiles,
+    online,
+    children,
+}: {
+    tiles: readonly RunTile[]
+    online: boolean
+    children?: ReactNode
+}) => {
     const t = useT(runOverviewCatalog)
     const label = (tile: RunTile) =>
         tile.id === "testCases"
@@ -82,6 +95,7 @@ export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online
                     ) : null}
                 </div>
             ))}
+            {children}
         </div>
     )
 }

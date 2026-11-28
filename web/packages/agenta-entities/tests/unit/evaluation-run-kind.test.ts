@@ -8,6 +8,7 @@ import {
     runDisplayStatus,
     runStatusTone,
 } from "../../src/evaluationRun/core/runKind"
+import {buildHumanRunConfig} from "../../src/evaluationRun/core/humanRunConfig"
 
 const humanStep = {key: "ann", type: "annotation", origin: "human"}
 
@@ -25,6 +26,44 @@ describe("deriveEvaluationKind", () => {
         expect(deriveEvaluationKind({data: {steps: [{type: "annotation", origin: "auto"}]}})).toBe(
             "auto",
         )
+    })
+
+    it("An automatic run that gets a human evaluator stays auto", () => {
+        const steps = [
+            {key: "testset", type: "input", origin: "auto"},
+            {key: "app", type: "invocation", origin: "auto"},
+            {key: "app.judge", type: "annotation", origin: "auto"},
+            {key: "app.tone-review", type: "annotation", origin: "human"},
+        ]
+        expect(deriveEvaluationKind({data: {steps}})).toBe("auto")
+    })
+
+    it("A run built as a human run is human", () => {
+        const {runs} = buildHumanRunConfig({
+            name: "Review",
+            testset: {id: "ts", name: "bench", revisionId: "tsr", columns: []},
+            revision: {id: "rev"},
+            inputKeys: [],
+            hasMessagesInput: false,
+            evaluators: [{revisionId: "evr", slug: "tone", outputKeys: []}],
+        })
+        expect(deriveEvaluationKind({data: {steps: runs[0].data.steps}})).toBe("human")
+    })
+
+    it("A run with no invocation step and a human step is human", () => {
+        expect(
+            deriveEvaluationKind({
+                data: {steps: [{type: "input", origin: "auto"}, humanStep]},
+            }),
+        ).toBe("human")
+    })
+
+    it("An SDK run with custom app calls and a human evaluator is human", () => {
+        const steps = [
+            {key: "app", type: "invocation", origin: "custom"},
+            {key: "app.review", type: "annotation", origin: "human"},
+        ]
+        expect(deriveEvaluationKind({data: {steps}})).toBe("human")
     })
 
     it("A step with origin custom makes a run custom", () => {

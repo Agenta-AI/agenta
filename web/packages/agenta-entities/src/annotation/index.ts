@@ -62,6 +62,7 @@ export type {
     AnnotationQueryLink,
     AnnotationQueryParams,
     AnnotationDetailParams,
+    AnnotationMetaPayload,
     CreateAnnotationPayload,
     UpdateAnnotationPayload,
 } from "./core"

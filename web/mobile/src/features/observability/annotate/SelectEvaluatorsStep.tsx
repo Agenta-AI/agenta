@@ -36,6 +36,7 @@ export const SelectEvaluatorsStep = ({
     lockedSlugs,
     onChange,
     evaluatorsHref,
+    noteBySlug,
 }: {
     evaluators: readonly Workflow[]
     isLoading: boolean
@@ -45,6 +46,8 @@ export const SelectEvaluatorsStep = ({
     lockedSlugs: readonly string[]
     onChange: (slugs: string[]) => void
     evaluatorsHref: string | null
+    /** A short note in place of "Metric" on an evaluator's row, by slug ("In this run"). */
+    noteBySlug?: Readonly<Record<string, string>>
 }) => {
     const t = useT(annotateCatalog)
     const [search, setSearch] = useState("")
@@ -133,7 +136,7 @@ export const SelectEvaluatorsStep = ({
                                             {name}
                                         </span>
                                         <span className="shrink-0 text-meta text-muted-foreground">
-                                            {metricLabel}
+                                            {noteBySlug?.[slug] ?? metricLabel}
                                         </span>
                                     </label>
                                 </SimpleTooltip>

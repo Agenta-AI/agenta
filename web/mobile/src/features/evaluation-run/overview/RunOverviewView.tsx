@@ -12,6 +12,7 @@ import {
 
 import {EvaluatorResultsSection} from "./EvaluatorResultsSection"
 import {RunFailuresAlert} from "./RunFailuresAlert"
+import {RunAgreementTile} from "./RunAgreementTile"
 import {RunMetaTiles} from "./RunMetaTiles"
 import type {OverviewMetric, OverviewNames, ScenarioMetricsState} from "./useRunOverview"
 
@@ -93,7 +94,9 @@ export const RunOverviewView = ({
     return (
         <div className="flex flex-col gap-6">
             {failed ? <RunFailuresAlert failures={failures} /> : null}
-            <RunMetaTiles tiles={tiles} online={online} />
+            <RunMetaTiles tiles={tiles} online={online}>
+                <RunAgreementTile runId={runId} />
+            </RunMetaTiles>
             <EvaluatorResultsSection
                 runId={runId}
                 runName={header.name}

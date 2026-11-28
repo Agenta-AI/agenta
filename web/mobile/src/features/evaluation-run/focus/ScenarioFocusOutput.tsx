@@ -3,18 +3,20 @@ import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import focusCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocus"
 import {compareWithExpected, detectValueShape} from "@agenta/shared/utils"
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
+import annotateCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocusAnnotate"
+import {Badge, Button, SkeletonBlock} from "@agenta/ui/ui"
 
 import type {ScenarioCell, ScenarioStep} from "../scenarios/scenarioColumns"
 
 import {valuesByName} from "./scenarioPayload"
 import {ScenarioStepTools} from "./ScenarioStepTools"
 import type {useScenarioTrace} from "./useScenarioTrace"
+import {useTestcaseDraftContext} from "./useTestcaseDraft"
 
 type ScenarioTrace = ReturnType<typeof useScenarioTrace>
 
 /** The output to draw: one cell's value, or the cells by name when the app has several. */
-const outputValue = (cells: ScenarioCell[]) =>
+export const outputValue = (cells: ScenarioCell[]) =>
     cells.length === 1 ? cells[0].value : valuesByName(cells.map((cell) => [cell.name, cell.value]))
 
 /** The line a trace that did not load leaves above the output, with Try again. */
@@ -57,7 +59,8 @@ export const ScenarioFocusOutput = ({
     /** The compared column and its value in this test case. */
     expected?: {key: string; value: unknown} | null
 }) => {
-    const t = useT(focusCatalog, valueViewCatalog)
+    const t = useT(focusCatalog, valueViewCatalog, annotateCatalog)
+    const draft = useTestcaseDraftContext()
     const value = outputValue(cells)
     const empty = cells.every((cell) => cell.value === undefined)
     const shape = failed || empty ? null : detectValueShape(value)
@@ -118,6 +121,33 @@ export const ScenarioFocusOutput = ({
                     ) : null}
                 </h3>
                 <div className="flex items-center gap-1">
+                    {draft?.ready && draft.expectedKey && !failed && !empty ? (
+                        draft.reference ? (
+                            <>
+                                <Badge variant="info">
+                                    {t("evaluations.scenarioFocusAnnotate.reference")}
+                                </Badge>
+                                <Button
+                                    variant="ghost"
+                                    size="xs"
+                                    onClick={() => draft.setReference(false)}
+                                >
+                                    {t("evaluations.scenarioFocusAnnotate.undo")}
+                                </Button>
+                            </>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                size="xs"
+                                title={t("evaluations.scenarioFocusAnnotate.writesToColumn", {
+                                    column: draft.expectedKey,
+                                })}
+                                onClick={() => draft.setReference(true)}
+                            >
+                                {t("evaluations.scenarioFocusAnnotate.useAsReference")}
+                            </Button>
+                        )
+                    ) : null}
                     {step ? (
                         <ScenarioStepTools
                             title={t("evaluations.scenarioFocus.output")}

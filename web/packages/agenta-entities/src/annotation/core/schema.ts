@@ -95,6 +95,9 @@ export const annotationMetaSchema = z.object({
     // Strict on purpose: an edit sends `meta` back whole, so an annotation whose tags this
     // schema dropped would lose them on the first score change.
     tags: z.array(z.string()).optional(),
+    // A person's review of an automatic evaluator's result: their answer and their note.
+    verdict: z.enum(["agree", "disagree"]).optional().catch(undefined),
+    note: z.string().optional().catch(undefined),
 })
 
 /**

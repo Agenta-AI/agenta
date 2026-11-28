@@ -152,6 +152,30 @@ const buildMappings = ({
 }
 
 /**
+ * The annotation step of one human evaluator: key `${invocationKey}.${slug}`, origin `human`, the
+ * evaluator's references, and the run's input and invocation steps as its inputs. A human run
+ * gets one per evaluator; `POST /simple/evaluations/{id}/steps/add` takes it to add an evaluator
+ * to a run that exists.
+ */
+export function humanAnnotationStep(
+    evaluator: Pick<HumanRunEvaluator, "revisionId" | "workflowId" | "variantId" | "slug">,
+    inputKey: string,
+    invocationKey: string,
+): HumanRunStep {
+    return {
+        key: `${invocationKey}.${evaluator.slug}`,
+        type: "annotation",
+        origin: "human",
+        references: buildReferences([
+            ["evaluator", evaluator.workflowId],
+            ["evaluator_variant", evaluator.variantId],
+            ["evaluator_revision", evaluator.revisionId],
+        ]),
+        inputs: [{key: inputKey}, {key: invocationKey}],
+    }
+}
+
+/**
  * Build the body of `POST /evaluations/runs/` for one human evaluation.
  *
  * Throws when an evaluator has no slug or two evaluators share a slug, because
@@ -192,17 +216,9 @@ export function buildHumanRunConfig(input: BuildHumanRunConfigInput): {runs: [Hu
         ]),
         inputs: [{key: inputKey}],
     }
-    const annotationSteps: HumanRunStep[] = evaluators.map((evaluator) => ({
-        key: `${invocationKey}.${evaluator.slug}`,
-        type: "annotation",
-        origin: "human",
-        references: buildReferences([
-            ["evaluator", evaluator.workflowId],
-            ["evaluator_variant", evaluator.variantId],
-            ["evaluator_revision", evaluator.revisionId],
-        ]),
-        inputs: [{key: inputKey}, {key: invocationKey}],
-    }))
+    const annotationSteps = evaluators.map((evaluator) =>
+        humanAnnotationStep(evaluator, inputKey, invocationKey),
+    )
 
     return {
         runs: [

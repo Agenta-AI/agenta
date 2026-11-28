@@ -65,6 +65,18 @@ export interface AnnotationDetailParams {
 /**
  * Payload for creating a new annotation.
  */
+/**
+ * An annotation's free `meta`. `verdict` and `note` mark a person's review of an automatic
+ * evaluator's result ("agree" or "disagree", and why).
+ */
+export interface AnnotationMetaPayload {
+    name?: string
+    description?: string
+    tags?: string[]
+    verdict?: "agree" | "disagree"
+    note?: string
+}
+
 export interface CreateAnnotationPayload {
     /** Annotation data (outputs) */
     data: {outputs?: Record<string, unknown>}
@@ -74,6 +86,7 @@ export interface CreateAnnotationPayload {
         evaluator_variant?: {id?: string; slug?: string}
         evaluator_revision?: {id?: string; slug?: string; version?: string | number}
         testset?: {id?: string}
+        testset_revision?: {id?: string}
         testcase?: {id?: string}
     }
     /** Links to invocation traces (keyed by step key) */
@@ -85,7 +98,7 @@ export interface CreateAnnotationPayload {
     /** How the annotation was created */
     origin?: "custom" | "human" | "auto"
     /** Metadata */
-    meta?: {name?: string; description?: string; tags?: string[]}
+    meta?: AnnotationMetaPayload
 }
 
 /**
@@ -94,7 +107,7 @@ export interface CreateAnnotationPayload {
 export interface UpdateAnnotationPayload {
     annotation: {
         data: {outputs?: Record<string, unknown>}
-        meta?: {name?: string; description?: string; tags?: string[]}
+        meta?: AnnotationMetaPayload
         references?: {
             evaluator: {id?: string; slug?: string}
             evaluator_variant?: {id?: string; slug?: string}
