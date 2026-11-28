@@ -1,6 +1,7 @@
 import {useId, useMemo, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
+import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import {readValueMessage, type ValueMessage} from "@agenta/shared/utils"
 import {AttachmentGrid, FileAttachment, ImageAttachment} from "@agenta/ui/components/presentational"
@@ -11,6 +12,7 @@ import {ActivityTimeline} from "../components/activity/ActivityTimeline"
 import ChatMarkdown from "../components/ChatMarkdown"
 import {CollapsibleMessageBody} from "../components/CollapsibleMessageBody"
 import ToolIOBlock from "../components/ToolIOBlock"
+import {formatElapsed} from "../hooks/useTurnClock"
 import type {ActivityStep} from "../model/activitySteps"
 
 import {formatTextSize} from "./FieldFold"
@@ -46,7 +48,7 @@ interface MessageItem {
 }
 
 /** The activity block of a turn whose steps come from the trace. */
-interface ItemActivity {
+export interface ItemActivity {
     key: string
     activity: TurnActivity
     /** "Turn N" before the line, when the chat has more than one turn. */
@@ -136,24 +138,30 @@ function buildEntries(
             activity,
             leading: turns.length > 1 ? turnLabel(position + 1) : undefined,
         }
+        // A turn with no step in the trace keeps its stored calls; the entry gives only its time,
+        // on the line of the last assistant message that made calls, else before the last reply.
+        const traceSteps = activity.steps.length > 0
         // The trace's steps replace the stored calls, so a message that held only calls goes.
-        const kept = turn.filter(
-            (item) =>
-                item.message.role !== "tool" &&
-                (item.message.toolCalls.length === 0 ||
-                    Boolean(item.message.text) ||
-                    item.message.attachments.length > 0),
-        )
-        let target = -1
-        kept.forEach((item, index) => {
-            if (item.message.role === "assistant") target = index
-        })
+        const kept = traceSteps
+            ? turn.filter(
+                  (item) =>
+                      item.message.role !== "tool" &&
+                      (item.message.toolCalls.length === 0 ||
+                          Boolean(item.message.text) ||
+                          item.message.attachments.length > 0),
+              )
+            : turn
+        const isAssistant = (item: MessageItem) => item.message.role === "assistant"
+        const caller = traceSteps
+            ? -1
+            : kept.findLastIndex((item) => isAssistant(item) && item.message.toolCalls.length > 0)
+        const target = caller !== -1 ? caller : kept.findLastIndex(isAssistant)
         const entries = kept.map(
             (item, index): Entry => ({
                 kind: "message",
                 item,
                 activity: index === target ? block : undefined,
-                storedTools: false,
+                storedTools: !traceSteps,
             }),
         )
         return target === -1 ? [...entries, {kind: "activity", activity: block}] : entries
@@ -282,15 +290,19 @@ const MessageItemView = ({
             {message.role !== "assistant" && !(message.role === "system" && message.text) ? (
                 <span className="text-meta text-muted-foreground">{message.role}</span>
             ) : null}
-            {activity ? <TraceActivity activity={activity} /> : null}
             {storedTools && message.toolCalls.length > 0 ? (
+                // A turn whose trace had no step: its time and label join the stored calls' line.
                 <ActivityTimeline
                     messageId={key}
                     steps={toolSteps(item)}
                     streaming={false}
                     answerStarted
+                    sessionTurnDurationMs={activity?.activity.durationMs}
+                    leading={activity?.leading}
                     trailing={t("chat.valueView.toolCalls", {count: message.toolCalls.length})}
                 />
+            ) : activity ? (
+                <TraceActivity activity={activity} />
             ) : null}
             {storedTools
                 ? [...item.results.values()].map((result, index) => (
@@ -311,11 +323,39 @@ const MessageItemView = ({
     )
 }
 
-/** A turn's tool steps from the trace, with its "Worked for" time and its tool call count. */
-const TraceActivity = ({activity: {key, activity, leading}}: {activity: ItemActivity}) => {
+/** A turn with a time and no step: the settled "Worked for X" line, with nothing to open. */
+const WorkedForLine = ({durationMs, leading}: {durationMs: number; leading?: string}) => {
+    const t = useT(chatActivityCatalog)
+    return (
+        <div className="flex min-w-0 items-center gap-1.5 py-1.5 text-label text-muted-foreground">
+            {leading ? (
+                <>
+                    <span className="shrink-0">{leading}</span>
+                    <span aria-hidden className="shrink-0">
+                        ·
+                    </span>
+                </>
+            ) : null}
+            <span className="min-w-0 truncate">
+                {t("chat.activity.workedFor", {time: formatElapsed(durationMs, {live: false})})}
+            </span>
+        </div>
+    )
+}
+
+/**
+ * A turn's tool steps from the trace, with its "Worked for" time and its tool call count. With no
+ * step, only the "Worked for" line; with no step and no time, nothing.
+ */
+export const TraceActivity = ({activity: {key, activity, leading}}: {activity: ItemActivity}) => {
     const t = useT(valueViewCatalog)
     // Server and client tools both count; a thought is not a call.
     const calls = activity.steps.filter((step) => step.kind !== "thought").length
+    if (activity.steps.length === 0) {
+        return activity.durationMs === undefined ? null : (
+            <WorkedForLine durationMs={activity.durationMs} leading={leading} />
+        )
+    }
     return (
         <ActivityTimeline
             messageId={key}

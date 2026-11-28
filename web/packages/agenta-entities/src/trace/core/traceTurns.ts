@@ -1,12 +1,12 @@
 /**
- * The one turn rule of a trace: a turn starts at each child of the root span whose input holds a
- * user message, and holds the spans up to the next turn. The drawer places tool calls per turn
+ * The one turn rule of a trace: a turn starts at each child of the root span whose input brings a
+ * new user message, and holds the spans up to the next turn. The drawer places tool calls per turn
  * with it, and the trace tree groups its rows by it. Pure: no React, no request.
  *
  * @packageDocumentation
  */
 
-import {parseStructuredJson} from "@agenta/shared/utils"
+import {parseStructuredJson, readValueMessage} from "@agenta/shared/utils"
 
 import {extractInputs} from "../utils/selectors"
 
@@ -20,9 +20,14 @@ export interface TraceTurn {
     spanId: string
     /** Every span of the turn, by start time. */
     spans: TraceSpan[]
-    /** The earliest start and the latest end of the turn's spans, in ms; null when none has one. */
+    /**
+     * The earliest start and the latest end of the turn's spans, in ms; null when none has one.
+     * `endTime` is also null while a span of the turn has started and not ended (a running turn).
+     */
     startTime: number | null
     endTime: number | null
+    /** The text of the last user message in the input of the span that starts the turn; null when none. */
+    userText: string | null
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -34,18 +39,49 @@ const timeOf = (value: unknown): number | null => {
     return Number.isFinite(ms) ? ms : null
 }
 
-/** True when a value holds a message with the role `user`, at any depth (JSON text included). */
-const hasUserMessage = (value: unknown, depth = 0): boolean => {
-    if (depth > 6) return false
+/** The messages with the role `user` a value holds, in order, at any depth (JSON text included). */
+const userMessagesOf = (value: unknown, depth = 0, found: unknown[] = []): unknown[] => {
+    if (depth > 6) return found
     if (typeof value === "string") {
         const parsed = /^\s*[[{]/.test(value) ? parseStructuredJson(value) : null
-        return parsed !== null && typeof parsed === "object" && hasUserMessage(parsed, depth + 1)
+        if (parsed !== null && typeof parsed === "object") userMessagesOf(parsed, depth + 1, found)
+    } else if (Array.isArray(value)) {
+        for (const item of value) userMessagesOf(item, depth + 1, found)
+    } else if (isRecord(value)) {
+        if (value.role === "user") found.push(value)
+        else for (const item of Object.values(value)) userMessagesOf(item, depth + 1, found)
     }
-    if (Array.isArray(value)) return value.some((item) => hasUserMessage(item, depth + 1))
-    if (!isRecord(value)) return false
-    if (value.role === "user") return true
-    return Object.values(value).some((item) => hasUserMessage(item, depth + 1))
+    return found
 }
+
+/** What a span's input says of the chat so far: how many user messages, and the last one. */
+interface UserHistory {
+    count: number
+    /** The last user message, as text when it has text, else as JSON. */
+    lastKey: string
+    lastText: string | null
+}
+
+const userHistoryOf = (span: TraceSpan): UserHistory | null => {
+    const messages = userMessagesOf(extractInputs(span))
+    const last = messages.at(-1)
+    if (last === undefined) return null
+    const text = readValueMessage(last).text.trim()
+    return {
+        count: messages.length,
+        lastKey: text || JSON.stringify((last as Record<string, unknown>).content ?? null),
+        lastText: text || null,
+    }
+}
+
+/**
+ * True when a span brings a user message the previous turn start did not have: more user
+ * messages, or another last one. An LLM call that only carries the history of its exchange (as
+ * the next call of an agent does) starts no turn. The limit: a user who sends the same text twice
+ * in a row, in spans that hold only that message, gets one turn for both.
+ */
+const bringsNewUserMessage = (history: UserHistory, previous: UserHistory | undefined) =>
+    !previous || history.count > previous.count || history.lastKey !== previous.lastKey
 
 /** The spans of a list, with the children a trace response nests under `spans`, once each. */
 const flatten = (spans: readonly TraceSpan[]): TraceSpan[] => {
@@ -69,21 +105,27 @@ const byStart = (a: TraceSpan, b: TraceSpan) => {
     return left - right
 }
 
-const turnOf = (spanId: string, spans: TraceSpan[]): TraceTurn => {
+const turnOf = (spanId: string, spans: TraceSpan[], userText: string | null): TraceTurn => {
     const starts = spans.map((span) => timeOf(span.start_time)).filter((ms) => ms !== null)
     const ends = spans.map((span) => timeOf(span.end_time)).filter((ms) => ms !== null)
+    const running = spans.some(
+        (span) => timeOf(span.start_time) !== null && timeOf(span.end_time) === null,
+    )
     return {
         spanId,
         spans,
         startTime: starts.length ? Math.min(...starts) : null,
-        endTime: ends.length ? Math.max(...ends) : null,
+        endTime: ends.length && !running ? Math.max(...ends) : null,
+        userText,
     }
 }
 
 /**
- * Split a trace into its user turns. Spans before the first turn join the first turn; the root
- * span is in no turn when there are turns. A trace with no such child is one turn with every
- * span. Takes a flat list or the nested spans of a trace response.
+ * Split a trace into its user turns. A turn starts at a child of the root that brings a new user
+ * message (see `bringsNewUserMessage`); a child that repeats the history of the turn before joins
+ * that turn. Spans before the first turn join the first turn; the root span is in no turn when
+ * there are turns. A trace with no such child is one turn with every span. Takes a flat list or
+ * the nested spans of a trace response.
  */
 export function groupTraceTurns(spans: readonly TraceSpan[]): TraceTurn[] {
     const all = flatten(spans).sort(byStart)
@@ -105,8 +147,18 @@ export function groupTraceTurns(spans: readonly TraceSpan[]): TraceTurn[] {
     }
 
     const tops = all.filter((span) => span !== root && topOf(span) === span)
-    const starts = tops.filter((span) => hasUserMessage(extractInputs(span)))
-    if (starts.length === 0) return [turnOf(root.span_id, all)]
+    const starts: TraceSpan[] = []
+    const histories: UserHistory[] = []
+    for (const top of tops) {
+        const history = userHistoryOf(top)
+        if (history && bringsNewUserMessage(history, histories.at(-1))) {
+            starts.push(top)
+            histories.push(history)
+        }
+    }
+    if (starts.length === 0) {
+        return [turnOf(root.span_id, all, userHistoryOf(root)?.lastText ?? null)]
+    }
 
     // The turn of each top: the last turn start at or before it, else the first turn.
     const startIndex = new Map(starts.map((start, index) => [start.span_id, index]))
@@ -121,5 +173,7 @@ export function groupTraceTurns(spans: readonly TraceSpan[]): TraceTurn[] {
         if (span === root) continue
         members[turnIndex.get(topOf(span).span_id) ?? 0].push(span)
     }
-    return starts.map((start, index) => turnOf(start.span_id, members[index]))
+    return starts.map((start, index) =>
+        turnOf(start.span_id, members[index], histories[index].lastText),
+    )
 }

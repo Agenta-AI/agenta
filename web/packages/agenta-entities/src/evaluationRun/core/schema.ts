@@ -156,6 +156,11 @@ export const evaluationResultSchema = z.object({
     references: z.record(z.string(), z.unknown()).nullable().optional(),
     data: z.record(z.string(), z.unknown()).nullable().optional(),
     error: z.record(z.string(), z.unknown()).nullable().optional(),
+    /** Who wrote the result and when (ISO); an edit sets `updated_*` and keeps `created_*`. */
+    created_at: z.string().nullable().optional(),
+    updated_at: z.string().nullable().optional(),
+    created_by_id: z.string().nullable().optional(),
+    updated_by_id: z.string().nullable().optional(),
 })
 export type EvaluationResult = z.infer<typeof evaluationResultSchema>
 

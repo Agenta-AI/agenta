@@ -236,7 +236,7 @@ export type {QueueType, QueueData, QueueQueryState} from "./queue"
  * @example
  * ```typescript
  * const data = useAtomValue(evaluationRun.selectors.data(runId))
- * const evaluatorIds = useAtomValue(evaluationRun.selectors.evaluatorIds(runId))
+ * const steps = useAtomValue(evaluationRun.selectors.annotationSteps(runId))
  * ```
  */
 export {evaluationRunMolecule as evaluationRun} from "./evaluationRun"

@@ -357,9 +357,11 @@ describe("run details read the built run", () => {
             uuid(201),
             uuid(202),
         ])
-        expect(store.get(evaluationRunMolecule.selectors.evaluatorIds("run-details-1"))).toEqual([
-            uuid(201),
-            uuid(202),
-        ])
+        // The evaluator ids selector had no caller left; the revision ids one stays (the drawer).
+        expect("evaluatorIds" in evaluationRunMolecule.selectors).toBe(false)
+        expect("evaluatorIds" in evaluationRunMolecule.get).toBe(false)
+        expect(
+            store.get(evaluationRunMolecule.selectors.evaluatorRevisionIds("run-details-1")),
+        ).toHaveLength(2)
     })
 })

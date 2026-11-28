@@ -164,6 +164,7 @@ export {
 export {
     environmentColors,
     StatusIndicator,
+    STATUS_TONE_TEXT_COLOR,
     type StatusIndicatorProps,
     type StatusTone,
     type QueryStatus,

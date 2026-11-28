@@ -20,6 +20,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import type {ActivityStep} from "../../src/model/activitySteps"
 import {
     AssertionSummary,
+    CopyValueButton,
     EvaluatorResultList,
     EvaluatorResultRow,
     FieldFold,
@@ -571,7 +572,7 @@ describe("ValueField turnActivity", () => {
         expect(container.textContent).toContain("Check policy")
         expect(container.textContent).not.toContain("Lookup order")
         expect(container.textContent).toContain("57")
-        // The line counts the turn's tool calls: "Worked for 57s · 2 tool calls".
+        // The line counts the turn's tool calls: "Worked for 57 s · 2 tool calls".
         expect(container.textContent).toContain("2 tool calls")
         // One exchange: no turn label.
         expect(container.textContent).not.toContain("Turn 1")
@@ -660,6 +661,77 @@ describe("ValueField turnActivity", () => {
         expect(container.textContent).toContain("Beta tool")
         expect(container.textContent).not.toContain("Lookup tent")
     })
+
+    it("draws Worked for X for a turn with a time and no step, and keeps its stored calls", () => {
+        const second = [
+            {role: "user", content: "And the tent?"},
+            {role: "assistant", content: "The tent too."},
+        ]
+        const {container} = render(
+            <ValueField
+                value={[...exchange, ...second]}
+                turnActivity={[
+                    {steps: [], durationMs: 12_000},
+                    {steps: [], durationMs: 3_000},
+                ]}
+            />,
+        )
+        const text = container.textContent ?? ""
+        // Turn 1 keeps its stored call, with the turn's time and label on its line.
+        expect(text).toContain("Lookup order")
+        expect(text).toContain("Turn 1")
+        expect(text).toContain("Worked for 12 s")
+        // Turn 2 has no call: the line alone, before its reply.
+        expect(text).toContain("Turn 2")
+        expect(text).toContain("Worked for 3 s")
+        expect(text.indexOf("Worked for 3 s")).toBeGreaterThan(text.indexOf("And the tent?"))
+        expect(text.indexOf("Worked for 3 s")).toBeLessThan(text.indexOf("The tent too."))
+    })
+
+    it("draws nothing more for a turn with no step and no time", () => {
+        const {container} = render(<ValueField value={exchange} turnActivity={[{steps: []}]} />)
+        expect(container.textContent).toContain("Lookup order")
+        expect(container.textContent).not.toContain("Worked for")
+    })
+
+    it("draws one block with every turn's steps above a text output", () => {
+        const {container} = render(
+            <ValueField
+                value="The poles can go back until 18 December."
+                turnActivity={[
+                    {steps: [traceStep("lookup_order")], durationMs: 20_000},
+                    {steps: [traceStep("check_policy")], durationMs: 37_000},
+                ]}
+            />,
+        )
+        const text = container.textContent ?? ""
+        expect(text).toContain("Worked for 57 s")
+        expect(text).toContain("2 tool calls")
+        expect(text).not.toContain("Turn 1")
+        expect(text.indexOf("Worked for 57 s")).toBeLessThan(text.indexOf("The poles can go back"))
+    })
+
+    it("draws the block above a JSON output too, and in the full view", () => {
+        const activity: TurnActivity[] = [{steps: [traceStep("lookup_order")], durationMs: 5_000}]
+        const {container} = render(
+            <ValueFullView value={{status: "delivered", refund: true}} turnActivity={activity} />,
+        )
+        const text = container.textContent ?? ""
+        expect(text).toContain("Worked for 5 s")
+        expect(text).toContain("1 tool call")
+        expect(text.indexOf("Worked for 5 s")).toBeLessThan(text.indexOf("delivered"))
+    })
+
+    it("draws only Worked for X above a text output whose turns had no step", () => {
+        const {container} = render(
+            <ValueField value="Done." turnActivity={[{steps: [], durationMs: 4_000}]} />,
+        )
+        expect(container.textContent).toBe("Worked for 4 sDone.")
+    })
+
+    it("draws a text output with no turnActivity as before", () => {
+        expect(render(<ValueField value="Done." />).container.textContent).toBe("Done.")
+    })
 })
 
 describe("FieldFold collapseSignal", () => {
@@ -692,6 +764,25 @@ describe("FieldFold collapseSignal", () => {
 })
 
 describe("EvaluatorResultRow for every view", () => {
+    it("gives the name its full text on hover and lets the metrics wrap under it", () => {
+        const {container} = render(
+            <EvaluatorResultRow
+                name="Bench check: ask-before-outside-effects"
+                summary={summary([
+                    {name: "success", value: true, kind: "binary"},
+                    {name: "score", value: 0.9, kind: "numeric"},
+                ])}
+            />,
+        )
+        const name = screen.getByText("Bench check: ask-before-outside-effects")
+        expect(name.getAttribute("title")).toBe("Bench check: ask-before-outside-effects")
+        expect(name.className).toContain("truncate")
+        // The header wraps: in a narrow column the metrics go to a second line, at its end.
+        const header = container.firstElementChild?.firstElementChild as HTMLElement
+        expect(header.className).toContain("flex-wrap")
+        expect(screen.getByText("score").closest("span.ml-auto")).not.toBeNull()
+    })
+
     it("draws a human row with its badge, its byline and True, never a pass count", () => {
         const {container} = render(
             <EvaluatorResultRow
@@ -801,5 +892,18 @@ describe("System message", () => {
         render(<ValueField value={chat.slice(1)} />)
         expect(screen.queryByRole("button", {name: /System prompt/})).toBeNull()
         expect(screen.getByText("Can I return the poles?")).toBeTruthy()
+    })
+})
+
+describe("CopyValueButton", () => {
+    it("reads Copy value, or the label the view gives it", () => {
+        render(<CopyValueButton value="x" />)
+        expect(screen.getByRole("button", {name: "Copy value"}).getAttribute("title")).toBe(
+            "Copy value",
+        )
+        cleanup()
+        render(<CopyValueButton value={{a: 1}} label="Copy inputs" />)
+        const button = screen.getByRole("button", {name: "Copy inputs"})
+        expect(button.getAttribute("title")).toBe("Copy inputs")
     })
 })

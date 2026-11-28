@@ -1,5 +1,6 @@
 import {useMemo, type ComponentType} from "react"
 
+import {testcaseMolecule} from "@agenta/entities/testcase"
 import {latestRevisionForTestsetAtomFamily, testsetQueryAtomFamily} from "@agenta/entities/testset"
 import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
@@ -190,11 +191,17 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         )
     }
 
-    /** A test set, or with `testcaseId` one test case of it: "support-faq / 7f3a1c". */
+    /**
+     * A test set, or with `testcaseId` one test case of it: "support-faq / 7f3a1c". A test case
+     * with no `testsetId` (a trace names only the test case) loads the test case for its test set.
+     */
     const TestsetTag = (props: Props) => {
         const t = useT(referencesCatalog)
-        const testsetId = str(props.testsetId)
         const testcaseId = str(props.testcaseId)
+        const lookupId = !str(props.testsetId) && testcaseId ? testcaseId : ""
+        const testcase = useAtomValue(useMemo(() => testcaseMolecule.query(lookupId), [lookupId]))
+        const testsetId =
+            str(props.testsetId) ?? str(testcase.data?.testset_id) ?? str(testcase.data?.set_id)
         const query = useAtomValue(
             useMemo(() => testsetQueryAtomFamily(testsetId ?? ""), [testsetId]),
         )
@@ -204,7 +211,9 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         const revisionId = str(props.revisionId) ?? latest?.id ?? null
         const routeHref = useHref("testset", testsetId ? {testsetId, revisionId, testcaseId} : null)
         const href = str(props.href) ?? routeHref
-        if (!testsetId) return <Placeholder />
+        if (!testsetId) {
+            return lookupId && testcase.isPending ? <ReferenceChipSkeleton /> : <Placeholder />
+        }
         if (query.isPending) return <ReferenceChipSkeleton />
         const testset = query.data
         const deleted = !query.isError && !testset?.name
