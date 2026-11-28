@@ -41,8 +41,7 @@ export function useCodeDraft(
     }, [display, format, value])
 
     const onTextChange = useCallback(
-        (sent: string) => {
-            const next = withShownEnd(sent, display)
+        (next: string) => {
             // The editor repeats the text it was given: not an edit.
             if (!onChange || next === typed.current) return
             typed.current = next
@@ -51,7 +50,7 @@ export function useCodeDraft(
             setError(problem)
             if (!problem) onChange(parseCodeString<unknown>(next, format, value), next)
         },
-        [display, format, onChange, value],
+        [format, onChange, value],
     )
     return {text, error, onTextChange}
 }
@@ -80,7 +79,9 @@ export const CodeField = ({
                 <SharedEditor
                     key={`${editorId}-shared`}
                     initialValue={text}
-                    handleChange={onChange ? onTextChange : undefined}
+                    handleChange={
+                        onChange ? (sent) => onTextChange(withShownEnd(sent, text)) : undefined
+                    }
                     editorType="border"
                     className={cn("min-h-15 overflow-hidden", error && "!border-destructive")}
                     disableDebounce

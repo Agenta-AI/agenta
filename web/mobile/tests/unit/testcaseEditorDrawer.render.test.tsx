@@ -488,6 +488,17 @@ describe("Testcase drawer", () => {
             expect(dataOf(id)).toEqual({context: {tags: ["a", "b"], lang: "en"}})
         })
 
+        it("a list inside an object keeps a space typed at the end of its text", () => {
+            const id = addRow({context: {tags: ["a"]}})
+            content({testcaseId: id, view: "form"})
+
+            type(input("tags") as HTMLInputElement, '["a ')
+            type(input("tags") as HTMLInputElement, '["a b"]')
+
+            expect(input("tags")?.value).toBe('["a b"]')
+            expect(dataOf(id)).toEqual({context: {tags: ["a b"]}})
+        })
+
         it("a list changed into an object in the JSON view is not drawn as an empty list", () => {
             const id = addRow({tags: ["a", "b"]})
             content({testcaseId: id, view: "form"})

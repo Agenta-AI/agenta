@@ -154,11 +154,9 @@ describe("Testcase editor round trip", () => {
 
     const showAs = async (key: string, label: string) => {
         openMenu(key)
-        act(() =>
-            viewItems()
-                .find((item) => item.textContent === label)
-                ?.click(),
-        )
+        const item = viewItems().find((option) => option.textContent === label)
+        expect(item, `${key} has the view ${label}`).toBeDefined()
+        act(() => item?.click())
         await flush()
     }
     const section = (name: string) =>
@@ -217,15 +215,8 @@ describe("Testcase editor round trip", () => {
             const labels = viewItems().map((item) => item.textContent ?? "")
             closeMenu()
             // Every view, then the first view again.
-            for (const label of [...labels, labels[0]]) {
-                if (!label) continue
-                openMenu(key)
-                act(() =>
-                    viewItems()
-                        .find((item) => item.textContent === label)
-                        ?.click(),
-                )
-                await flush()
+            for (const label of labels.length > 0 ? [...labels, labels[0]] : []) {
+                await showAs(key, label)
             }
 
             expect(row.writes).toEqual([])
@@ -288,6 +279,7 @@ describe("Testcase editor round trip", () => {
         expect(JSON.parse(row.data()?.json_text as string)).toEqual({a: 5, b: [1, 2]})
 
         await showAs("json_text", "YAML")
+        expect(section("json_text")?.textContent).toContain("YAML")
         await editCode("json_text", "5", "6")
         await showAs("json_text", "JSON")
 

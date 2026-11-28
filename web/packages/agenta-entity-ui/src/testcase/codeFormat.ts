@@ -33,6 +33,7 @@ export function toCodeString(value: unknown, format: CodeFormat): string {
  * The text the code editor sends, with the end it drops put back. The editor sends its text
  * without the spaces and line breaks at the end, and in YAML they can be part of the last value
  * (a text that keeps its last line breaks, `|+`). `shown` is the text the editor was given.
+ * Remove this when the shared code editor sends its text as shown (`$getEditorCodeAsString`).
  */
 export function withShownEnd(text: string, shown: string): string {
     return text.trimEnd() + shown.slice(shown.trimEnd().length)
