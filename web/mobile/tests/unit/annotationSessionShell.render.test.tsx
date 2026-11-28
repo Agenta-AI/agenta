@@ -64,7 +64,9 @@ vi.mock("@/features/annotations/ScenarioListTab", () => ({
     ScenarioListTab: () => <div>scenario list</div>,
 }))
 vi.mock("@/features/annotations/QueueConfigurationTab", () => ({
-    QueueConfigurationTab: () => <div>configuration</div>,
+    QueueConfigurationTab: ({listHref}: {listHref: string}) => (
+        <div data-list-href={listHref}>configuration</div>
+    ),
 }))
 vi.mock("@/features/annotations/useAddToTestsetToast", () => ({
     useAddToTestsetToast: () => undefined,
@@ -290,6 +292,16 @@ describe("the queue session screen", () => {
             await render()
             // With a view, a human run still in review opens its page, not this queue again.
             expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations/results/run-1?view=overview")
+        })
+
+        it("A delete goes to the run list when the queue list is off, since the run goes too", async () => {
+            fixture.queueListOn = false
+            patchSession({activeView: "configuration"})
+            await render()
+            expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations/results/run-1?view=overview")
+            expect(host.querySelector("[data-list-href]")?.getAttribute("data-list-href")).toBe(
+                "/w/ws-1/p/proj-1/evaluations",
+            )
         })
 
         it("Goes to the run list when the queue list is off and there is no queue", async () => {

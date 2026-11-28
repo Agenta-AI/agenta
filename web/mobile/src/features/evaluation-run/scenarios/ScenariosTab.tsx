@@ -15,7 +15,7 @@ import {ListTable, type ListTableGroup} from "@agenta/ui/list-table"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {queueHref} from "../../annotations/queueHref"
+import {queueAnnotateHref} from "../../annotations/queueHref"
 import {alignComparedRow} from "../compare/scenarios/alignComparedRow"
 import {CompareRowRun} from "../compare/scenarios/CompareRowRun"
 import {useComparedScenarios} from "../compare/scenarios/useComparedScenarios"
@@ -313,7 +313,7 @@ export const ScenariosTab = ({
             const {workspace_id: workspaceId, project_id: projectId} = router.query
             if (queueId && typeof workspaceId === "string" && typeof projectId === "string") {
                 void router.push(
-                    queueHref(`/w/${workspaceId}/p/${projectId}`, queueId, {scenarioId}),
+                    queueAnnotateHref(`/w/${workspaceId}/p/${projectId}`, queueId, scenarioId),
                 )
                 return
             }
