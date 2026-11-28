@@ -116,6 +116,12 @@ export {
     type RunTilesInput,
 } from "./evaluatorRows"
 export {
+    filterAndSortRows,
+    lowestChartValue,
+    type EvaluatorRowSort,
+    type EvaluatorRowsView,
+} from "./evaluatorRowsView"
+export {
     buildMetricsChart,
     defaultChartSelection,
     type ChartMetric,

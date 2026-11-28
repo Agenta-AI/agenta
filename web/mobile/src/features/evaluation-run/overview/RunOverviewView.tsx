@@ -88,11 +88,11 @@ export const RunOverviewView = ({
         })
     }, [rows, scenarioMetrics, header.status, online, metrics, metricsPending, failures])
 
-    const failed = failures && failures.notRun + failures.evaluatorFailed > 0
-
     return (
         <div className="flex flex-col gap-6">
-            {failed ? <RunFailuresAlert failures={failures} /> : null}
+            {failures && failures.evaluatorFailed > 0 ? (
+                <RunFailuresAlert failures={failures} />
+            ) : null}
             <RunMetaTiles tiles={tiles} online={online} />
             <EvaluatorResultsSection
                 runId={runId}

@@ -152,6 +152,11 @@ export {
     type RunTileDetail,
     type RunTileId,
     type RunTilesInput,
+    // Overview: the toolbar over the evaluator table
+    filterAndSortRows,
+    lowestChartValue,
+    type EvaluatorRowSort,
+    type EvaluatorRowsView,
     // Overview: the "Metrics" chart and its picker
     buildMetricsChart,
     defaultChartSelection,

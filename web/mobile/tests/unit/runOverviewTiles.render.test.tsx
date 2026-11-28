@@ -40,6 +40,7 @@ beforeEach(() => {
 afterEach(() => {
     act(() => root.unmount())
     host.remove()
+    vi.unstubAllGlobals()
 })
 
 const references = (stepKeys: string[]): RunReferences => ({
@@ -155,6 +156,99 @@ describe("run overview tiles", () => {
         expect(host.querySelectorAll("[data-testid^='tile-']")).toHaveLength(5)
     })
 
+    it("Test cases that did not run, and no evaluator failure, show no alert", () => {
+        render(
+            view({
+                metrics: [
+                    evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN),
+                    {...invocationMetric("duration", {mean: 1, count: 2}), stepKey: "app"},
+                ],
+                scenarioMetrics: {
+                    status: "ready",
+                    rows: [binaryRow("s1", {success: true}), binaryRow("s2", {})],
+                    failedSteps: [{scenarioId: "s2", stepKey: "app"}],
+                },
+            }),
+        )
+        expect(host.querySelector('[role="alert"]')).toBeNull()
+        expect(tile("testCases")).toBe("Test cases1 of 21 did not run")
+    })
+
+    it("On touch, a tap on the did not run line opens the explanation in a popover", () => {
+        vi.stubGlobal("matchMedia", (query: string) => ({
+            matches: query === "(pointer: coarse)",
+            addEventListener() {},
+            removeEventListener() {},
+        }))
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                observe() {}
+                unobserve() {}
+                disconnect() {}
+            },
+        )
+        render(
+            view({
+                metrics: [
+                    evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN),
+                    {...invocationMetric("duration", {mean: 1, count: 2}), stepKey: "app"},
+                ],
+                scenarioMetrics: {
+                    status: "ready",
+                    rows: [binaryRow("s1", {success: true}), binaryRow("s2", {})],
+                    failedSteps: [{scenarioId: "s2", stepKey: "app"}],
+                },
+            }),
+        )
+        const line = host.querySelector<HTMLButtonElement>('[data-testid="tile-testCases"] button')!
+        expect(line.textContent).toBe("1 did not run")
+        // The kit Button, not a raw <button> (design ratchet CONS-03).
+        expect(line.dataset.variant).toBe("ghost")
+        act(() => line.click())
+        expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+            "1 of 2 test cases did not run, because the application returned an error.",
+        )
+    })
+
+    it("The did not run explanation groups the total's digits", () => {
+        vi.stubGlobal("matchMedia", (query: string) => ({
+            matches: query === "(pointer: coarse)",
+            addEventListener() {},
+            removeEventListener() {},
+        }))
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                observe() {}
+                unobserve() {}
+                disconnect() {}
+            },
+        )
+        render(
+            view({
+                metrics: [evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN)],
+                scenarioMetrics: {
+                    status: "ready",
+                    rows: [binaryRow("s1", {success: true})],
+                    failedSteps: [
+                        {scenarioId: "s2", stepKey: "app"},
+                        ...Array.from({length: 999}, (_, i) => ({
+                            scenarioId: `x${i}`,
+                            stepKey: "app",
+                        })),
+                    ],
+                },
+            }),
+        )
+        act(() =>
+            host.querySelector<HTMLButtonElement>('[data-testid="tile-testCases"] button')!.click(),
+        )
+        expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+            "1000 of 1,001 test cases did not run",
+        )
+    })
+
     it("Without per-test-case rows the Passed tile shows a dash and the assertions line", () => {
         render(view({metrics: [evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN)]}))
         expect(tile("passed")).toBe("Passed—3 of 4 assertions true")
@@ -175,7 +269,7 @@ describe("run overview tiles", () => {
         expect(tile("cost")).toBe("Cost—per trace, average")
     })
 
-    it("Failed test cases show the alert, the ran count and the no result part of a cell", () => {
+    it("Failed test cases show the evaluator alert, the ran count and the no result part of a cell", () => {
         render(
             view({
                 metrics: [
@@ -197,16 +291,36 @@ describe("run overview tiles", () => {
                 },
             }),
         )
+        // Test cases that did not run are told by the tile, not by the alert.
         const alert = host.querySelector('[role="alert"]')?.textContent ?? ""
         expect(alert).toContain(
-            "1 of 3 test cases did not run, because the application returned an error.",
+            "1 test case has no result from one evaluator, because the evaluator failed.",
         )
-        expect(alert).toContain(
-            "1 more test case has no result from one evaluator, because the evaluator failed.",
-        )
-        expect(alert).toContain("A test case that did not run counts as neither passed nor failed.")
+        expect(alert).toContain("The numbers below count only the results that exist.")
+        expect(alert).not.toContain("did not run")
         expect(host.querySelector('[role="alert"] a')?.textContent).toBe("Show test cases")
         expect(tile("testCases")).toBe("Test cases2 of 31 did not run")
+        const notRun = host.querySelector<HTMLElement>(
+            '[data-testid="tile-testCases"] [tabindex="0"]',
+        )!
+        expect(notRun.className).toContain("decoration-dotted")
+        // The tooltip content measures itself; jsdom has no ResizeObserver.
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                observe() {}
+                unobserve() {}
+                disconnect() {}
+            },
+        )
+        act(() => notRun.focus())
+        const tooltip = document.querySelector('[role="tooltip"]')?.textContent ?? ""
+        expect(tooltip).toContain(
+            "1 of 3 test cases did not run, because the application returned an error.",
+        )
+        expect(tooltip).toContain(
+            "A test case that did not run counts as neither passed nor failed.",
+        )
         expect(tile("passed")).toContain("1 of 1 that ran")
         expect(tile("errors")).toBe("Errors21 runs, 1 evaluator")
         expect(host.textContent).toContain("3 of 4, 1 no result")

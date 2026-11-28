@@ -74,8 +74,13 @@ When the per-test-case rows are available, the Overview tab SHALL show the test 
 
 #### Scenario: Some test cases did not run
 - **WHEN** a run of 100 test cases has 6 where the application returned an error and 3 more where one evaluator failed
-- **THEN** an alert above the tiles says "6 of 100 test cases did not run, because the application returned an error. 3 more test cases have no result from one evaluator, because the evaluator failed." with a "Show test cases" link to the Scenarios tab
-- **AND** the "Test cases" tile shows "94 of 100" and "6 did not run", the "Passed" tile counts over the test cases that ran ("16 of 94 that ran"), and the "Errors" tile shows "9" with "6 runs, 3 evaluator"
+- **THEN** the "Test cases" tile shows "94 of 100" and "6 did not run" with a dotted underline; its tooltip says "6 of 100 test cases did not run, because the application returned an error." and "A test case that did not run counts as neither passed nor failed."
+- **AND** an alert above the tiles says "3 test cases have no result from one evaluator, because the evaluator failed." and "The numbers below count only the results that exist." with a "Show test cases" link to the Scenarios tab
+- **AND** the "Passed" tile counts over the test cases that ran ("16 of 94 that ran"), and the "Errors" tile shows "9" with "6 runs, 3 evaluator"
+
+#### Scenario: Test cases did not run, and no evaluator failed
+- **WHEN** some test cases did not run and no evaluator failed on a test case that ran
+- **THEN** the page shows no alert; the "Test cases" tile and its tooltip tell the count (decided by Mahmoud, 2026-11-27)
 
 #### Scenario: A test case with no result in a row
 - **WHEN** an evaluator failed on a test case that ran

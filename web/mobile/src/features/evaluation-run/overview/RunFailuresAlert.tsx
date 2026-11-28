@@ -5,29 +5,21 @@ import {Alert} from "@agenta/ui/ui"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
-/** Test cases that did not run or that an evaluator failed on, above the tiles. */
+/**
+ * Test cases that ran but that an evaluator failed on, above the tiles. Test cases that did not
+ * run are told by the "Test cases" tile.
+ */
 export const RunFailuresAlert = ({failures}: {failures: RunFailures}) => {
     const t = useT(runOverviewCatalog)
     const router = useRouter()
-    const message = [
-        failures.notRun > 0
-            ? t("evaluations.runOverview.notRunAlert", {
-                  count: failures.notRun,
-                  total: failures.total,
-              })
-            : null,
-        failures.evaluatorFailed > 0
-            ? t("evaluations.runOverview.evaluatorFailedAlert", {count: failures.evaluatorFailed})
-            : null,
-    ]
-        .filter(Boolean)
-        .join(" ")
 
     return (
         <Alert
             type="error"
             showIcon
-            message={message}
+            message={t("evaluations.runOverview.evaluatorFailedAlert", {
+                count: failures.evaluatorFailed,
+            })}
             description={t("evaluations.runOverview.countsNote")}
             action={
                 <Link
