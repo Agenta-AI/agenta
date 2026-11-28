@@ -28,6 +28,11 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {PageNotFound} from "@/components/PageNotFound"
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
+
 import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
 import {useDeveloperPageFrame, useDetailHeaderTop} from "../../developer/developerPageFrame"
@@ -49,11 +54,6 @@ import {useRevisionsList} from "./useRevisionsList"
 import {useTestsetEditor} from "./useTestsetEditor"
 import {useTestsetExport} from "./useTestsetExport"
 import {useUpdateTestsetDetails} from "./useUpdateTestsetDetails"
-
-import {PageNotFound} from "@/components/PageNotFound"
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 // The drawer pulls the rich editor, so it loads on the first row the reader opens.
 const TestcaseEditorDrawer = dynamic(

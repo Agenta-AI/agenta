@@ -5,11 +5,11 @@ import {testcaseMolecule} from "@agenta/entities/testcase"
 import {TestcaseDataEditor, type RootDrawerViewMode} from "@agenta/entity-ui/testcase"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {chatProseClassName, markdownIcons} from "@/features/chat/AssistantMarkdown"
+
 import type {FieldColumnActions} from "./fields/FieldMenu"
 import {TestcaseFieldForm} from "./fields/TestcaseFieldForm"
 import {replaceDataUpdate, splitInternalFields} from "./testcaseDataUpdate"
-
-import {chatProseClassName, markdownIcons} from "@/features/chat/AssistantMarkdown"
 
 /**
  * The body of the testcase drawer: the testcase data as a form (`TestcaseFieldForm`), JSON or

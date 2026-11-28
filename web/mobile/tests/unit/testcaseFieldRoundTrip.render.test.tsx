@@ -109,7 +109,9 @@ describe("Testcase editor round trip", () => {
         document.body.append(host)
         root = createRoot(host)
     })
+    const subscriptions: (() => void)[] = []
     afterEach(() => {
+        subscriptions.splice(0).forEach((stop) => stop())
         act(() => root.unmount())
         host.remove()
         store.set(testcaseMolecule.actions.discardAll)
@@ -119,10 +121,12 @@ describe("Testcase editor round trip", () => {
     const storedRow = (data: Record<string, unknown>) => {
         const id = store.set(testcaseMolecule.actions.add, {data: structuredClone(data)})?.id ?? ""
         const writes: unknown[] = []
-        const stop = store.sub(testcaseMolecule.atoms.data(id), () =>
-            writes.push(store.get(testcaseMolecule.atoms.data(id))?.data),
+        subscriptions.push(
+            store.sub(testcaseMolecule.atoms.data(id), () =>
+                writes.push(store.get(testcaseMolecule.atoms.data(id))?.data),
+            ),
         )
-        return {id, writes, stop, data: () => store.get(testcaseMolecule.atoms.data(id))?.data}
+        return {id, writes, data: () => store.get(testcaseMolecule.atoms.data(id))?.data}
     }
 
     const content = (id: string, rootViewMode: "form" | "json" | "yaml") =>
@@ -221,7 +225,6 @@ describe("Testcase editor round trip", () => {
 
             expect(row.writes).toEqual([])
             expect(row.data()).toStrictEqual(SAMPLE_ROW)
-            row.stop()
         },
     )
 
@@ -229,12 +232,12 @@ describe("Testcase editor round trip", () => {
         const row = storedRow(SAMPLE_ROW)
         await content(row.id, view)
         await flush()
+        expect(host.querySelector("[contenteditable]")).not.toBeNull()
         await content(row.id, "form")
         await flush()
 
         expect(row.writes).toEqual([])
         expect(row.data()).toStrictEqual(SAMPLE_ROW)
-        row.stop()
     })
 
     it.each([
@@ -303,7 +306,7 @@ describe("Testcase editor round trip", () => {
         })
     })
 
-    it("Cancel in the drawer puts back the row as it was, with every type", async () => {
+    it("Cancel in the drawer puts back a text and a true or false value as they were", async () => {
         const row = storedRow(SAMPLE_ROW)
         const onClose = vi.fn()
         await act(async () =>

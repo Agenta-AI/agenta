@@ -493,6 +493,7 @@ describe("Testcase drawer", () => {
             content({testcaseId: id, view: "form"})
 
             type(input("tags") as HTMLInputElement, '["a ')
+            expect(input("tags")?.value).toBe('["a ')
             type(input("tags") as HTMLInputElement, '["a b"]')
 
             expect(input("tags")?.value).toBe('["a b"]')
