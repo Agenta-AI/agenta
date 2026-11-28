@@ -2,7 +2,7 @@ import {createElement} from "react"
 
 import type {SidebarConfig} from "@agenta/navigation"
 import {
-    ChatCircleIcon,
+    ChatCircleTextIcon,
     CodeIcon,
     DatabaseIcon,
     FlaskIcon,
@@ -84,8 +84,8 @@ const DEVELOPER_RAIL_ROWS: readonly DeveloperRailRow[] = [
     {
         viewId: "prompts",
         title: "navigation.items.prompts",
-        // Not SquaresFour: Templates has it.
-        icon: ChatCircleIcon,
+        // Not SquaresFour (Templates) or ChatCircle (Live chat).
+        icon: ChatCircleTextIcon,
         placement: "lead",
     },
     {
