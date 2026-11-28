@@ -46,6 +46,17 @@ def test_automatic_run_with_an_added_human_step_is_not_human():
     assert _is_human_run(run) is False
 
 
+def test_custom_invocation_with_a_human_step_is_human():
+    # SDK evaluate() runs: application steps have origin custom.
+    run = _run(
+        _step("input", "input", "custom"),
+        _step("invocation", "invocation", "custom"),
+        _step("annotation-human", "annotation", "human"),
+    )
+
+    assert _is_human_run(run) is True
+
+
 def test_queue_run_without_invocation_step_is_human():
     run = _run(
         _step("input", "input", "custom"),

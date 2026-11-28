@@ -209,14 +209,14 @@ def _is_invocation_query(data: Any) -> bool:
 
 
 def _is_human_run(run: EvaluationRun) -> bool:
-    """A run is human when it has a human annotation step and every invocation
-    step (if any) is human. An automatic run that gets a human evaluator stays
+    """A run is human when it has a human annotation step and no automatic
+    invocation step. An automatic run that gets a human evaluator stays
     automatic, so it gets no default queue."""
     if not (run.flags and run.flags.has_human):
         return False
 
     steps = (run.data.steps if run.data else None) or []
-    return all(step.origin == "human" for step in steps if step.type == "invocation")
+    return not any(step.origin == "auto" for step in steps if step.type == "invocation")
 
 
 class EvaluationsService:

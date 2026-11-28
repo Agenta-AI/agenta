@@ -6,8 +6,8 @@ default queue + `run.flags.is_queue` in line with the run graph:
 
     should_exist = EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS or is_human_run
 
-where `is_human_run` = has_human AND no invocation step with an origin other
-than `human`. An automatic run that gets a human evaluator stays automatic.
+where `is_human_run` = has_human AND no invocation step with origin `auto`.
+An automatic run that gets a human evaluator stays automatic.
 
     required + missing   -> create default queue
     required + archived  -> unarchive default queue
@@ -235,6 +235,17 @@ class TestDefaultQueueFollowsRunKind:
         edited = _patch_steps(authed_api, run, steps=steps)
         assert edited["flags"]["is_queue"] is False
         assert _default_queue(authed_api, run["id"]) == {}
+
+    def test_sdk_run_with_custom_invocation_keeps_its_default_queue(self, authed_api):
+        # SDK evaluate() writes application steps with origin custom and can
+        # add a human evaluator; a person annotates it in the default queue.
+        run = _create_run(
+            authed_api,
+            steps=[_input_step(), _invocation_step("custom"), _human_step()],
+        )
+        assert run["flags"]["has_human"] is True
+        assert run["flags"]["is_queue"] is True
+        assert _default_queue(authed_api, run["id"]).get("id")
 
     def test_human_run_keeps_its_default_queue(self, authed_api):
         run = _create_run(
