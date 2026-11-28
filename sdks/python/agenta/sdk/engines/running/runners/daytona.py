@@ -16,6 +16,7 @@ from agenta.sdk.engines.running.runners.base import (
 )
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.utils.cache import TTLLRUCache
+from agenta.sdk.utils.helpers import parse_url, strip_trailing_api_segment
 from agenta.sdk.utils.lazy import _load_daytona
 
 from agenta.sdk.utils.logging import get_module_logger
@@ -372,6 +373,12 @@ class DaytonaRunner(CodeRunner):
 
             # Get provider API keys from user secrets
             provider_env_vars = self._get_provider_env_vars()
+
+            # The sandbox is remote: it gets the public API URL, never the in-network hop.
+            public_api_url = (os.getenv("AGENTA_API_URL") or "").strip()
+            if public_api_url:
+                agenta_api_url = parse_url(url=public_api_url)
+                agenta_host = strip_trailing_api_segment(agenta_api_url)
 
             # Combine base env vars with provider keys
             env_vars = {

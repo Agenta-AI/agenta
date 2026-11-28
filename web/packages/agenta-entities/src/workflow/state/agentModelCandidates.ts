@@ -293,14 +293,15 @@ export async function loadAgentModelCandidates({
             .catch(() => undefined),
     ])
 
+    // Creating an agent needs only the vault and the catalog: a failed subscription check means no pairs.
+    const subscriptionFailed = subscription.error !== undefined
     const resolved = resolveAgentModelCandidateSources({
         vaultRows: vault.data,
         vaultError: vault.error,
         capabilities: capabilities.data,
         capabilitiesError: capabilities.error,
-        subscriptionStatus: subscription.data,
-        subscriptionSettled: subscription.data !== undefined,
-        subscriptionError: subscription.error,
+        subscriptionStatus: subscriptionFailed ? null : subscription.data,
+        subscriptionSettled: subscriptionFailed || subscription.data !== undefined,
         pairModelSelection,
         showSubscriptions,
         builtinEndpoints,

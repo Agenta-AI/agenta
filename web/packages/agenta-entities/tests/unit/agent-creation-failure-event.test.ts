@@ -41,12 +41,12 @@ vi.mock("../../src/workflow/api", async (importOriginal) => {
     }
 })
 
+import {agentCreationPrefsAtom} from "../../src/workflow/state/agentCreationPrefs"
 import {
     reportAgentCreationFailure,
     setAgentCreationFailureReporter,
     type AgentCreationFailurePayload,
 } from "../../src/workflow/state/agentCreationTelemetry"
-import {agentCreationPrefsAtom} from "../../src/workflow/state/agentCreationPrefs"
 import {createEphemeralAppFromTemplate} from "../../src/workflow/state/appUtils"
 
 const PROJECT_ID = "proj-1"
@@ -230,6 +230,16 @@ describe("agent_create_failed", () => {
             "candidate_count",
         ])
         expect(JSON.stringify(payload)).not.toContain("catalog unavailable")
+    })
+
+    it("creates the agent when only the subscription check fails, with an empty vault", async () => {
+        // The field shape: a keyless self-hosted install whose services hop answers 503.
+        fetchSubscriptionStatusMock.mockRejectedValue(
+            Object.assign(new Error("Could not verify credentials"), {response: {status: 503}}),
+        )
+
+        expect(await createEphemeralAppFromTemplate({type: "agent"})).not.toBeNull()
+        expect(reporter).not.toHaveBeenCalled()
     })
 
     it("reports status 0 for an error that carries no HTTP status", async () => {
