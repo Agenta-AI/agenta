@@ -49,7 +49,19 @@ vi.mock("@agenta/observability/traceDrawer", async () => {
 vi.mock("@agenta/ui/components/presentational", () => ({}))
 // The columns' contents are not under test.
 vi.mock("next/dynamic", () => ({default: () => () => <div data-testid="column-content" />}))
-vi.mock("../../src/traceDrawer/OverviewTabItem", () => ({default: () => <div />}))
+// Counts its mounts: a change of layout must not mount the span body again.
+const spanBody = vi.hoisted(() => ({mounts: 0}))
+vi.mock("../../src/traceDrawer/OverviewTabItem", async () => {
+    const {useEffect} = await import("react")
+    return {
+        default: () => {
+            useEffect(() => {
+                spanBody.mounts += 1
+            }, [])
+            return <div />
+        },
+    }
+})
 vi.mock("../../src/traceDrawer/AccordionTreePanel", () => ({default: () => <div />}))
 vi.mock("../../src/traceDrawer/TraceSidePanel", () => ({default: () => <div />}))
 vi.mock("../../src/traceDrawer/TraceTypeHeader", () => ({default: () => <div />}))
@@ -156,5 +168,28 @@ describe("span and side panel", () => {
         // 740 px of span column and wider (a drawer of 1,100 px): the 340 px panel beside.
         expect(classesOf(view)).toContain("@min-[740px]/span-view:flex-row")
         expect(classesOf(aside())).toContain("@min-[740px]/span-view:w-[340px]")
+    })
+
+    it("keeps the span body mounted when the layout changes between split and stacked", async () => {
+        const content = (layout: "split" | "stacked") => (
+            <TraceContent
+                activeTrace={span as never}
+                error={null}
+                isLoading={false}
+                layout={layout}
+            />
+        )
+        const store = createStore()
+        const show = (layout: "split" | "stacked") =>
+            act(async () => root.render(<Provider store={store}>{content(layout)}</Provider>))
+        await render(null)
+        await show("split")
+        const before = spanBody.mounts
+        const body = host.querySelector('[data-testid="trace-span-body"]')
+        await show("stacked")
+        expect(host.querySelector('[data-testid="trace-span-body"]')).toBe(body)
+        await show("split")
+        expect(host.querySelector('[data-testid="trace-span-body"]')).toBe(body)
+        expect(spanBody.mounts).toBe(before)
     })
 })

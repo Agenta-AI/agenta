@@ -135,8 +135,14 @@ const TraceContent = ({
             ) : null}
         </div>
     )
-    // The container is the span column, so the side panel follows the room it really has.
-    return stacked ? view : <div className="@container/span-view h-full min-h-0 w-full">{view}</div>
+    // The container is the span column, so the side panel follows the room it really has. One
+    // wrapper in both layouts: a change of layout only changes classes, so the span body (the Raw
+    // search, the format, the scroll) is not mounted again.
+    return (
+        <div className={stacked ? "w-full" : "@container/span-view h-full min-h-0 w-full"}>
+            {view}
+        </div>
+    )
 }
 
 export default TraceContent
