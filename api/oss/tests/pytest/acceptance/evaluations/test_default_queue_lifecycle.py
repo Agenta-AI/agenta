@@ -4,20 +4,29 @@ Default-queue reconciliation state machine.
 `_reconcile_default_queue` runs after every create/edit of a run and brings the
 default queue + `run.flags.is_queue` in line with the run graph:
 
-    should_exist = EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS or has_human
+    should_exist = EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS or is_human_run
+
+where `is_human_run` = has_human AND no invocation step with origin `auto`.
+An automatic run that gets a human evaluator stays automatic.
 
     required + missing   -> create default queue
     required + archived  -> unarchive default queue
     required + active    -> no-op
     not-required + active -> archive default queue
 
-`is_queue == has_human AND an active default queue exists`.
+`is_queue == is_human_run AND an active default queue exists`.
 
 Driven through `/evaluations/runs/` (create + PATCH steps) — no worker needed;
 reconciliation is synchronous in the create/edit path.
 """
 
 from uuid import uuid4
+
+from ._flow_helpers import (
+    create_mock_evaluator,
+    create_queue,
+    create_testcases_queue,
+)
 
 
 def _input_step():
@@ -45,6 +54,16 @@ def _auto_step():
         "type": "annotation",
         "origin": "auto",
         "references": {"evaluator_revision": {"id": str(uuid4())}},
+        "inputs": [{"key": "input"}],
+    }
+
+
+def _invocation_step(origin):
+    return {
+        "key": "invocation",
+        "type": "invocation",
+        "origin": origin,
+        "references": {"application_revision": {"id": str(uuid4())}},
         "inputs": [{"key": "input"}],
     }
 
@@ -158,3 +177,90 @@ class TestDefaultQueueLifecycle:
         assert response.status_code == 200, response.text
         assert response.json()["run"]["flags"]["is_queue"] is False
         assert _default_queue(authed_api, run["id"]) == {}
+
+
+class TestDefaultQueueFollowsRunKind:
+    def test_human_step_added_by_patch_to_automatic_run_gives_no_default_queue(
+        self, authed_api
+    ):
+        run = _create_run(
+            authed_api,
+            steps=[_input_step(), _invocation_step("auto"), _auto_step()],
+        )
+        assert _default_queue(authed_api, run["id"]) == {}
+
+        edited = _patch_steps(
+            authed_api,
+            run,
+            steps=[
+                _input_step(),
+                _invocation_step("auto"),
+                _auto_step(),
+                _human_step(),
+            ],
+        )
+        assert edited["flags"]["has_human"] is True
+        assert edited["flags"]["is_queue"] is False
+        assert _default_queue(authed_api, run["id"]) == {}
+
+    def test_human_step_added_by_steps_add_to_automatic_run_gives_no_default_queue(
+        self, authed_api
+    ):
+        run = _create_run(
+            authed_api,
+            steps=[_input_step(), _invocation_step("auto"), _auto_step()],
+        )
+
+        response = authed_api(
+            "POST",
+            f"/simple/evaluations/{run['id']}/steps/add",
+            json={"steps": [_human_step()]},
+        )
+        assert response.status_code == 200, response.text
+        edited = response.json()["run"]
+        assert edited["flags"]["has_human"] is True
+        assert edited["flags"]["is_queue"] is False
+        assert _default_queue(authed_api, run["id"]) == {}
+
+    def test_automatic_run_with_a_default_queue_has_it_archived_at_next_edit(
+        self, authed_api
+    ):
+        # A default queue that an automatic run got before this rule stays
+        # until the run's next edit, which archives it (nothing is deleted).
+        steps = [_input_step(), _invocation_step("auto"), _human_step()]
+        run = _create_run(authed_api, steps=steps)
+        queue = create_queue(authed_api, run["id"], is_default=True)
+        assert _default_queue(authed_api, run["id"])["id"] == queue["id"]
+
+        edited = _patch_steps(authed_api, run, steps=steps)
+        assert edited["flags"]["is_queue"] is False
+        assert _default_queue(authed_api, run["id"]) == {}
+
+    def test_sdk_run_with_custom_invocation_keeps_its_default_queue(self, authed_api):
+        # SDK evaluate() writes application steps with origin custom and can
+        # add a human evaluator; a person annotates it in the default queue.
+        run = _create_run(
+            authed_api,
+            steps=[_input_step(), _invocation_step("custom"), _human_step()],
+        )
+        assert run["flags"]["has_human"] is True
+        assert run["flags"]["is_queue"] is True
+        assert _default_queue(authed_api, run["id"]).get("id")
+
+    def test_human_run_keeps_its_default_queue(self, authed_api):
+        run = _create_run(
+            authed_api,
+            steps=[_input_step(), _invocation_step("human"), _human_step()],
+        )
+        assert run["flags"]["has_human"] is True
+        assert run["flags"]["is_queue"] is True
+        assert _default_queue(authed_api, run["id"]).get("id")
+
+    def test_simple_queue_keeps_its_default_queue(self, authed_api):
+        evaluator = create_mock_evaluator(authed_api)
+        queue = create_testcases_queue(authed_api, evaluator=evaluator)
+
+        response = authed_api("GET", f"/evaluations/runs/{queue['run_id']}")
+        assert response.status_code == 200, response.text
+        assert response.json()["run"]["flags"]["is_queue"] is True
+        assert _default_queue(authed_api, queue["run_id"]).get("id")

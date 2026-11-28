@@ -208,6 +208,17 @@ def _is_invocation_query(data: Any) -> bool:
     return False
 
 
+def _is_human_run(run: EvaluationRun) -> bool:
+    """A run is human when it has a human annotation step and no automatic
+    invocation step. An automatic run that gets a human evaluator stays
+    automatic, so it gets no default queue."""
+    if not (run.flags and run.flags.has_human):
+        return False
+
+    steps = (run.data.steps if run.data else None) or []
+    return not any(step.origin == "auto" for step in steps if step.type == "invocation")
+
+
 class EvaluationsService:
     def __init__(
         self,
@@ -504,8 +515,8 @@ class EvaluationsService:
         if not run.id:
             return run
 
-        has_human = bool(run.flags and run.flags.has_human)
-        should_exist = EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS or has_human
+        is_human_run = _is_human_run(run)
+        should_exist = EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS or is_human_run
         default_queue = await self.fetch_default_queue(
             project_id=project_id,
             run_id=run.id,
@@ -541,7 +552,9 @@ class EvaluationsService:
             )
 
         is_queue = bool(
-            has_human and default_queue is not None and default_queue.deleted_at is None
+            is_human_run
+            and default_queue is not None
+            and default_queue.deleted_at is None
         )
         if run.flags and run.flags.is_queue == is_queue:
             return run
@@ -2098,8 +2111,7 @@ class EvaluationsService:
         run = await self.fetch_run(project_id=project_id, run_id=queue.run_id)
         if not run:
             return
-        has_human = bool(run.flags and run.flags.has_human)
-        is_queue = bool(has_human and queue.deleted_at is None)
+        is_queue = bool(_is_human_run(run) and queue.deleted_at is None)
         if run.flags and run.flags.is_queue == is_queue:
             return
         flags = run.flags.model_copy() if run.flags else EvaluationRunFlags()
