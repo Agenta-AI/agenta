@@ -11,7 +11,7 @@
  * Migrated from antd `Typography.Text type="secondary"` → a `<span>` on the same token
  * (`colorTextDescription`, which is what antd's `type="secondary"` resolves to).
  */
-import {useState, type AnimationEvent, type ReactNode} from "react"
+import {useContext, useState, type AnimationEvent, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
@@ -25,8 +25,10 @@ import {cn} from "@agenta/ui/styles"
 import {viewEnterClass, type ViewDirection} from "@agenta/ui/view-stack"
 import {CaretRight} from "@phosphor-icons/react"
 
+import {CanvasGroupHeader} from "./CanvasGroupHeader"
 import {usePhoneSections, type PhoneSectionsApi} from "./phoneSections"
 import {SectionEmptyActionContext, type SectionEmptyAction} from "./SectionEmpty"
+import {CONFIG_SECTION_GROUPS, ConfigSectionGroupsContext, groupOfSection} from "./sectionGroups"
 
 /** One config section, fully resolved by the container. */
 export interface AgentTemplateSectionDescriptor {
@@ -102,6 +104,7 @@ export const AgentTemplateSectionList = ({
 }: AgentTemplateSectionListProps) => {
     const t = useT(configItemsCatalog)
     const phoneSections = usePhoneSections()
+    const grouped = useContext(ConfigSectionGroupsContext)
     if (sections.length === 0) {
         // antd `Typography.Text type="secondary"` = colorTextDescription + `word-break: break-word`.
         // Its line-height token does NOT apply here: the call site already carried `text-xs`, and
@@ -113,60 +116,82 @@ export const AgentTemplateSectionList = ({
         )
     }
 
-    if (phoneSections) return <PhoneSectionList sections={sections} phoneSections={phoneSections} />
+    if (phoneSections)
+        return (
+            <PhoneSectionList sections={sections} phoneSections={phoneSections} grouped={grouped} />
+        )
+
+    const renderSection = (s: AgentTemplateSectionDescriptor) => {
+        const controlled = Boolean(controlledKeys?.has(s.key))
+        const card = s.panelCard
+        return (
+            // An anchor per section (the builder's section marks find it).
+            <div key={s.key} data-config-section={s.key}>
+                <ConfigAccordionSection
+                    icon={s.icon}
+                    title={s.title}
+                    titleBadge={card?.badge ?? s.titleBadge}
+                    summary={
+                        card ? card.summary : s.empty ? undefined : s.panelSummary || s.summary
+                    }
+                    preview={card?.preview}
+                    extra={s.extra}
+                    indicator={s.indicator}
+                    onOpen={card?.onOpen ?? s.onOpen}
+                    drawerAffordance={s.drawerAffordance}
+                    highlight={s.highlight}
+                    bodyClassName={s.bodyClassName ?? (s.insetBody ? PANEL_INSET_BODY : PANEL_BODY)}
+                    // Canvas F01: rows inset in the panel's `px-4`.
+                    canvas="panel"
+                    // The panel's section cards sit 8 px apart, with no dividers.
+                    noDivider
+                    // The section icon sits on the same Mark as its item rows.
+                    iconTile
+                    {...(controlled
+                        ? {
+                              open: openByKey?.[s.key] ?? s.defaultOpen ?? false,
+                              onOpenChange: (open: boolean) => onOpenChange?.(s.key, open),
+                          }
+                        : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
+                >
+                    <SectionEmptyActionContext.Provider value={s.emptyAction ?? null}>
+                        {s.content}
+                    </SectionEmptyActionContext.Provider>
+                </ConfigAccordionSection>
+            </div>
+        )
+    }
+
+    if (grouped) {
+        // The Configuration page: a titled group per part, 8 px between its cards and 12 px more
+        // above the next group's title (SPACE-01).
+        return (
+            <div className="flex flex-col gap-3">
+                {CONFIG_SECTION_GROUPS.map((group) => {
+                    const members = sections.filter((s) => groupOfSection(s.key) === group)
+                    if (members.length === 0) return null
+                    return (
+                        <section key={group} className="flex flex-col gap-2">
+                            <CanvasGroupHeader label={t(GROUP_TITLE_KEY[group])} />
+                            {members.map(renderSection)}
+                        </section>
+                    )
+                })}
+            </div>
+        )
+    }
 
     return (
         // Canvas F01.
-        <div className="flex flex-col gap-2 pt-3">
-            {sections.map((s) => {
-                const controlled = Boolean(controlledKeys?.has(s.key))
-                const card = s.panelCard
-                return (
-                    // An anchor per section (the builder's section marks find it).
-                    <div key={s.key} data-config-section={s.key}>
-                        <ConfigAccordionSection
-                            icon={s.icon}
-                            title={s.title}
-                            titleBadge={card?.badge ?? s.titleBadge}
-                            summary={
-                                card
-                                    ? card.summary
-                                    : s.empty
-                                      ? undefined
-                                      : s.panelSummary || s.summary
-                            }
-                            preview={card?.preview}
-                            extra={s.extra}
-                            indicator={s.indicator}
-                            onOpen={card?.onOpen ?? s.onOpen}
-                            drawerAffordance={s.drawerAffordance}
-                            highlight={s.highlight}
-                            bodyClassName={
-                                s.bodyClassName ?? (s.insetBody ? PANEL_INSET_BODY : PANEL_BODY)
-                            }
-                            // Canvas F01: rows inset in the panel's `px-4`.
-                            canvas="panel"
-                            // The panel's section cards sit 8 px apart, with no dividers.
-                            noDivider
-                            // The section icon sits on the same Mark as its item rows.
-                            iconTile
-                            {...(controlled
-                                ? {
-                                      open: openByKey?.[s.key] ?? s.defaultOpen ?? false,
-                                      onOpenChange: (open: boolean) => onOpenChange?.(s.key, open),
-                                  }
-                                : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
-                        >
-                            <SectionEmptyActionContext.Provider value={s.emptyAction ?? null}>
-                                {s.content}
-                            </SectionEmptyActionContext.Provider>
-                        </ConfigAccordionSection>
-                    </div>
-                )
-            })}
-        </div>
+        <div className="flex flex-col gap-2 pt-3">{sections.map(renderSection)}</div>
     )
 }
+
+const GROUP_TITLE_KEY = {
+    setup: "entityUi.configItems.groupSetup",
+    uses: "entityUi.configItems.groupUses",
+    more: "entityUi.configItems.groupMore",
+} as const
 
 /** The body of an open panel section (canvas F01, with the list's gap). */
 const PANEL_BODY = "flex flex-col gap-1 py-0.5"
@@ -198,10 +223,14 @@ const sectionTitle = (s: AgentTemplateSectionDescriptor) =>
 const PhoneSectionList = ({
     sections,
     phoneSections,
+    grouped,
 }: {
     sections: AgentTemplateSectionDescriptor[]
     phoneSections: PhoneSectionsApi
+    /** The Configuration page: the rows under their group titles. */
+    grouped: boolean
 }) => {
+    const t = useT(configItemsCatalog)
     const shown = sections.find((s) => s.key === phoneSections.shownKey && !s.onOpen)
     // A section opens and closes with the view motion; the header the container draws stays still.
     const shownKey = shown?.key ?? null
@@ -248,6 +277,36 @@ const PhoneSectionList = ({
             </div>
         )
     }
+    const renderRow = (s: AgentTemplateSectionDescriptor) => (
+        <button
+            key={s.key}
+            type="button"
+            data-config-section={s.key}
+            className="flex min-h-row-double w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-2 py-1 text-left font-[inherit] hover:bg-accent active:bg-accent"
+            onClick={() => (s.onOpen ? s.onOpen() : phoneSections.show(s.key, sectionTitle(s)))}
+        >
+            {s.icon ? (
+                <span
+                    aria-hidden
+                    // A 32 px Mark with a 16 px glyph (CONS-01).
+                    className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground [&_svg]:size-4"
+                >
+                    {s.icon}
+                </span>
+            ) : null}
+            <span className="flex min-w-0 flex-1 flex-col">
+                <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate text-body leading-5 text-foreground">{s.title}</span>
+                    <IndicatorDot indicator={s.indicator} />
+                    {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
+                </span>
+                {summaryOf(s) ? (
+                    <span className="truncate text-meta text-muted-foreground">{summaryOf(s)}</span>
+                ) : null}
+            </span>
+            <CaretRight size={14} aria-hidden className="shrink-0 text-muted-foreground" />
+        </button>
+    )
     return (
         // Two-line rows 8 px apart, no dividers (ROW-04, SURF-01); each row hangs its hover fill
         // 8 px out, so its Mark stays on the screen's content line (ALIGN-01).
@@ -256,42 +315,21 @@ const PhoneSectionList = ({
             data-testid="phone-section-list"
             onAnimationEnd={settle}
         >
-            {sections.map((s) => (
-                <button
-                    key={s.key}
-                    type="button"
-                    data-config-section={s.key}
-                    className="flex min-h-row-double w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-2 py-1 text-left font-[inherit] hover:bg-accent active:bg-accent"
-                    onClick={() =>
-                        s.onOpen ? s.onOpen() : phoneSections.show(s.key, sectionTitle(s))
-                    }
-                >
-                    {s.icon ? (
-                        <span
-                            aria-hidden
-                            // A 32 px Mark with a 16 px glyph (CONS-01).
-                            className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground [&_svg]:size-4"
-                        >
-                            {s.icon}
-                        </span>
-                    ) : null}
-                    <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="flex min-w-0 items-center gap-1.5">
-                            <span className="truncate text-body leading-5 text-foreground">
-                                {s.title}
-                            </span>
-                            <IndicatorDot indicator={s.indicator} />
-                            {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
-                        </span>
-                        {summaryOf(s) ? (
-                            <span className="truncate text-meta text-muted-foreground">
-                                {summaryOf(s)}
-                            </span>
-                        ) : null}
-                    </span>
-                    <CaretRight size={14} aria-hidden className="shrink-0 text-muted-foreground" />
-                </button>
-            ))}
+            {grouped
+                ? CONFIG_SECTION_GROUPS.map((group) => {
+                      const members = sections.filter((s) => groupOfSection(s.key) === group)
+                      if (members.length === 0) return null
+                      return (
+                          // The title sits on the content line, inside the rows' 8 px bleed.
+                          <section key={group} className="flex flex-col gap-2">
+                              <div className="px-2">
+                                  <CanvasGroupHeader label={t(GROUP_TITLE_KEY[group])} />
+                              </div>
+                              {members.map(renderRow)}
+                          </section>
+                      )
+                  })
+                : sections.map(renderRow)}
         </div>
     )
 }

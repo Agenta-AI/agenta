@@ -37,7 +37,7 @@ export function EventFieldTags({
                             }`}
                         >
                             {isUsed ? (
-                                <Check aria-hidden className="size-3 text-primary" weight="bold" />
+                                <Check aria-hidden className="size-3 text-primary" />
                             ) : (
                                 <Plus aria-hidden className="size-3 text-muted-foreground" />
                             )}

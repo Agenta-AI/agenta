@@ -196,7 +196,7 @@ export const DriveHeader = ({
                             onClick={onToggleTree}
                             className={treeVisible ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
                         >
-                            <Sidebar size={14} weight={treeVisible ? "fill" : "regular"} />
+                            <Sidebar size={14} weight={treeVisible ? "fill" : undefined} />
                         </Button>
                     </Tooltip>
                     {onClose && closeVariant === "collapse" ? (

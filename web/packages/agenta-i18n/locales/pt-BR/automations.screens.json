@@ -41,6 +41,8 @@
     "setUpAutomation": "Configurar uma automação",
     "agentMeta": "Agente",
     "detailFallbackTitle": "Automação",
+    "leaveTitle": "Sair sem salvar?",
+    "leaveMessage": "Esta automação tem alterações não salvas. Se você sair, elas serão descartadas.",
     "noLongerExists": "Esta automação não existe mais.",
     "noLongerExistsBody": "Alguém a excluiu ou este link é antigo. Volte para ver as automações deste agente.",
     "backToAutomations": "Voltar para as automações",

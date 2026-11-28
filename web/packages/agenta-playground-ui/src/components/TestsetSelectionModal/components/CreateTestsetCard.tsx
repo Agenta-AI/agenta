@@ -38,7 +38,7 @@ export function CreateTestsetCard({onFileUpload, onBuildInUI}: CreateTestsetCard
                 type="primary"
                 block
                 disabled={!onBuildInUI}
-                icon={<Table size={16} weight="regular" />}
+                icon={<Table size={16} />}
                 onClick={onBuildInUI}
             >
                 Build in UI

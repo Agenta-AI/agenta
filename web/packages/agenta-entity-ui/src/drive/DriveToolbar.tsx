@@ -395,7 +395,7 @@ const CommentToggle = () => {
                 onClick={() => setEnabled(!enabled)}
                 className={enabled ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
             >
-                <ChatCircleText size={14} weight={enabled ? "fill" : "regular"} />
+                <ChatCircleText size={14} weight={enabled ? "fill" : undefined} />
             </Button>
         </Tooltip>
     )

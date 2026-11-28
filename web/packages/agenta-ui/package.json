@@ -44,6 +44,7 @@
         "./editor": "./src/Editor/index.ts",
         "./editor-theme.css": "./src/styles/editor-theme.css",
         "./design/theme": "./src/design/theme.config.ts",
+        "./design/icons": "./src/design/icons.ts",
         "./design/contrast": "./src/design/contrast.ts",
         "./design/rules.json": "./src/design/rules.json",
         "./design/theme.css": "./src/design/theme.css",

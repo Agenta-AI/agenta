@@ -241,7 +241,7 @@ export function PillEditor({
     }
 
     return (
-        <div className="box-border w-full rounded-lg border border-solid border-border bg-background focus-within:border-primary">
+        <div className="box-border w-full rounded-lg border border-solid border-border bg-background focus-ring-field">
             <div
                 ref={ref}
                 contentEditable

@@ -3,6 +3,7 @@
     "agenta": "Agenta",
     "apiKeys": "API-Schlüssel",
     "builtIn": "Integriert",
+    "formLeaveDescription": "Änderungen an dieser Verbindung speichern oder verwerfen?",
     "loadFailed": "Agenta konnte die Modellanbieter nicht laden.",
     "providedByAgenta": "Von Agenta bereitgestellt",
     "saveConnection": "Verbindung speichern",

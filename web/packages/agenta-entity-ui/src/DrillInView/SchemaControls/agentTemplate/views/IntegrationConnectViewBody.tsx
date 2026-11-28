@@ -53,6 +53,7 @@ const ConnectFormSkeleton = ({askOwner}: {askOwner: boolean}) => {
     useViewForm({
         dirty: false,
         valid: false,
+        leaveDescription: t("entityUi.integrationViews.connectLeaveDescription"),
         saveLabel: t("entityUi.connectForm.connect"),
         save: async () => false,
     })
@@ -111,10 +112,12 @@ const ConnectForm = ({
     })
     const projectName = useProjectName(Boolean(params.owners && params.owners.length > 1))
     useViewForm({
-        // A create form: the name is filled in from the start, so Connect works at once, and
-        // leaving asks while the name field has text.
-        dirty: form.valid,
+        // A create form: the name is filled in from the start, so Connect works at once. Leaving
+        // asks only after the person changed a field.
+        dirty: form.dirty,
+        saveWhenClean: true,
         valid: form.valid,
+        leaveDescription: t("entityUi.integrationViews.connectLeaveDescription"),
         saveLabel: t("entityUi.connectForm.connect"),
         save: form.submit,
     })

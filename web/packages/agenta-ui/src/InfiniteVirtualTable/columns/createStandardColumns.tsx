@@ -609,7 +609,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                                         size="sm"
                                         aria-label={tNow("common.actions")}
                                     >
-                                        <DotsThreeVertical weight="bold" />
+                                        <DotsThreeVertical />
                                     </Button>
                                 </DropdownMenuTrigger>
                             </span>

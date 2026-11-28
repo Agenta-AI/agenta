@@ -1,14 +1,10 @@
 // @vitest-environment jsdom
 import {act} from "react"
 
-import {
-    activeUserIdAtom,
-    betaDeveloperModeFlagAtom,
-    navSimplifiedOverrideAtom,
-} from "@agenta/shared/state"
+import {activeUserIdAtom, classicAppFlagAtom, navSimplifiedOverrideAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, describe, expect, it} from "vitest"
 
 import {useDeveloperPageFrame, useDetailHeaderTop} from "@/features/developer/developerPageFrame"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -19,7 +15,7 @@ const render = (beta: boolean) => {
     const store = createStore()
     store.set(activeUserIdAtom, "u1")
     store.set(navSimplifiedOverrideAtom, false)
-    store.set(betaDeveloperModeFlagAtom, beta)
+    store.set(classicAppFlagAtom, !beta)
     const host = document.createElement("div")
     act(() => {
         createRoot(host).render(
@@ -31,11 +27,7 @@ const render = (beta: boolean) => {
     return host.firstElementChild as HTMLElement
 }
 
-beforeEach(() => {
-    vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
-})
 afterEach(() => {
-    vi.unstubAllGlobals()
     localStorage.clear()
 })
 

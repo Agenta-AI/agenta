@@ -74,6 +74,17 @@ export const LeaveGuardProvider = ({
         }
     }, [])
 
+    useEffect(() => {
+        const onBeforeUnload = (event: BeforeUnloadEvent) => {
+            if (!anyDirty()) return
+            event.preventDefault()
+            // Older browsers show the prompt only when returnValue is set.
+            event.returnValue = ""
+        }
+        window.addEventListener("beforeunload", onBeforeUnload)
+        return () => window.removeEventListener("beforeunload", onBeforeUnload)
+    }, [])
+
     // The Pages Router has no navigation blocker: abort `routeChangeStart` by throwing, ask, and
     // push the same URL again with a one-time bypass (the pattern of `useUnsavedGuard`).
     useEffect(() => {

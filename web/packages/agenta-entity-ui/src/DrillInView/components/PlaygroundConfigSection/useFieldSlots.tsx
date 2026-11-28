@@ -179,11 +179,7 @@ export function useFieldSlots({
                 >
                     <div className="flex items-center gap-1">
                         <span className="text-muted-foreground flex items-center">
-                            {isCollapsed ? (
-                                <CaretRight size={14} weight="bold" />
-                            ) : (
-                                <CaretDown size={14} weight="bold" />
-                            )}
+                            {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
                         </span>
                         <span className="capitalize font-medium text-label">{displayLabel}</span>
                     </div>

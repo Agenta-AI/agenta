@@ -45,7 +45,7 @@ export const SessionPinButton = ({
                 className,
             )}
         >
-            <PushPinIcon size={14} weight={pinned ? "fill" : "regular"} />
+            <PushPinIcon size={14} weight={pinned ? "fill" : undefined} />
         </button>
     )
     return tooltip ? (

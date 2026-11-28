@@ -2,15 +2,15 @@ import {useMemo} from "react"
 
 import {PreferencesPage, usePreferenceBindings, type ThemePickerProps} from "@agenta/settings-ui"
 import {desktopEscapeHref, writeClassicModeCookie} from "@agenta/shared/hooks"
-import {betaDeveloperModeFlagAtom, classicModeEnabledAtom} from "@agenta/shared/state"
+import {classicAppFlagAtom, classicModeEnabledAtom} from "@agenta/shared/state"
 import {useThemeMode, useThemeOptions} from "@agenta/ui/theme"
 import {useAtom, useSetAtom} from "jotai"
 
 /**
  * Mobile binding for the shared preferences page; switches share storage with the desktop.
  * Developer Mode (the classic-mode preference) is how a user leaves /m, so turning it on must
- * navigate them there, unless beta developer mode keeps it here. The beta switch is shared and
- * shows only while Developer Mode is on; this app only replaces what it does.
+ * navigate them there only when the user chose "Use classic app". That switch is shared and shows
+ * only while Developer Mode is on; this app only replaces what it does.
  */
 export const PreferencesTab = () => {
     const {themeMode, setMode} = useThemeMode()
@@ -24,7 +24,7 @@ export const PreferencesTab = () => {
         [themeMode, setMode, themeOptions],
     )
     const setClassicMode = useSetAtom(classicModeEnabledAtom)
-    const [betaDeveloperMode, setBetaDeveloperMode] = useAtom(betaDeveloperModeFlagAtom)
+    const [classicApp, setClassicApp] = useAtom(classicAppFlagAtom)
 
     const leaveForDesktop = () => {
         // Publish before navigating: the sync effect would not run before the document unloads,
@@ -35,12 +35,12 @@ export const PreferencesTab = () => {
 
     const onClassicModeChange = (enabled: boolean) => {
         setClassicMode(enabled)
-        if (enabled && !betaDeveloperMode) leaveForDesktop()
+        if (enabled && classicApp) leaveForDesktop()
     }
 
-    const onBetaDeveloperModeChange = (enabled: boolean) => {
-        setBetaDeveloperMode(enabled)
-        if (enabled) return
+    const onClassicAppChange = (enabled: boolean) => {
+        setClassicApp(enabled)
+        if (!enabled) return
         // Store Developer Mode as an explicit choice, so the gate cookie keeps saying "1".
         setClassicMode(true)
         leaveForDesktop()
@@ -48,7 +48,7 @@ export const PreferencesTab = () => {
 
     const bindings = usePreferenceBindings()
 
-    const betaBinding = bindings["beta-developer-mode"]
+    const classicAppBinding = bindings["classic-app"]
 
     return (
         <PreferencesPage
@@ -57,9 +57,9 @@ export const PreferencesTab = () => {
             bindings={{
                 ...bindings,
                 "classic-mode": {...bindings["classic-mode"], onChange: onClassicModeChange},
-                // Shown only while Developer Mode is on; here, turning it on keeps the user in /m.
-                ...(betaBinding && {
-                    "beta-developer-mode": {...betaBinding, onChange: onBetaDeveloperModeChange},
+                // Shown only while Developer Mode is on; here, turning it on leaves for /w.
+                ...(classicAppBinding && {
+                    "classic-app": {...classicAppBinding, onChange: onClassicAppChange},
                 }),
             }}
         />

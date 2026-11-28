@@ -128,7 +128,7 @@ export interface ElicitationControlProps {
 }
 
 const inputCls =
-    "h-8 w-full rounded-md border border-solid border-border bg-background px-2.5 text-label text-foreground outline-none focus:border-primary"
+    "h-8 w-full rounded-md border border-solid border-border bg-background px-2.5 text-label text-foreground outline-none focus-ring-field"
 
 export const ElicitationControl = ({
     step,
@@ -325,7 +325,7 @@ export const ElicitationControl = ({
                                                 onClick={(event) => event.stopPropagation()}
                                                 className="flex shrink-0 items-center text-muted-foreground hover:text-foreground"
                                             >
-                                                <Info size={11} weight="bold" />
+                                                <Info size={11} />
                                             </span>
                                         </SimpleTooltip>
                                     ) : null}
@@ -348,7 +348,6 @@ export const ElicitationControl = ({
                                 ) : (
                                     <Check
                                         size={12}
-                                        weight="bold"
                                         aria-hidden
                                         className="ml-auto shrink-0 text-foreground"
                                     />
@@ -389,7 +388,7 @@ export const ElicitationControl = ({
                         onChange={emit}
                         aria-label={step.label}
                         placeholder={t("chat.elicitation.pickDate")}
-                        className="min-w-0 focus-visible:outline-none focus-visible:border-primary [&>span]:truncate"
+                        className="min-w-0 focus-ring-field [&>span]:truncate"
                     />
                 ) : (
                     <DateTimePicker
@@ -397,7 +396,7 @@ export const ElicitationControl = ({
                         onChange={emit}
                         aria-label={step.label}
                         placeholder={t("chat.elicitation.pickDateTime")}
-                        className="[&_button]:min-w-0 focus-ring [&_button]:focus-visible:border-primary [&_span]:truncate"
+                        className="[&_button]:min-w-0 focus-ring [&_button]:focus-visible:border-ring [&_span]:truncate"
                     />
                 )}
             </div>
