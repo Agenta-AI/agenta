@@ -146,7 +146,8 @@ describe("run overview tiles", () => {
         expect(tile("testCases")).toBe("Test cases9all finished")
         expect(tile("passed")).toBe("Passed50%1 of 2 test cases3 of 4 assertions true")
         expect(tile("cost")).toBe("Cost$0.021per case, average")
-        expect(tile("errors")).toBe("Errors2total")
+        // The rows show no failed test case: the 2 trace errors were recovered from.
+        expect(tile("errors")).toBe("Errors0total")
     })
 
     it("A run with no binary metric has no Passed tile", () => {

@@ -130,6 +130,22 @@ describe("change of the newest run", () => {
         expect(compareChange(0.501, 0.499, "rate")).toEqual({kind: "none"})
     })
 
+    it("rounds a pass rate as the shown percent: 23 of 40 is 58%, so 24 of 40 is +2 points", () => {
+        const shown = (share: number) =>
+            new Intl.NumberFormat("en", {style: "percent", maximumFractionDigits: 0}).format(share)
+        expect([shown(23 / 40), shown(24 / 40)]).toEqual(["58%", "60%"])
+        expect(compareChange(24 / 40, 23 / 40, "rate")).toEqual({kind: "points", points: 2})
+        const passedTile = runTiles({
+            status: "success",
+            online: false,
+            invocation: [],
+            binaryStats: [binaryStats(23, 17)],
+            passed: {status: "ready", passed: 23, total: 40},
+            metricsPending: false,
+        }).find((tile) => tile.id === "passed")
+        expect(passedTile?.value).toBe("58%")
+    })
+
     it("reads values on 0 to 1 with 2 decimals and other values with 3 significant digits", () => {
         expect(compareChange(0.75, 0.83, "unit")).toEqual({kind: "difference", delta: -0.08})
         expect(compareChange(0.751, 0.749, "unit")).toEqual({kind: "none"})
@@ -299,6 +315,33 @@ describe("compare summary rows", () => {
             )
         expect(rowOf(1, 0)?.change).toEqual({kind: "difference", delta: 1})
         expect(rowOf(0, 1)?.change).toEqual({kind: "difference", delta: -1})
+    })
+
+    it("counts failed test cases, not recovered trace errors, when the rows are there", () => {
+        // The older run finished every test case, but the application recovered from 2 trace
+        // errors; the newer run has 1 failed test case: the change is +1, not −1.
+        const tilesWith = (traceErrors: number, evaluatorFailed: number) =>
+            runTiles({
+                status: "success",
+                online: false,
+                invocation: [
+                    invocation("duration", 300),
+                    {
+                        ...invocation("errors", 0),
+                        stats: stats({type: "numeric/continuous", count: 10, sum: traceErrors}),
+                    },
+                ],
+                binaryStats: [],
+                passed: {status: "unavailable"},
+                metricsPending: false,
+                failures: {total: 10, notRun: 0, notRunIds: new Set(), evaluatorFailed, byStep: {}},
+            })
+        const older = tilesWith(2, 0)
+        expect(older.find((tile) => tile.id === "errors")).toMatchObject({value: "0", amount: 0})
+        const row = buildCompareSummaryRows([older, tilesWith(2, 1)], {newest: 1, before: 0}).find(
+            (candidate) => candidate.id === "errors",
+        )
+        expect(row?.change).toEqual({kind: "difference", delta: 1})
     })
 })
 

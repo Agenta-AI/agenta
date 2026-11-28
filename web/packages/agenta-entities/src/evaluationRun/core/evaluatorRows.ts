@@ -397,7 +397,13 @@ const totalOf = (stats: MetricStats) =>
     stats.sum ??
     (stats.mean !== undefined && stats.count !== undefined ? stats.mean * stats.count : undefined)
 
-const percent = (part: number, whole: number) => `${Math.round((part / whole) * 100)}%`
+/**
+ * A share of 0 to 1 in whole percents, rounded as `Intl.NumberFormat` rounds the shown percent:
+ * 23 of 40 is 57.5% (not the float 57.49999…), so 58.
+ */
+const wholePercent = (share: number) => Math.round(Number((share * 100).toPrecision(12)))
+
+const percent = (part: number, whole: number) => `${wholePercent(part / whole)}%`
 
 /**
  * The tiles in order: test cases, passed, cost, duration, tokens, errors. No "Passed" tile when
@@ -503,8 +509,10 @@ export function runTiles({
                   detail: {kind: "errorsSplit", runs: notRun, evaluator: failures.evaluatorFailed},
                   assertions: null,
               }
-            : // Tracing writes no errors metric for a run without errors: the rows still count 0.
-              failures && failures.total > 0 && runErrors.amount === null
+            : // With the per-test-case rows, Errors counts failed test cases, 0 included. The trace
+              // errors total also counts errors the application recovered from, so two runs would
+              // count different things. Tracing writes no errors metric for a run without errors.
+              failures && failures.total > 0
               ? {...runErrors, value: "0", amount: 0}
               : runErrors,
     )
@@ -555,7 +563,7 @@ const roundTo = (value: number, digits: number) => Number(value.toFixed(digits))
 
 /** Each scale's value as its cell prints it (`percent`, `formatMean`, `format3Sig`, `formatCost`, ...). */
 const SHOWN: Record<CompareScale, (value: number) => number> = {
-    rate: (value) => Math.round(value * 100),
+    rate: wholePercent,
     unit: (value) => roundTo(value, 2),
     number: round3Sig,
     count: Math.round,
