@@ -19,7 +19,8 @@ export interface MetricsChartRun {
 export interface ChartMetric {
     /**
      * `{evaluatorId or stepKey}:{metricKey}`: the same metric in every run that has the evaluator
-     * id (a step key can differ between runs).
+     * id (a step key can differ between runs). Two steps of one evaluator in one run (two
+     * revisions) use their step keys, so neither replaces the other.
      */
     id: string
     evaluatorName: string
@@ -43,8 +44,20 @@ export interface MetricsChartModel {
     offScale: number
 }
 
-const metricIdOf = (row: EvaluatorRow, metricKey: string) =>
-    `${row.evaluatorId ?? row.stepKey}:${metricKey}`
+const metricIdOf = (row: EvaluatorRow, metricKey: string, byStep: boolean) =>
+    `${(!byStep && row.evaluatorId) || row.stepKey}:${metricKey}`
+
+/** The evaluator ids that more than one row of a run has. */
+const sharedEvaluatorIds = (rows: readonly EvaluatorRow[]) => {
+    const seen = new Set<string>()
+    const shared = new Set<string>()
+    for (const {evaluatorId} of rows) {
+        if (evaluatorId === null) continue
+        if (seen.has(evaluatorId)) shared.add(evaluatorId)
+        seen.add(evaluatorId)
+    }
+    return shared
+}
 
 /**
  * The chart values of the runs (decisions 3 and 5): the pass rate of a binary metric and the mean
@@ -55,10 +68,12 @@ export function buildMetricsChart(runs: readonly MetricsChartRun[]): MetricsChar
     const byId = new Map<string, ChartMetric>()
     const offScaleIds = new Set<string>()
     for (const run of runs) {
+        const shared = sharedEvaluatorIds(run.rows)
         for (const row of run.rows) {
+            const byStep = row.evaluatorId !== null && shared.has(row.evaluatorId)
             for (const metric of row.metrics) {
                 if (metric.kind !== "binary" && metric.kind !== "numeric") continue
-                const id = metricIdOf(row, metric.metricKey)
+                const id = metricIdOf(row, metric.metricKey, byStep)
                 const value = chartValue(metric.stats)
                 if (value === null) {
                     if (metric.kind === "numeric" && metric.stats && !isUnitScale(metric.stats)) {

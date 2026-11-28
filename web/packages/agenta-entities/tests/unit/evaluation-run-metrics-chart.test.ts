@@ -112,6 +112,28 @@ describe("metrics chart values", () => {
         ])
     })
 
+    it("Two revisions of one evaluator in one run keep one metric each, keyed by step", () => {
+        const {metrics} = buildMetricsChart([
+            {
+                key: "run",
+                rows: [
+                    {
+                        ...row("Exact match", [metric("success", "binary", binary(1, 3))]),
+                        stepKey: "rev-1",
+                    },
+                    {
+                        ...row("Exact match", [metric("success", "binary", binary(3, 1))]),
+                        stepKey: "rev-2",
+                    },
+                ],
+            },
+        ])
+        expect(metrics.map((m) => [m.id, m.name, m.values.run])).toEqual([
+            ["rev-1:attributes.ag.data.outputs.success", "Exact match", 0.25],
+            ["rev-2:attributes.ag.data.outputs.success", "Exact match (2)", 0.75],
+        ])
+    })
+
     it("A generated name never repeats a real name, and names follow row order, not values", () => {
         const {metrics} = buildMetricsChart([
             {
