@@ -1,6 +1,5 @@
 import {createElement, useCallback, useEffect, useMemo, type ReactNode} from "react"
 
-import {promptWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -58,7 +57,6 @@ import {
     SlackLogoIcon,
     SparkleIcon,
     SquaresFourIcon,
-    TextboxIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
@@ -80,7 +78,7 @@ import {useProjectPermission} from "../context/useProjectPermission"
 
 import {AgentsNavAction} from "./AgentsNavAction"
 import {AgentsQuickPanel} from "./AgentsQuickPanel"
-import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
+import {developerNavSlots} from "./developerNavSlots"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
 import {sessionMarkOf, sessionStatusMark, withStatusMark} from "./sessionStatusMark"
 import {SupportActions} from "./SupportActions"
@@ -181,25 +179,6 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
 )
 
 /**
- * The prompt apps under the beta developer mode Prompts row, as in the old app. The list loads
- * only while the row is open.
- */
-export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
-    MOBILE_NAV_SCOPE_ID,
-    PROMPTS_ROW_KEY,
-    {
-        kind: "app",
-        icon: createElement(TextboxIcon, {size: 16}),
-        listAtom: promptWorkflowsListQueryStateAtom,
-        getLabel: (workflow) =>
-            workflow.name || workflow.slug || tNow("navigation.items.untitledPrompt"),
-        childPath: (workflow) => `/apps/${workflow.id}/playground`,
-        emptyLabel: tNow("navigation.items.noPromptsYet"),
-        showAllPath: "/prompts",
-    },
-)
-
-/**
  * Wraps a rail session row with its verbs (the kebab and the right-click menu, rename in place).
  * The main sidebar and the agent sidebar both use it, so a row behaves the same in each.
  */
@@ -296,19 +275,9 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
         [wrapSession],
     )
 
-    const promptsSource = useAtomValue(mobilePromptsEntity.activeSourceAtom)
     const developerSlots = useMemo(
-        () =>
-            developerNavSlots(
-                projectURL,
-                developerViews,
-                developerMode,
-                developerMode
-                    ? resolveChildren(mobilePromptsEntity, promptsSource, projectURL)
-                    : [],
-                t,
-            ),
-        [developerMode, developerViews, projectURL, promptsSource, t],
+        () => developerNavSlots(projectURL, developerViews, developerMode, t),
+        [developerMode, developerViews, projectURL, t],
     )
 
     const {pages, defaultHidden} = useMemo(() => {

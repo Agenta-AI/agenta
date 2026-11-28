@@ -93,6 +93,10 @@ const dragAttrs = (item?: SidebarDragItem) =>
           }
         : undefined
 
+// Controls a group row may hold (its groupAction). A press on one of them does not toggle the row.
+const GROUP_ROW_CONTROLS =
+    "a, button, input, select, textarea, label, [role='button'], [contenteditable='true']"
+
 /** Faded in place while dragged — no gap opens, and a heading's rows fade with it. */
 const DRAG_GHOST = "[&_[data-drag-ghost=true]]:opacity-35"
 
@@ -731,6 +735,14 @@ const NavMenuImpl = ({
             // An always-open group with no icon is a section heading, not a row ("Sessions" in
             // the agent sidebar, "Chats" in the builder sidebar).
             const heading = item.alwaysOpen && !item.icon
+            // A group with no page of its own opens and closes on a click anywhere on its row,
+            // and on Enter or Space. A group with a page keeps the caret as its own button,
+            // because a click on its row opens the page.
+            const toggleOnRow = !item.link && !item.alwaysOpen && !item.disabled
+            const toggleLabel = t(
+                open ? "navigation.chrome.collapseGroup" : "navigation.chrome.expandGroup",
+                {title: String(item.title)},
+            )
             return (
                 <Fragment key={item.key}>
                     {heading ? (
@@ -747,8 +759,35 @@ const NavMenuImpl = ({
                                 item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
                                 "pr-0",
+                                toggleOnRow && "focus-ring-inset",
                                 item.rowClassName,
                             )}
+                            role={toggleOnRow ? "button" : undefined}
+                            tabIndex={toggleOnRow ? 0 : undefined}
+                            aria-expanded={toggleOnRow ? open : undefined}
+                            onClick={
+                                toggleOnRow
+                                    ? (event) => {
+                                          // The group's own controls (a filter, a "+", an
+                                          // input) act alone. The row itself is a button too.
+                                          const control = (event.target as HTMLElement).closest(
+                                              GROUP_ROW_CONTROLS,
+                                          )
+                                          if (control && control !== event.currentTarget) return
+                                          onToggleOpenKey?.(item.key)
+                                      }
+                                    : undefined
+                            }
+                            onKeyDown={
+                                toggleOnRow
+                                    ? (event) => {
+                                          if (event.target !== event.currentTarget) return
+                                          if (event.key !== "Enter" && event.key !== " ") return
+                                          event.preventDefault()
+                                          onToggleOpenKey?.(item.key)
+                                      }
+                                    : undefined
+                            }
                         >
                             {item.icon ? (
                                 <span className={iconClass(depth === 0, selected)}>
@@ -763,26 +802,24 @@ const NavMenuImpl = ({
                                     {item.groupAction}
                                 </span>
                             ) : null}
-                            {item.alwaysOpen ? null : (
-                                <SimpleTooltip
-                                    title={t(
-                                        open
-                                            ? "navigation.chrome.collapseGroup"
-                                            : "navigation.chrome.expandGroup",
-                                        {title: String(item.title)},
-                                    )}
-                                >
+                            {item.alwaysOpen ? null : toggleOnRow ? (
+                                // The row is the button; the caret only shows the state.
+                                <SimpleTooltip title={toggleLabel}>
+                                    <span
+                                        aria-hidden
+                                        className="mr-1 flex size-control-xs shrink-0 items-center justify-center text-muted-foreground"
+                                    >
+                                        <CollapseCaret open={open} className="text-inherit" />
+                                    </span>
+                                </SimpleTooltip>
+                            ) : (
+                                <SimpleTooltip title={toggleLabel}>
                                     <Button
                                         type="button"
                                         variant="ghost"
                                         size="icon-xs"
                                         aria-expanded={open}
-                                        aria-label={t(
-                                            open
-                                                ? "navigation.chrome.collapseGroup"
-                                                : "navigation.chrome.expandGroup",
-                                            {title: String(item.title)},
-                                        )}
+                                        aria-label={toggleLabel}
                                         // z-[1] keeps the toggle clickable above the stretched link anchor.
                                         className={clsx("relative z-[1] mr-1", SMALL_ICON_BUTTON)}
                                         onClick={(event) => {
