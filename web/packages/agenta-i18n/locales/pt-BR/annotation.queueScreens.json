@@ -1,5 +1,6 @@
 {
     "listTitle": "Filas de anotação",
+    "backToQueues": "Voltar para as filas",
     "queueName": "Nome da fila",
     "emptyTitle": "Esta fila está vazia",
     "testcaseUnavailable": "Dados do caso de teste indisponíveis",

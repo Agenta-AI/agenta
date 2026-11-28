@@ -1,5 +1,6 @@
 {
     "listTitle": "Files d’attente d’annotation",
+    "backToQueues": "Retour aux files d’attente",
     "queueName": "Nom de la file d’attente",
     "emptyTitle": "Cette file d’attente est vide",
     "testcaseUnavailable": "Données du cas de test indisponibles",

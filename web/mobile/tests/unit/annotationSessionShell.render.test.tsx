@@ -279,12 +279,14 @@ describe("the queue session screen", () => {
     })
 
     describe("Back arrow", () => {
-        const backHref = () =>
-            host.querySelector("a[aria-label='Back to queues']")?.getAttribute("href")
+        // The arrow is the first link of the header; its label says where it goes.
+        const backLink = () => host.querySelector("a[aria-label]")
+        const backHref = () => backLink()?.getAttribute("href")
 
         it("Goes to the queue list when the user has it", async () => {
             await render()
             expect(backHref()).toBe("/w/ws-1/p/proj-1/annotations")
+            expect(backLink()?.getAttribute("aria-label")).toBe("Back to queues")
         })
 
         it("Goes to the queue's run when the queue list is off", async () => {
@@ -292,6 +294,7 @@ describe("the queue session screen", () => {
             await render()
             // With a view, a human run still in review opens its page, not this queue again.
             expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations/results/run-1?view=overview")
+            expect(backLink()?.getAttribute("aria-label")).toBe("Back")
         })
 
         it("A delete goes to the run list when the queue list is off, since the run goes too", async () => {
@@ -309,9 +312,10 @@ describe("the queue session screen", () => {
             setQueue({isPending: false, isError: false, data: null})
             await render()
             expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations")
-            // Queue not found leaves the same way.
+            expect(backLink()?.getAttribute("aria-label")).toBe("Back")
+            // Queue not found leaves the same way, with the same label.
             const notFoundLink = Array.from(host.querySelectorAll("a")).find(
-                (a) => a.textContent === "Back to queues",
+                (a) => a.textContent === "Back",
             )
             expect(notFoundLink?.getAttribute("href")).toBe("/w/ws-1/p/proj-1/evaluations")
         })

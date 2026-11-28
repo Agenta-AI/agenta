@@ -1,5 +1,6 @@
 {
     "listTitle": "Annotation-Warteschlangen",
+    "backToQueues": "Zurück zu den Warteschlangen",
     "queueName": "Name der Warteschlange",
     "emptyTitle": "Diese Warteschlange ist leer",
     "testcaseUnavailable": "Daten des Testfalls nicht verfügbar",

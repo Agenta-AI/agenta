@@ -1,5 +1,6 @@
 {
     "listTitle": "注釈キュー",
+    "backToQueues": "キューに戻る",
     "queueName": "キュー名",
     "emptyTitle": "このキューは空です",
     "testcaseUnavailable": "テストケースのデータを利用できません",

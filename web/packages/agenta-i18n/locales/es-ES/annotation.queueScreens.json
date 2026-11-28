@@ -1,5 +1,6 @@
 {
     "listTitle": "Colas de anotación",
+    "backToQueues": "Volver a las colas",
     "queueName": "Nombre de la cola",
     "emptyTitle": "Esta cola está vacía",
     "testcaseUnavailable": "Los datos del caso de prueba no están disponibles",
