@@ -304,6 +304,9 @@ export function useRunScenarios(runId: string, {poll = true}: {poll?: boolean} =
         void query.fetchNextPage()
     }, [query])
 
+    // Stable, so the table's headers and cells that take it do not render again on each tick.
+    const retryValues = useCallback(() => void refresh(false), [refresh])
+
     return {
         rows,
         columnGroups,
@@ -312,9 +315,9 @@ export function useRunScenarios(runId: string, {poll = true}: {poll?: boolean} =
         hasMore: Boolean(query.hasNextPage),
         loadMore,
         /** Read again the rows whose values did not load. */
-        retryValues: () => void refresh(false),
+        retryValues,
         refreshFailed,
-        retryRefresh: () => void refresh(false),
+        retryRefresh: retryValues,
         isPending: query.isPending,
         isError: query.isError && !query.data,
         refetch: () => void query.refetch(),

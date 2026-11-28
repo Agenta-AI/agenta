@@ -315,12 +315,24 @@ const buttonNamed = (name: string) =>
     )
 const chips = () =>
     [...host.querySelectorAll('[data-testid="compare-chip"]')].map((chip) => chip.textContent)
+/** The Scenarios table's rows. */
+const tableRows = () => [...host.querySelectorAll<HTMLElement>("tr[data-row-key]")]
 /** The table row of `run` whose test case shows `country`. */
 const rowOf = (run: string, country: string) =>
-    [...host.querySelectorAll<HTMLElement>("span")]
-        .filter((span) => span.children.length === 0 && span.textContent === run)
-        .map((span) => span.parentElement?.parentElement ?? null)
-        .find((row) => row?.textContent?.includes(country)) ?? null
+    tableRows().find(
+        (row) => row.textContent?.includes(run) && row.textContent.includes(country),
+    ) ?? null
+/** A binary metric in a Compact row: its icon's name, Pass or Fail. */
+const verdictOf = (row: HTMLElement) =>
+    row.querySelector('[role="img"]')?.getAttribute("aria-label") ?? null
+
+// The Scenarios table draws only the rows its viewport shows: give jsdom's boxes a size.
+const offsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight")
+const offsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth")
+function sizeBoxes() {
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {configurable: true, value: 600})
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {configurable: true, value: 1200})
+}
 const lastReplace = () => router.replace.mock.calls.at(-1)?.[0]
 const runLevelMetricReads = () =>
     http.post.mock.calls.filter(
@@ -353,6 +365,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+    if (offsetHeight) Object.defineProperty(HTMLElement.prototype, "offsetHeight", offsetHeight)
+    if (offsetWidth) Object.defineProperty(HTMLElement.prototype, "offsetWidth", offsetWidth)
     act(() => root.unmount())
     host.remove()
     document.body.innerHTML = ""
@@ -583,6 +597,7 @@ describe("compared scenarios", () => {
                 {id: "s1", testcase: "tc-1", success: false},
             ],
         })
+        sizeBoxes()
         await open(base, {compare: verbose, view: "scenarios"})
         await until(
             () =>
@@ -591,36 +606,63 @@ describe("compared scenarios", () => {
             "compared scenarios shown",
         )
 
-        const headers = [...host.querySelectorAll('[role="columnheader"]')].map(
-            (h) => h.textContent,
-        )
-        expect(headers.slice(0, 3)).toEqual(["#", "Evaluation", "Status"])
+        // Number, status (no word: every scenario succeeded), then the pinned Evaluation column.
+        const headers = [...host.querySelectorAll("thead th")].map((th) => th.textContent)
+        expect(headers.slice(0, 3)).toEqual(["#", "", "Evaluation"])
 
         // Each row names its run in the Evaluation column.
-        const rows = [...host.querySelectorAll<HTMLElement>("span")]
-            .filter(
-                (span) =>
-                    span.children.length === 0 &&
-                    /^Capitals: (default|verbose)$/.test(span.textContent ?? ""),
-            )
-            .filter((span) => span.parentElement?.parentElement?.textContent?.match(/^\d/))
-            .map((span) => span.parentElement?.parentElement?.textContent ?? "")
+        const rows = tableRows()
         expect(rows).toHaveLength(6)
-        const summary = rows.map((text) => [
-            text.match(/^\d+/)?.[0],
-            text.includes("Capitals: verbose") ? "verbose" : "default",
-            text.match(/France|Japan|Peru/)?.[0] ?? null,
-            text.match(/true|false/)?.[0] ??
-                (text.includes("No matching scenario") ? "none" : null),
-        ])
+        const summary = rows.map((row) => {
+            const text = row.textContent ?? ""
+            return [
+                row.querySelector("td")?.textContent,
+                text.includes("Capitals: verbose") ? "verbose" : "default",
+                text.match(/France|Japan|Peru/)?.[0] ?? null,
+                verdictOf(row) ?? (text.includes("No matching scenario") ? "none" : null),
+            ]
+        })
         expect(summary).toEqual([
-            ["1", "default", "France", "true"],
-            ["1", "verbose", "France", "false"],
-            ["2", "default", "Japan", "true"],
-            ["2", "verbose", "Japan", "false"],
-            ["3", "default", "Peru", "true"],
+            ["1", "default", "France", "Pass"],
+            ["1", "verbose", "France", "Fail"],
+            ["2", "default", "Japan", "Pass"],
+            ["2", "verbose", "Japan", "Fail"],
+            ["3", "default", "Peru", "Pass"],
             ["3", "verbose", null, "none"],
         ])
+    })
+})
+
+describe("compared scenarios with no label column", () => {
+    it("A compared run's missing scenario says so in the Evaluation column", async () => {
+        const base = addRun("Capitals: default", {
+            scenarios: [
+                {id: "s1", testcase: "tc-1", success: true},
+                {id: "s2", testcase: "tc-2", success: true},
+            ],
+        })
+        const verbose = addRun("Capitals: verbose", {
+            scenarios: [{id: "s1", testcase: "tc-1", success: false}],
+        })
+        window.localStorage.setItem(
+            `agenta:evaluation-run:scenario-view:${base}`,
+            JSON.stringify({label: null}),
+        )
+        sizeBoxes()
+        try {
+            await open(base, {compare: verbose, view: "scenarios"})
+            await until(
+                () =>
+                    tableRows().some(
+                        (row) =>
+                            row.textContent?.includes("Capitals: verbose") &&
+                            row.textContent.includes("No matching scenario"),
+                    ),
+                "missing scenario explained",
+            )
+        } finally {
+            window.localStorage.removeItem(`agenta:evaluation-run:scenario-view:${base}`)
+        }
     })
 })
 
@@ -640,28 +682,21 @@ describe("compared scenarios without test cases", () => {
                 {id: "s3", testcase: "", success: false},
             ],
         })
+        sizeBoxes()
         await open(base, {compare: verbose, view: "scenarios"})
         await until(() => {
             const text = host.textContent ?? ""
             return text.includes("Capitals: verbose") && !text.includes("Loading…")
         }, "compared scenarios shown")
         await until(
-            () => (host.textContent?.match(/true|false/g) ?? []).length >= 6,
+            () => tableRows().filter((row) => verdictOf(row) !== null).length >= 6,
             "compared values shown",
         )
 
-        const rows = [...host.querySelectorAll<HTMLElement>("span")]
-            .filter(
-                (span) =>
-                    span.children.length === 0 &&
-                    /^Capitals: (default|verbose)$/.test(span.textContent ?? ""),
-            )
-            .filter((span) => span.parentElement?.parentElement?.textContent?.match(/^\d/))
-            .map((span) => span.parentElement?.parentElement?.textContent ?? "")
-        const verboseValues = rows
-            .filter((text) => text.includes("Capitals: verbose"))
-            .map((text) => text.match(/true|false/)?.[0] ?? "none")
-        expect(verboseValues).toEqual(["false", "true", "false"])
+        const verboseValues = tableRows()
+            .filter((row) => row.textContent?.includes("Capitals: verbose"))
+            .map((row) => verdictOf(row) ?? "none")
+        expect(verboseValues).toEqual(["Fail", "Pass", "Fail"])
     })
 })
 
@@ -679,6 +714,7 @@ describe("compared scenario drawer", () => {
                 {id: "s2", testcase: "tc-2", success: false},
             ],
         })
+        sizeBoxes()
         await open(base, {compare: verbose, view: "scenarios"})
         await until(() => rowOf("Capitals: verbose", "France") !== null, "compared row shown")
 

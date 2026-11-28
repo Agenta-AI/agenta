@@ -2,6 +2,8 @@ import {vi} from "vitest"
 
 /** One neutral run: a test set with a country column, an app, and one evaluator with a success score. */
 export const COLUMN_PATH = "attributes.ag.data.outputs.success"
+/** The evaluator's reason, a text metric, when the state asks for it. */
+export const REASON_PATH = "attributes.ag.data.outputs.reason"
 
 export interface ScenarioServerState {
     runStatus: string
@@ -22,6 +24,12 @@ export interface ScenarioServerState {
     failing: string[]
     /** True: each scenario's metrics hold the cost, duration, tokens and errors of the app call. */
     appMetrics: boolean
+    /** True: the evaluator also writes a reason, a text metric. */
+    reasons: boolean
+    /** True: a person fills the evaluator (its step's origin is human). */
+    humanEvaluator: boolean
+    /** The run-wide app call duration samples (a run-level metric row), if any. */
+    runWideDurationCount?: number
     calls: {url: string; body: unknown}[]
 }
 
@@ -38,6 +46,8 @@ export function newServerState(patch: Partial<ScenarioServerState> = {}): Scenar
         failTraces: false,
         failing: [],
         appMetrics: false,
+        reasons: false,
+        humanEvaluator: false,
         calls: [],
         ...patch,
     }
@@ -88,7 +98,7 @@ export function answerRequest(
                                 {
                                     key: "ev",
                                     type: "annotation",
-                                    origin: "auto",
+                                    origin: state.humanEvaluator ? "human" : "auto",
                                     references: {evaluator: {id: "ev-1", slug: "exact-match"}},
                                 },
                             ],
@@ -101,6 +111,14 @@ export function answerRequest(
                                     column: {kind: "annotation", name: "success"},
                                     step: {key: "ev", path: COLUMN_PATH},
                                 },
+                                ...(state.reasons
+                                    ? [
+                                          {
+                                              column: {kind: "annotation", name: "reason"},
+                                              step: {key: "ev", path: REASON_PATH},
+                                          },
+                                      ]
+                                    : []),
                             ],
                         },
                     },
@@ -146,7 +164,32 @@ export function answerRequest(
     }
     if (url.endsWith("/evaluations/metrics/query")) {
         if (state.failMetrics) throw new Error("Request failed with status code 500")
-        const ids = ((body?.metrics as {scenario_ids?: string[]})?.scenario_ids ?? []) as string[]
+        const scope = (body?.metrics as {scenario_ids?: string[] | boolean})?.scenario_ids
+        if (scope === false && state.runWideDurationCount !== undefined) {
+            const count = state.runWideDurationCount
+            return {
+                data: {
+                    count: 1,
+                    metrics: [
+                        {
+                            id: "met-run",
+                            run_id: runId,
+                            data: {
+                                app: {
+                                    "attributes.ag.metrics.duration.cumulative": {
+                                        type: "numeric/continuous",
+                                        count,
+                                        mean: 500,
+                                        sum: 500 * count,
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            }
+        }
+        const ids = (Array.isArray(scope) ? scope : []) as string[]
         return {
             data: {
                 count: ids.length,
@@ -161,6 +204,7 @@ export function answerRequest(
                                 count: 1,
                                 freq: [{value: !state.failing.includes(id), count: 1}],
                             },
+                            ...(state.reasons ? {[REASON_PATH]: `Reason for ${id}`} : {}),
                         },
                         ...(state.appMetrics ? {app: APP_METRICS} : {}),
                     },

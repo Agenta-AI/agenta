@@ -324,7 +324,13 @@ const click = async (label: string) => {
 const writes = () => state.calls.filter((call) => !call.url.endsWith("/query"))
 const bodyOf = (url: string) => writes().find((call) => call.url === `${API}${url}`)?.body
 
+// The table draws only the rows its viewport shows: give jsdom's boxes a size.
+const offsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight")
+const offsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth")
+
 beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {configurable: true, value: 600})
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {configurable: true, value: 1200})
     vi.useFakeTimers()
     host = document.createElement("div")
     document.body.appendChild(host)
@@ -342,6 +348,8 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
+    if (offsetHeight) Object.defineProperty(HTMLElement.prototype, "offsetHeight", offsetHeight)
+    if (offsetWidth) Object.defineProperty(HTMLElement.prototype, "offsetWidth", offsetWidth)
     act(() => root.unmount())
     // Requests batched in the last frame of a test must leave before its fake clock is dropped.
     await settle()

@@ -62,8 +62,12 @@ const settle = (ms = 1000) =>
         await vi.advanceTimersByTimeAsync(ms)
     })
 
-async function mount(patch: Partial<ScenarioServerState> = {}, header: RunHeader = RUN) {
-    const runId = `table-run-${++counter}`
+async function mount(
+    patch: Partial<ScenarioServerState> = {},
+    header: RunHeader = RUN,
+    reuseRunId?: string,
+) {
+    const runId = reuseRunId ?? `table-run-${++counter}`
     state = newServerState({appMetrics: true, ...patch})
     window.matchMedia = ((query: string) => ({
         matches: true,
@@ -95,9 +99,8 @@ async function mount(patch: Partial<ScenarioServerState> = {}, header: RunHeader
     return runId
 }
 
-const headers = () =>
-    [...host.querySelectorAll('[role="columnheader"]')].map((node) => node.textContent)
-const rows = () => [...host.querySelectorAll('[role="button"]')]
+const headers = () => [...host.querySelectorAll("th")].map((node) => node.textContent)
+const rows = () => [...host.querySelectorAll<HTMLElement>("tr[data-row-key]")]
 const rowCountries = () =>
     rows().map((row) =>
         ["France", "Japan", "Chile", "Kenya", "Peru", "Norway"].find((name) =>
@@ -141,6 +144,22 @@ async function pick(label: string, option: string) {
     })
 }
 
+/** Open a menu from its trigger, as a keyboard user does. */
+const openMenu = (trigger: Element | undefined) =>
+    act(async () => {
+        const node = trigger as HTMLElement | undefined
+        node?.focus()
+        node?.dispatchEvent(
+            new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true}),
+        )
+        await vi.advanceTimersByTimeAsync(50)
+    })
+/** The newest menu item with this text: jsdom keeps a closed menu until its exit animation ends. */
+const menuItem = (text: string) =>
+    [...document.querySelectorAll<HTMLElement>('[role^="menuitem"]')]
+        .reverse()
+        .find((node) => node.textContent?.trim().startsWith(text))
+
 /** Filter the table on the evaluator's success output. */
 async function filterOnSuccess(value: "true" | "false") {
     await click(button("Filter scenarios"))
@@ -151,7 +170,13 @@ async function filterOnSuccess(value: "true" | "false") {
     await settle()
 }
 
+// The table draws only the rows its viewport shows: give jsdom's boxes a size.
+const offsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight")
+const offsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth")
+
 beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {configurable: true, value: 600})
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {configurable: true, value: 1200})
     vi.useFakeTimers()
     // Radix Select measures and scrolls on open; jsdom has neither.
     Element.prototype.scrollIntoView = vi.fn()
@@ -174,6 +199,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+    if (offsetHeight) Object.defineProperty(HTMLElement.prototype, "offsetHeight", offsetHeight)
+    if (offsetWidth) Object.defineProperty(HTMLElement.prototype, "offsetWidth", offsetWidth)
     act(() => root.unmount())
     host.remove()
     vi.useRealTimers()
@@ -183,7 +210,8 @@ afterEach(() => {
 describe("scenarios table", () => {
     it("Each row shows the cost, duration, tokens and errors of its app call", async () => {
         await mount({ids: ["sc-1"]})
-        expect(headers().slice(-4)).toEqual(["Cost", "Duration", "Tokens", "Errors"])
+        // The invocation metrics close the first header row; the evaluator's metric is below.
+        expect(headers().slice(4)).toEqual(["Cost", "Duration", "Tokens", "Errors", "success"])
         const text = rows()[0].textContent ?? ""
         expect(text).toContain("$0.000012")
         expect(text).toContain("522ms")
@@ -242,29 +270,289 @@ describe("scenarios table", () => {
         expect(rowCountries()).toEqual(["France", "Japan"])
     })
 
-    it("Hiding columns in the settings removes them from the table", async () => {
+    it("Hide column in a header menu hides it; Show all columns brings it back", async () => {
         await mount({ids: ["sc-1"]})
-        await click(button("Columns"))
-        await click(document.querySelector('[aria-label="Metrics: Cost"]') ?? undefined)
+        await openMenu(button("Cost"))
+        await click(menuItem("Hide column"))
         expect(headers()).not.toContain("Cost")
         expect(headers()).toContain("Duration")
 
-        // The group box hides the rest of the group, then shows all of it again.
-        const metrics = [...document.querySelectorAll("label")].find(
-            (node) => node.textContent === "Metrics",
-        )
-        await click(metrics?.querySelector("button") ?? undefined)
+        await openMenu(button("Display"))
+        expect(menuItem("Columns")?.textContent).toContain("1 hidden")
+        await click(menuItem("Columns"))
+        await click(menuItem("Show all columns"))
         expect(headers()).toContain("Cost")
-        await click(metrics?.querySelector("button") ?? undefined)
-        expect(headers().slice(-1)).toEqual(["Exact Match · Success"])
+    })
 
-        await click(button("Show all"))
-        expect(headers().slice(-4)).toEqual(["Cost", "Duration", "Tokens", "Errors"])
+    it("Text metrics are hidden by default and their chip shows them", async () => {
+        await mount({ids: ["sc-1"], reasons: true})
+        expect(headers()).toContain("success")
+        expect(headers()).not.toContain("reason")
+        await openMenu(button("Display"))
+        expect(menuItem("Columns")?.textContent).toContain("1 hidden")
+        await click(menuItem("Columns"))
+        const chip = button("reason")
+        expect(chip?.getAttribute("aria-pressed")).toBe("false")
+        await click(chip)
+        expect(headers()).toContain("reason")
+        expect(rows()[0].textContent).toContain("Reason for sc-1")
+    })
+
+    it("The status shows a dot for a success and a dot with its word otherwise", async () => {
+        await mount({ids: ["sc-1", "sc-2"], statuses: {"sc-2": "failure"}})
+        expect(headers().slice(0, 3)).toEqual(["#", "Status", "country"])
+        const [success, failure] = rows().map((row) => row.querySelector("[title]"))
+        expect(success?.getAttribute("title")).toBe("Success")
+        expect(success?.querySelector(".sr-only")?.textContent).toBe("Success")
+        expect(failure?.getAttribute("title")).toBe("Failed")
+        expect(failure?.querySelector(".sr-only")).toBeNull()
+    })
+
+    it("Density, row height and the label column apply at once and stay after a reload", async () => {
+        const runId = await mount({ids: ["sc-1"]})
+        // Compact: a true or false metric is an icon, the word is its name.
+        expect(rows()[0].querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("Pass")
+        expect(rows()[0].querySelector(".h-9")).not.toBeNull()
+        expect(
+            host.querySelector<HTMLElement>('th[data-column-key$="::country"]')?.style.position,
+        ).toBe("sticky")
+
+        await openMenu(button("Display"))
+        await click(menuItem("Density"))
+        await click(menuItem("Comfortable"))
+        await openMenu(button("Display"))
+        await click(menuItem("Row height"))
+        await click(menuItem("Tall"))
+        await openMenu(button("Display"))
+        await click(menuItem("Label column"))
+        await click(menuItem("None"))
+        const check = () => {
+            expect(rows()[0].querySelector('[role="img"]')).toBeNull()
+            expect(rows()[0].textContent).toContain("Pass")
+            expect(rows()[0].querySelector(".h-18")).not.toBeNull()
+            // No label column: country is the first scrolling column, not a pinned one.
+            const country = host.querySelector<HTMLElement>('th[data-column-key$="::country"]')
+            expect(country?.textContent).toBe("country")
+            expect(country?.style.position).toBe("")
+        }
+        check()
+
+        act(() => root.unmount())
+        root = createRoot(host)
+        await mount({ids: ["sc-1"]}, RUN, runId)
+        check()
+        // Another run keeps its own view.
+        act(() => root.unmount())
+        root = createRoot(host)
+        await mount({ids: ["sc-1"]})
+        expect(rows()[0].querySelector('[role="img"]')).not.toBeNull()
+    })
+
+    it("A sort orders the loaded rows and says so while more pages exist", async () => {
+        await mount({ids: ["sc-1", "sc-2", "sc-3"], pageSize: 2, failing: ["sc-1"]})
+        expect(rowCountries()).toEqual(["France", "Japan"])
+        await openMenu(button("success"))
+        await click(menuItem("Sort descending"))
+        expect(rowCountries()).toEqual(["Japan", "France"])
+        expect(host.textContent).toContain(
+            "Sorted the 2 loaded test cases. Load more to include the rest.",
+        )
+        expect(host.textContent).toContain("Load more")
+    })
+
+    it("A human evaluator's true or false reads True or False, not Pass or Fail", async () => {
+        await mount({ids: ["sc-1"], humanEvaluator: true})
+        expect(rows()[0].querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("True")
+    })
+
+    it("With more rows than the window holds, the body scrolls under a header that stays", async () => {
+        const innerHeight = window.innerHeight
+        window.innerHeight = 400
+        try {
+            const ids = Array.from({length: 30}, (_, index) => `sc-${index + 1}`)
+            await mount({ids})
+            const body = host.querySelector<HTMLElement>(".avt-body")
+            // The window less the room for the footer; jsdom puts the table at the top.
+            expect(body?.style.height).toBe("328px")
+            expect(body?.querySelector("thead")).toBeNull()
+            expect(host.querySelector("thead")?.textContent).toContain("country")
+        } finally {
+            window.innerHeight = innerHeight
+        }
+    })
+
+    it("Scrolling the screen does not change the body's height", async () => {
+        const innerHeight = window.innerHeight
+        window.innerHeight = 400
+        // A /m screen scrolls inside its own box, scrolled down 200 px: the table sits 200 px
+        // above the window's top.
+        host.style.overflowY = "auto"
+        Object.defineProperty(host, "scrollTop", {configurable: true, value: 200})
+        Object.defineProperty(host, "scrollHeight", {configurable: true, value: 2000})
+        Object.defineProperty(host, "clientHeight", {configurable: true, value: 400})
+        const rect = vi
+            .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+            .mockReturnValue({top: -200, height: 0} as DOMRect)
+        try {
+            const ids = Array.from({length: 30}, (_, index) => `sc-${index + 1}`)
+            await mount({ids})
+            expect(host.querySelector<HTMLElement>(".avt-body")?.style.height).toBe("328px")
+        } finally {
+            rect.mockRestore()
+            window.innerHeight = innerHeight
+        }
+    })
+
+    it("Scrolling the table to its end loads the next page", async () => {
+        const innerHeight = window.innerHeight
+        window.innerHeight = 400
+        try {
+            const ids = Array.from({length: 12}, (_, index) => `sc-${index + 1}`)
+            await mount({ids, pageSize: 10})
+            const body = host.querySelector<HTMLElement>(".avt-body")
+            // Ten rows are taller than the room: the body scrolls on its own.
+            expect(body?.style.height).toBe("328px")
+            expect(scenarioReads()).toBe(1)
+            await act(async () => {
+                body?.dispatchEvent(new Event("scroll"))
+                await vi.advanceTimersByTimeAsync(100)
+            })
+            await settle()
+            expect(scenarioReads()).toBe(2)
+        } finally {
+            window.innerHeight = innerHeight
+        }
+    })
+
+    it("When the rows fit, reaching the footer loads the next page", async () => {
+        let intersect: (() => void) | null = null
+        vi.stubGlobal(
+            "IntersectionObserver",
+            class {
+                constructor(callback: IntersectionObserverCallback) {
+                    intersect = () =>
+                        callback(
+                            [{isIntersecting: true} as IntersectionObserverEntry],
+                            this as never,
+                        )
+                }
+                observe = vi.fn()
+                disconnect = vi.fn()
+            },
+        )
+        await mount({ids: ["sc-1", "sc-2", "sc-3"], pageSize: 2})
+        expect(rows()).toHaveLength(2)
+        expect(host.querySelector<HTMLElement>(".avt-body")?.style.height).toBe("")
+        await act(async () => intersect?.())
+        await settle()
+        expect(rows()).toHaveLength(3)
+    })
+
+    it("The label column is never drawn wider than 400 px", async () => {
+        const runId = await mount({ids: ["sc-1"]})
+        const key = host
+            .querySelector<HTMLElement>('th[data-column-key$="::country"]')
+            ?.getAttribute("data-column-key")
+        const storageKey = `agenta:evaluation-run:scenario-view:${runId}`
+        window.localStorage.setItem(storageKey, JSON.stringify({widths: {[key ?? ""]: 900}}))
+        try {
+            act(() => root.unmount())
+            root = createRoot(host)
+            await mount({ids: ["sc-1"]}, RUN, runId)
+            await openMenu(button("country"))
+            expect([...document.querySelectorAll('[role="menu"]')].at(-1)?.textContent).toContain(
+                "400 px",
+            )
+            expect(button("Wider")?.disabled).toBe(true)
+        } finally {
+            window.localStorage.removeItem(storageKey)
+        }
+    })
+
+    it("Wider stops the label column at 400 px, and the saved width stays there", async () => {
+        const runId = await mount({ids: ["sc-1"]})
+        const key = host
+            .querySelector<HTMLElement>('th[data-column-key$="::country"]')
+            ?.getAttribute("data-column-key")
+        const storageKey = `agenta:evaluation-run:scenario-view:${runId}`
+        window.localStorage.setItem(storageKey, JSON.stringify({widths: {[key ?? ""]: 390}}))
+        try {
+            act(() => root.unmount())
+            root = createRoot(host)
+            await mount({ids: ["sc-1"]}, RUN, runId)
+            await openMenu(button("country"))
+            await click(button("Wider"))
+            expect([...document.querySelectorAll('[role="menu"]')].at(-1)?.textContent).toContain(
+                "400 px",
+            )
+            expect(button("Wider")?.disabled).toBe(true)
+            const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? "{}")
+            expect(saved.widths[key ?? ""]).toBe(400)
+        } finally {
+            window.localStorage.removeItem(storageKey)
+        }
+    })
+
+    it("Once every row is loaded, the count is the number of rows, not the duration samples", async () => {
+        await mount({ids: ["sc-1", "sc-2", "sc-3"], appMetrics: true, runWideDurationCount: 2})
+        expect(host.textContent).toContain("3 test cases")
+        expect(host.textContent).not.toContain("2 test cases")
+    })
+
+    it("A column menu stays open while its width changes", async () => {
+        await mount({ids: ["sc-1"]})
+        await openMenu(button("Cost"))
+        expect(document.body.textContent).toContain("96 px")
+        await click(button("Wider"))
+        await click(button("Wider"))
+        const menu = [...document.querySelectorAll('[role="menu"]')].at(-1)
+        expect(menu?.getAttribute("data-state")).toBe("open")
+        expect(menu?.textContent).toContain("144 px")
+    })
+
+    it("The label column's Wider starts from its drawn width", async () => {
+        await mount({ids: ["sc-1"]})
+        await openMenu(button("country"))
+        // Compact draws the label column 220 px wide.
+        expect([...document.querySelectorAll('[role="menu"]')].at(-1)?.textContent).toContain(
+            "220 px",
+        )
+    })
+
+    it("Hide column on the label column leaves the table with no label column", async () => {
+        await mount({ids: ["sc-1"]})
+        await openMenu(button("country"))
+        await click(menuItem("Hide column"))
+        expect(headers()).not.toContain("country")
+        expect(rows()[0].textContent).not.toContain("France")
+        await openMenu(button("Display"))
+        expect(menuItem("Columns")?.textContent).toContain("1 hidden")
+    })
+
+    it("Enter on a control in a row is the control's own and does not open the drawer", async () => {
+        await mount({ids: ["sc-1"]}, {...RUN, kind: "human"})
+        const annotate = [...rows()[0].querySelectorAll("button")].find(
+            (node) => node.textContent === "Annotate",
+        )
+        await act(async () => {
+            annotate?.dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true}),
+            )
+            await vi.advanceTimersByTimeAsync(50)
+        })
+        expect(router.replace).not.toHaveBeenCalled()
+        await act(async () => {
+            rows()[0].dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true}),
+            )
+            await vi.advanceTimersByTimeAsync(50)
+        })
+        expect(router.replace).toHaveBeenCalledTimes(1)
     })
 
     it("On a human run each row has Annotate next to its status", async () => {
         await mount({ids: ["sc-1", "sc-2"]}, {...RUN, kind: "human"})
-        expect(headers().slice(0, 3)).toEqual(["#", "Status", "Actions"])
+        expect(headers().slice(0, 4)).toEqual(["#", "", "", "country"])
         const annotate = rows().map((row) =>
             [...row.querySelectorAll("button")].some((node) => node.textContent === "Annotate"),
         )

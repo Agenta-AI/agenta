@@ -9,8 +9,3 @@ import {atomFamily} from "jotai-family"
 export const scenarioFilterAtomFamily = atomFamily((_runId: string) =>
     atom<PredicateGroup>(EMPTY_SCENARIO_FILTER),
 )
-
-/** The keys of the columns the user hid, per run. */
-export const hiddenScenarioColumnsAtomFamily = atomFamily((_runId: string) =>
-    atom<ReadonlySet<string>>(new Set<string>()),
-)
