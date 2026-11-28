@@ -12,6 +12,7 @@ import {
 import {useT} from "@agenta/i18n"
 import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
 
+import {cn} from "../../foundation/utils/cn"
 import {
     AlertDialog,
     AlertDialogContent,
@@ -21,7 +22,6 @@ import {
     AlertDialogTitle,
 } from "../../primitives/alert-dialog"
 import {Button} from "../../primitives/button"
-import {cn} from "../../foundation/utils/cn"
 
 import {
     ViewEntryContext,
