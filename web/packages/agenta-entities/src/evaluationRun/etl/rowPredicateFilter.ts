@@ -109,6 +109,13 @@ export function unwrapStatsForCompare(v: unknown): unknown {
     return v
 }
 
+/** One `freq` entry of a categorical stats blob. */
+interface CategoricalEntry {
+    value: unknown
+    density?: number
+    count?: number
+}
+
 /**
  * The labels of a categorical stats blob, the most frequent first: each `freq` entry by
  * `density ?? count` (an entry with neither counts as one), entries with no weight left out, and
@@ -124,9 +131,14 @@ export function unwrapCategoricalStats(v: unknown): unknown[] | null {
     if (typeof type !== "string" || !type.startsWith("categorical") || !Array.isArray(freq)) {
         return null
     }
-    const weight = (entry: {density?: number; count?: number}) => entry.density ?? entry.count ?? 1
-    return (freq as {value: unknown; density?: number; count?: number}[])
-        .filter((entry) => weight(entry) > 0)
+    const weight = (entry: CategoricalEntry) => entry.density ?? entry.count ?? 1
+    return (freq as unknown[])
+        .filter(
+            (entry): entry is CategoricalEntry =>
+                entry !== null &&
+                typeof entry === "object" &&
+                weight(entry as CategoricalEntry) > 0,
+        )
         .sort((a, b) => weight(b) - weight(a))
         .flatMap((entry) => (Array.isArray(entry.value) ? entry.value : [entry.value]))
 }

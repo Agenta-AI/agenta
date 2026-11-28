@@ -1,6 +1,7 @@
 import {
     format3Sig,
     INVOCATION_METRICS,
+    isHumanOrigin,
     metricKind,
     scenarioMetricStats,
     stepMetricStats,
@@ -78,7 +79,7 @@ export interface ScenarioStep {
     metrics: Record<string, MetricStats | null>
     /**
      * Who last wrote the step's result (a human annotation): the editor of an edited result, else
-     * its creator. Null when the result names no user.
+     * its creator. Null for a step that is not human, and when the result names no user.
      */
     author?: ScenarioAuthor | null
 }
@@ -254,7 +255,9 @@ export function buildScenarioRowData(
                         stepMetricStats(hydrated.metrics, step.key, metricKey),
                     ]),
                 ),
-                author: resultAuthor(resultOf(step.key)),
+                // Only a human step's result names who wrote it; an auto step's result names
+                // the user the run ran as.
+                author: isHumanOrigin(step.origin) ? resultAuthor(resultOf(step.key)) : null,
             }
         }
         const message = stepErrorMessage(resultOf(step.key))

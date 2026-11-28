@@ -116,7 +116,8 @@ const splitTurns = (items: MessageItem[]): MessageItem[][] => {
 
 /**
  * The drawn entries. A turn matched with a `turnActivity` entry (from the end) draws one activity
- * block before its last assistant message, in place of its stored tool calls.
+ * block before its last assistant message, in place of its stored tool calls. An entry with no
+ * steps keeps the stored calls and adds only its time and label.
  */
 function buildEntries(
     items: MessageItem[],

@@ -67,8 +67,19 @@ vi.mock("@agenta/entities/testset", async () => {
     return {
         testsetQueryAtomFamily: () =>
             atom({isPending: false, isError: false, data: {id: "ts-1", name: "Capitals"}}),
-        latestRevisionForTestsetAtomFamily: () => atom({id: "ts-rev-9"}),
+        testsetMolecule: {
+            latestRevision: {
+                request: atom(null, () => undefined),
+                selectors: {
+                    stateful: () => atom({data: {id: "ts-rev-9", version: 9}, isPending: false}),
+                },
+            },
+        },
     }
+})
+vi.mock("@agenta/entities/testcase", async () => {
+    const {atom} = await import("jotai")
+    return {testcaseMolecule: {query: () => atom({isPending: false, data: null})}}
 })
 
 import {traceDrawerProjectURLSourceAtom} from "@/features/observability/traceDrawerProjectURL"

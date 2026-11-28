@@ -29,10 +29,7 @@ describe("unwrapCategoricalStats", () => {
         expect(
             unwrapCategoricalStats({
                 type: "categorical/multiple",
-                freq: [
-                    {value: ["tone", "length"], count: 2},
-                    {value: "unused", count: 0},
-                ],
+                freq: [{value: ["tone", "length"], count: 2}, {value: "unused", count: 0}, null],
             }),
         ).toEqual(["tone", "length"])
     })

@@ -236,13 +236,28 @@ describe("scenario columns", () => {
         expect(rowWith(null).testsetId).toBeNull()
     })
 
-    it("Steps carry the last author of their result: the editor of an edited result, else the creator", () => {
+    it("Human steps carry the last author of their result: the editor of an edited result, else the creator", () => {
         const humanSchema: ScenarioSchema = {
             steps: [
                 ...schema.steps,
-                {key: "review", type: "annotation", references: {evaluator: {slug: "review"}}},
-                {key: "tone", type: "annotation", references: {evaluator: {slug: "tone"}}},
-                {key: "auto", type: "annotation", references: {evaluator: {slug: "auto"}}},
+                {
+                    key: "review",
+                    type: "annotation",
+                    origin: "human",
+                    references: {evaluator: {slug: "review"}},
+                },
+                {
+                    key: "tone",
+                    type: "annotation",
+                    origin: "human",
+                    references: {evaluator: {slug: "tone"}},
+                },
+                {
+                    key: "auto",
+                    type: "annotation",
+                    origin: "auto",
+                    references: {evaluator: {slug: "auto"}},
+                },
             ],
             mappings: schema.mappings,
         }
@@ -266,7 +281,14 @@ describe("scenario columns", () => {
                         created_by_id: "user-1",
                         created_at: "2026-11-27T10:00:00Z",
                     },
-                    {run_id: "r", scenario_id: "sc-1", step_key: "auto"},
+                    // The run writes an auto step's result as the user who started it.
+                    {
+                        run_id: "r",
+                        scenario_id: "sc-1",
+                        step_key: "auto",
+                        created_by_id: "user-1",
+                        created_at: "2026-11-27T10:00:00Z",
+                    },
                 ],
                 metrics: [],
                 testcase: null,
