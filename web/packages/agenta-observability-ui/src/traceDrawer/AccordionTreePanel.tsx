@@ -4,7 +4,7 @@ import {createT, useT, type CatalogKey} from "@agenta/i18n"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {messagesToText} from "@agenta/observability/traceDrawer"
 import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
-import {getStringOrJson} from "@agenta/shared/utils"
+import {getStringOrJson, parseStructuredJson} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {
     Editor as EditorWrapper,
@@ -43,11 +43,7 @@ import {
 import yaml from "js-yaml"
 import dynamic from "next/dynamic"
 
-import {
-    buildDecodedJsonOutput,
-    normalizeEscapedLineBreaks,
-    parseStructuredJson,
-} from "../drillIn/decodedJsonHelpers"
+import {buildDecodedJsonOutput, normalizeEscapedLineBreaks} from "../drillIn/decodedJsonHelpers"
 import {getDefaultJsonViewMode} from "../drillIn/viewModes"
 
 import {getTraceDrawerReferences} from "./referenceSlots"

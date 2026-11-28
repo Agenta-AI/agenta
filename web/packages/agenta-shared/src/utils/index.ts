@@ -112,7 +112,24 @@ export {createLogger} from "./createLogger"
 export type {LoggerOptions} from "./createLogger"
 
 // JSON parsing utilities
-export {safeJson5Parse, tryParsePartialJson} from "./jsonParsing"
+export {
+    parseStructuredJson,
+    safeJson5Parse,
+    stripJsonFence,
+    tryParsePartialJson,
+} from "./jsonParsing"
+
+// Value shapes of the evaluation views (one detection order for cells, fields and full views)
+export {
+    detectValueShape,
+    formatShapeNumber,
+    hasMarkdownSyntax,
+    lineCount,
+    readValueMessage,
+    TEXT_LONG_CHARS,
+    TEXT_LONG_LINES,
+} from "./valueShape"
+export type {DetectedValue, ValueMessage, ValueShape} from "./valueShape"
 
 // JSON detection utilities
 export {

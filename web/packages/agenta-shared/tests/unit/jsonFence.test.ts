@@ -6,7 +6,7 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {parseStructuredJson, stripJsonFence} from "../../src/drillIn/decodedJsonHelpers"
+import {parseStructuredJson, stripJsonFence} from "../../src/utils/jsonParsing"
 
 /** The pattern the helper replaced, applied the way the caller applied it. */
 const legacyStripJsonFence = (input: string): string | null => {

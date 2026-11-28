@@ -22,6 +22,8 @@ export type {Preview} from "./extractPreview"
 export {default as MetricCellContent, MetricValueDisplay} from "./MetricCellContent"
 export type {MetricCellContentProps} from "./MetricCellContent"
 export {default as EvaluatorMetricBar} from "./EvaluatorMetricBar"
+export {default as ValueCell} from "./ValueCell"
+export type {ValueCellMetricKind, ValueCellProps} from "./ValueCell"
 export type {EvaluatorMetricBarProps} from "./EvaluatorMetricBar"
 
 export * from "./utils"
