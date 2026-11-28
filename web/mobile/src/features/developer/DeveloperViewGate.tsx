@@ -3,9 +3,9 @@ import type {ReactNode} from "react"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
-import {useDeveloperViewEnabled} from "./developerViewAccess"
-
 import {PageNotFound} from "@/components/PageNotFound"
+
+import {useDeveloperViewEnabled} from "./developerViewAccess"
 
 /**
  * Wraps a developer view's route page: the view when this user may open it (any of the views,

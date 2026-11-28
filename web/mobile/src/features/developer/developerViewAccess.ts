@@ -1,9 +1,9 @@
 import {activeUserIdAtom, betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {atom, useAtomValue} from "jotai"
 
-import {DEVELOPER_VIEWS, type DeveloperView} from "./developerViews"
-
 import {getEnv} from "@/lib/env"
+
+import {DEVELOPER_VIEWS, type DeveloperView} from "./developerViews"
 
 /** Runtime env var: a comma-separated list of developer view ids this deployment forces on. */
 export const DEVELOPER_VIEWS_ENV = "NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS"

@@ -36,9 +36,9 @@ vi.mock("next/router", () => ({
     }),
 }))
 
-import {answerRequest, newServerState, type ScenarioServerState} from "./runScenariosFixtures"
-
 import {ScenariosTab} from "@/features/evaluation-run/scenarios/ScenariosTab"
+
+import {answerRequest, newServerState, type ScenarioServerState} from "./runScenariosFixtures"
 
 const RUN: RunHeader = {
     name: "Capitals check",

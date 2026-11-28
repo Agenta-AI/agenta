@@ -14,6 +14,7 @@ import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMember
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission} from "../context/useProjectPermission"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {AppShell} from "../nav/AppShell"
 
 import {QueueSessionBody} from "./QueueSessionBody"
@@ -48,6 +49,15 @@ export const QueueSessionScreen = ({
     const queueName = useAtomValue(annotationSessionController.selectors.queueName())
     const modalOpen = useAtomValue(annotationSessionController.selectors.isAddToTestsetModalOpen())
     useAddToTestsetToast(base)
+    // The queue page also opens on the evaluations view alone; the queue list then is not
+    // there, so Back goes to the queue's run, or to the run list until the queue is read.
+    const queueListOn = useDeveloperViewEnabled("annotation-queues") === true
+    const runId = queueQuery.data?.run_id
+    const backHref = queueListOn
+        ? `${base}/annotations`
+        : runId
+          ? `${base}/evaluations/results/${runId}`
+          : `${base}/evaluations`
 
     const title = queueName || "Untitled Queue"
     return (
@@ -61,7 +71,7 @@ export const QueueSessionScreen = ({
                             <div className="flex min-w-0 flex-1 items-center gap-2">
                                 <Button size="icon-sm" variant="ghost" asChild>
                                     <Link
-                                        href={`${base}/annotations`}
+                                        href={backHref}
                                         prefetch={false}
                                         aria-label="Back to queues"
                                     >

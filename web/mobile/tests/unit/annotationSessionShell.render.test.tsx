@@ -21,6 +21,7 @@ const fixture = vi.hoisted(() => ({
     }>,
     invalidateDetail: vi.fn(),
     invalidateProgress: vi.fn(),
+    queueListOn: true,
 }))
 
 vi.mock("@agenta/annotation", async (importOriginal) => {
@@ -68,6 +69,10 @@ vi.mock("@/features/annotations/QueueConfigurationTab", () => ({
 vi.mock("@/features/annotations/useAddToTestsetToast", () => ({
     useAddToTestsetToast: () => undefined,
 }))
+vi.mock("@/features/developer/developerViewAccess", () => ({
+    useDeveloperViewEnabled: (viewId: string) =>
+        viewId === "annotation-queues" ? fixture.queueListOn : true,
+}))
 vi.mock("@/features/context/useProjectPermission", () => ({useProjectPermission: () => true}))
 vi.mock("@/features/context/useBindProjectContext", () => ({
     useBindProjectContext: () => undefined,
@@ -99,7 +104,7 @@ const setQueue = (queue: {isPending: boolean; isError: boolean; data: unknown}) 
 let host: HTMLDivElement
 let root: Root
 
-const QUEUE = {id: "queue-1", name: "Support replies", data: {kind: "traces"}}
+const QUEUE = {id: "queue-1", name: "Support replies", data: {kind: "traces"}, run_id: "run-1"}
 
 const render = async () => {
     await act(async () =>
@@ -122,6 +127,7 @@ beforeEach(() => {
     vi.clearAllMocks()
     resetSession()
     fixture.query = {workspace_id: "ws-1", project_id: "proj-1", queue_id: "queue-1"}
+    fixture.queueListOn = true
     setQueue({isPending: false, isError: false, data: QUEUE})
     host = document.createElement("div")
     document.body.append(host)
@@ -268,5 +274,28 @@ describe("the queue session screen", () => {
         await render()
         expect(host.querySelector("[aria-label='Loading the annotation queue']")).not.toBeNull()
         expect(host.textContent).not.toContain("This queue is empty")
+    })
+
+    describe("Back arrow", () => {
+        const backHref = () =>
+            host.querySelector("a[aria-label='Back to queues']")?.getAttribute("href")
+
+        it("Goes to the queue list when the user has it", async () => {
+            await render()
+            expect(backHref()).toBe("/w/ws-1/p/proj-1/annotations")
+        })
+
+        it("Goes to the queue's run when the queue list is off", async () => {
+            fixture.queueListOn = false
+            await render()
+            expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations/results/run-1")
+        })
+
+        it("Goes to the run list when the queue list is off and there is no queue", async () => {
+            fixture.queueListOn = false
+            setQueue({isPending: false, isError: false, data: null})
+            await render()
+            expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations")
+        })
     })
 })

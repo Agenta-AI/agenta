@@ -18,6 +18,9 @@ import {Sheet, SheetContent, SheetDescription, SheetTitle} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
+import {chatProseClassName, markdownIcons} from "@/features/chat/AssistantMarkdown"
+import {useProjectPermission} from "@/features/context/useProjectPermission"
+
 import {isFailedStatus, type ScenarioRow} from "../scenarios/scenarioColumns"
 import {ScenariosLoadMoreError} from "../scenarios/states/ScenariosLoadMoreError"
 import {ScenariosRefreshError} from "../scenarios/states/ScenariosRefreshError"
@@ -52,9 +55,6 @@ import {scenarioJudges, useJudgeReviews} from "./useJudgeReviews"
 import {useScenarioStepper} from "./useScenarioStepper"
 import {useScenarioTrace} from "./useScenarioTrace"
 import {TestcaseDraftContext, useTestcaseDraft} from "./useTestcaseDraft"
-
-import {chatProseClassName, markdownIcons} from "@/features/chat/AssistantMarkdown"
-import {useProjectPermission} from "@/features/context/useProjectPermission"
 
 // The panel brings the annotation controllers: its own chunk, loaded when a user opens it.
 const ScenarioFocusAnnotatePanel = dynamic(() => import("./ScenarioFocusAnnotatePanel"), {

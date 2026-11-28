@@ -14,6 +14,8 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {PageNotFound} from "@/components/PageNotFound"
+
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
 import {CompareOverviewSkeleton} from "./compare/states/CompareOverviewSkeleton"
@@ -25,8 +27,6 @@ import {OverviewTab} from "./overview/OverviewTab"
 import {ScenariosSkeleton} from "./scenarios/states/ScenariosSkeleton"
 import {RunDetailsSkeleton} from "./states/RunDetailsSkeleton"
 import {useRunDetailsView, type RunDetailsView} from "./useRunDetailsView"
-
-import {PageNotFound} from "@/components/PageNotFound"
 
 interface TabBodyProps {
     projectId: string
