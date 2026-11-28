@@ -1,41 +1,39 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {getMock} = vi.hoisted(() => ({getMock: vi.fn()}))
+const {fetchDefaultQueue} = vi.hoisted(() => ({fetchDefaultQueue: vi.fn()}))
 
-vi.mock("@agenta/shared/api", () => ({
-    axios: {get: getMock},
-    getAgentaApiUrl: () => "https://agenta.test/api",
+vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/sdk/resources")>()),
+    getEvaluationsClient: () => ({fetchDefaultQueue}),
 }))
 
 import {fetchRunDefaultQueue} from "../../src/simpleQueue/api"
 
 beforeEach(() => {
-    getMock.mockReset()
+    fetchDefaultQueue.mockReset()
 })
 
 describe("fetchRunDefaultQueue", () => {
     it("reads the run's default queue and returns its id", async () => {
-        getMock.mockResolvedValue({
-            data: {
-                count: 1,
-                queue: {id: "queue-1", run_id: "run-1", flags: {is_sequential: false}},
-            },
+        fetchDefaultQueue.mockResolvedValue({
+            count: 1,
+            queue: {id: "queue-1", run_id: "run-1", flags: {is_sequential: false}},
         })
         await expect(fetchRunDefaultQueue("p1", "run-1")).resolves.toBe("queue-1")
-        expect(getMock).toHaveBeenCalledWith(
-            "https://agenta.test/api/evaluations/runs/run-1/queues/default",
-            {params: {project_id: "p1"}},
+        expect(fetchDefaultQueue).toHaveBeenCalledWith(
+            {run_id: "run-1"},
+            {queryParams: {project_id: "p1"}},
         )
     })
 
     it("returns null for a run with no active default queue", async () => {
-        getMock.mockResolvedValue({data: {count: 0}})
+        fetchDefaultQueue.mockResolvedValue({count: 0})
         await expect(fetchRunDefaultQueue("p1", "run-1")).resolves.toBeNull()
     })
 
     it("sends nothing without a project or a run", async () => {
         await expect(fetchRunDefaultQueue("", "run-1")).resolves.toBeNull()
         await expect(fetchRunDefaultQueue("p1", "")).resolves.toBeNull()
-        expect(getMock).not.toHaveBeenCalled()
+        expect(fetchDefaultQueue).not.toHaveBeenCalled()
     })
 })

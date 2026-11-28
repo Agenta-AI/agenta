@@ -16,12 +16,24 @@ const http = vi.hoisted(() => ({
     put: vi.fn(),
     delete: vi.fn(),
     get: vi.fn(),
+    defaultQueue: vi.fn(),
 }))
 vi.mock("@agenta/shared/api", async (original) => ({
     ...(await original<typeof import("@agenta/shared/api")>()),
     axios: http,
     getAgentaApiUrl: () => "https://agenta.test/api",
 }))
+// The run's default queue goes through the generated evaluations client; the rest stays real.
+vi.mock("@agenta/sdk/resources", async (original) => {
+    const actual = await original<typeof import("@agenta/sdk/resources")>()
+    return {
+        ...actual,
+        getEvaluationsClient: () =>
+            Object.assign(Object.create(actual.getEvaluationsClient()), {
+                fetchDefaultQueue: http.defaultQueue,
+            }),
+    }
+})
 
 const router = vi.hoisted(() => ({
     query: {} as Record<string, string>,
@@ -123,12 +135,10 @@ function serveRun(spec: RunSpec | null) {
 
 /** The run's default queue: `queueId`, or none (the response of a run with no active queue). */
 function serveDefaultQueue(runId: string, queueId: string | null) {
-    http.get.mockImplementation(async (url: string) => {
-        if (url.endsWith(`/evaluations/runs/${runId}/queues/default`)) {
-            const queue = {id: queueId, run_id: runId, flags: {is_default: true}}
-            return {data: queueId ? {count: 1, queue} : {count: 0}}
-        }
-        return {data: {}}
+    http.defaultQueue.mockImplementation(async ({run_id}: {run_id: string}) => {
+        if (run_id !== runId) throw new Error(`unexpected default queue read ${run_id}`)
+        const queue = {id: queueId, run_id: runId, flags: {is_default: true}}
+        return queueId ? {count: 1, queue} : {count: 0}
     })
 }
 
@@ -215,8 +225,7 @@ describe("run details tabs", () => {
         serveDefaultQueue(id, "queue-1")
         await mount()
         expect(activeTab()).toBe("Overview")
-        const read = http.get.mock.calls.map((call) => String(call[0]))
-        expect(read.filter((url) => url.endsWith("/queues/default"))).toEqual([])
+        expect(http.defaultQueue).not.toHaveBeenCalled()
         expect(router.replace).not.toHaveBeenCalled()
     })
 

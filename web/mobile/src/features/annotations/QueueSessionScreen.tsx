@@ -50,13 +50,14 @@ export const QueueSessionScreen = ({
     const modalOpen = useAtomValue(annotationSessionController.selectors.isAddToTestsetModalOpen())
     useAddToTestsetToast(base)
     // The queue page also opens on the evaluations view alone; the queue list then is not
-    // there, so Back goes to the queue's run, or to the run list until the queue is read.
+    // there, so leaving the queue goes to its run, or to the run list without a queue. The run
+    // opens on Overview: with no view, a human run still in review would open this queue again.
     const queueListOn = useDeveloperViewEnabled("annotation-queues") === true
     const runId = queueQuery.data?.run_id
-    const backHref = queueListOn
+    const exitHref = queueListOn
         ? `${base}/annotations`
         : runId
-          ? `${base}/evaluations/results/${runId}`
+          ? `${base}/evaluations/results/${runId}?view=overview`
           : `${base}/evaluations`
 
     const title = queueName || "Untitled Queue"
@@ -71,7 +72,7 @@ export const QueueSessionScreen = ({
                             <div className="flex min-w-0 flex-1 items-center gap-2">
                                 <Button size="icon-sm" variant="ghost" asChild>
                                     <Link
-                                        href={backHref}
+                                        href={exitHref}
                                         prefetch={false}
                                         aria-label="Back to queues"
                                     >
@@ -95,6 +96,7 @@ export const QueueSessionScreen = ({
                     <QueueSessionBody
                         queueId={queueId}
                         base={base}
+                        exitHref={exitHref}
                         view={view}
                         canEdit={canEdit}
                         onViewChange={setView}

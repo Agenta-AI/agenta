@@ -7,6 +7,7 @@
  * Base endpoint: `/simple/queues/`
  */
 
+import {getEvaluationsClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
 import {evaluationQueueResponseSchema} from "../../evaluationQueue/core/schema"
@@ -164,16 +165,14 @@ export async function fetchRunDefaultQueue(
 ): Promise<string | null> {
     if (!projectId || !runId) return null
 
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/evaluations/runs/${runId}/queues/default`,
-        {
-            params: {project_id: projectId},
-        },
+    const data = await getEvaluationsClient().fetchDefaultQueue(
+        {run_id: runId},
+        {queryParams: {project_id: projectId}},
     )
 
     const validated = safeParseWithLogging(
         evaluationQueueResponseSchema,
-        response.data,
+        data,
         "[fetchRunDefaultQueue]",
     )
     return validated?.queue?.id ?? null

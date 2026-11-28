@@ -288,7 +288,8 @@ describe("the queue session screen", () => {
         it("Goes to the queue's run when the queue list is off", async () => {
             fixture.queueListOn = false
             await render()
-            expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations/results/run-1")
+            // With a view, a human run still in review opens its page, not this queue again.
+            expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations/results/run-1?view=overview")
         })
 
         it("Goes to the run list when the queue list is off and there is no queue", async () => {
@@ -296,6 +297,11 @@ describe("the queue session screen", () => {
             setQueue({isPending: false, isError: false, data: null})
             await render()
             expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations")
+            // Queue not found leaves the same way.
+            const notFoundLink = Array.from(host.querySelectorAll("a")).find(
+                (a) => a.textContent === "Back to queues",
+            )
+            expect(notFoundLink?.getAttribute("href")).toBe("/w/ws-1/p/proj-1/evaluations")
         })
     })
 })

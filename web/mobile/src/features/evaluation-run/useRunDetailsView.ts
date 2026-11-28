@@ -9,7 +9,7 @@ export interface RunDetailsTab {
     label: string
 }
 
-export const RUN_DETAILS_TABS: readonly RunDetailsTab[] = [
+const RUN_DETAILS_TABS: readonly RunDetailsTab[] = [
     {value: "overview", label: "Overview"},
     {value: "scenarios", label: "Scenarios"},
     {value: "configuration", label: "Configuration"},

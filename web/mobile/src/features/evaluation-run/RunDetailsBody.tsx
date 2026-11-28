@@ -16,6 +16,7 @@ import {useRouter} from "next/router"
 
 import {PageNotFound} from "@/components/PageNotFound"
 
+import {queueHref} from "../annotations/queueHref"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
 import {CompareOverviewSkeleton} from "./compare/states/CompareOverviewSkeleton"
@@ -117,7 +118,7 @@ export const RunDetailsBody = ({projectId, runId}: {projectId: string; runId: st
     useEffect(() => {
         if (!queueId || typeof workspaceId !== "string") return
         // Replace, so Back goes to the page before the run.
-        void router.replace(`/w/${workspaceId}/p/${projectId}/annotations/${queueId}?view=annotate`)
+        void router.replace(queueHref(`/w/${workspaceId}/p/${projectId}`, queueId, {}))
     }, [queueId, workspaceId, projectId, router])
     const [openRevisionId] = useRevisionParam()
     const [compareIds] = useCompareRunIds(runId)
