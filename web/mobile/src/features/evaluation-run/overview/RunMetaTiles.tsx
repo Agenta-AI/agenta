@@ -77,7 +77,7 @@ export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online
                                     <span className="block">
                                         {t("evaluations.runOverview.notRunAlert", {
                                             count: tile.detail.count,
-                                            total: tile.detail.total,
+                                            total: formatNumber(tile.detail.total),
                                         })}
                                     </span>
                                     <span className="block">

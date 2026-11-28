@@ -211,6 +211,44 @@ describe("run overview tiles", () => {
         )
     })
 
+    it("The did not run explanation groups the total's digits", () => {
+        vi.stubGlobal("matchMedia", (query: string) => ({
+            matches: query === "(pointer: coarse)",
+            addEventListener() {},
+            removeEventListener() {},
+        }))
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                observe() {}
+                unobserve() {}
+                disconnect() {}
+            },
+        )
+        render(
+            view({
+                metrics: [evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN)],
+                scenarioMetrics: {
+                    status: "ready",
+                    rows: [binaryRow("s1", {success: true})],
+                    failedSteps: [
+                        {scenarioId: "s2", stepKey: "app"},
+                        ...Array.from({length: 999}, (_, i) => ({
+                            scenarioId: `x${i}`,
+                            stepKey: "app",
+                        })),
+                    ],
+                },
+            }),
+        )
+        act(() =>
+            host.querySelector<HTMLButtonElement>('[data-testid="tile-testCases"] button')!.click(),
+        )
+        expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+            "1000 of 1,001 test cases did not run",
+        )
+    })
+
     it("Without per-test-case rows the Passed tile shows a dash and the assertions line", () => {
         render(view({metrics: [evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN)]}))
         expect(tile("passed")).toBe("Passed—3 of 4 assertions true")
