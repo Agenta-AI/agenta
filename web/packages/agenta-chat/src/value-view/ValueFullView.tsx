@@ -21,8 +21,11 @@ export interface ValueFullViewProps {
     label?: string
     defaultMode?: ValueViewMode
     className?: string
-    /** For a chat: the trace's tool steps per user exchange; Raw still shows the stored value. */
-    turnActivity?: TurnActivity[]
+    /**
+     * The trace's tool steps per user exchange, drawn as `ValueField` draws them; Raw still shows
+     * the stored value only.
+     */
+    turnActivity?: readonly TurnActivity[]
 }
 
 /**

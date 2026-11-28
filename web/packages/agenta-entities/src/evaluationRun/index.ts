@@ -15,8 +15,8 @@
  * // Get annotation steps (evaluators)
  * const steps = useAtomValue(evaluationRunMolecule.selectors.annotationSteps(runId))
  *
- * // Get evaluator workflow IDs from annotation step references
- * const ids = useAtomValue(evaluationRunMolecule.selectors.evaluatorIds(runId))
+ * // Get evaluator revision IDs from annotation step references
+ * const ids = useAtomValue(evaluationRunMolecule.selectors.evaluatorRevisionIds(runId))
  * ```
  *
  * @packageDocumentation

@@ -6,6 +6,8 @@
  * @packageDocumentation
  */
 
+import {shortTestcaseId} from "@agenta/shared/utils"
+
 import type {ReferenceKind} from "./ReferenceChip"
 
 /** One reference as a trace stores it: the key names the field, `id` or `slug` names the entity. */
@@ -102,6 +104,9 @@ export function mergeReferenceChips(
     })
 }
 
-/** The test case chip's label: the test set name and the first 6 characters of the test case id. */
+/**
+ * The test case chip's label: the test set name and the test case's short id, the form every view
+ * shows for a test case (`shortTestcaseId`). The full id is in the chip's hover card.
+ */
 export const testcaseChipLabel = (testsetName: string, testcaseId: string) =>
-    `${testsetName} / ${testcaseId.slice(0, 6)}`
+    `${testsetName} / ${shortTestcaseId(testcaseId)}`

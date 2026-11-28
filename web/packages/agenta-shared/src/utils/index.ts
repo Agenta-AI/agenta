@@ -354,3 +354,5 @@ export {
     normalizeTitlePart,
     truncateTitlePart,
 } from "./pageTitle"
+
+export {shortTestcaseId} from "./shortTestcaseId"

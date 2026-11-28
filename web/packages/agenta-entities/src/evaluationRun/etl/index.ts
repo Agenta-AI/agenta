@@ -102,6 +102,7 @@ export {
     makeRowPredicateFilter,
     makePredicateGroupFilter,
     unwrapStatsForCompare,
+    unwrapCategoricalStats,
     isPredicateGroup,
     evaluateRowPredicate,
     evaluatePredicateGroup,

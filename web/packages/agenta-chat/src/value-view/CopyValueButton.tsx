@@ -10,13 +10,24 @@ import {Check, Copy} from "@phosphor-icons/react"
 export const valueAsText = (value: unknown): string =>
     typeof value === "string" ? value : (JSON.stringify(value, null, 2) ?? String(value))
 
-/** An icon button that copies a value and shows a check for a moment. */
-export const CopyValueButton = ({value, className}: {value: unknown; className?: string}) => {
+/**
+ * An icon button that copies a value and shows a check for a moment. `label` names the button
+ * ("Copy inputs"); without it, it reads "Copy value".
+ */
+export const CopyValueButton = ({
+    value,
+    className,
+    label: name,
+}: {
+    value: unknown
+    className?: string
+    label?: string
+}) => {
     const t = useT(valueViewCatalog)
     const [copied, setCopied] = useState(false)
     const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
     useEffect(() => () => clearTimeout(timer.current), [])
-    const label = copied ? t("chat.valueView.copied") : t("chat.valueView.copyValue")
+    const label = copied ? t("chat.valueView.copied") : (name ?? t("chat.valueView.copyValue"))
     return (
         <Button
             type="button"

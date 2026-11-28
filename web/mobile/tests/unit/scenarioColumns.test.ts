@@ -236,6 +236,77 @@ describe("scenario columns", () => {
         expect(rowWith(null).testsetId).toBeNull()
     })
 
+    it("Human steps carry the last author of their result: the editor of an edited result, else the creator", () => {
+        const humanSchema: ScenarioSchema = {
+            steps: [
+                ...schema.steps,
+                {
+                    key: "review",
+                    type: "annotation",
+                    origin: "human",
+                    references: {evaluator: {slug: "review"}},
+                },
+                {
+                    key: "tone",
+                    type: "annotation",
+                    origin: "human",
+                    references: {evaluator: {slug: "tone"}},
+                },
+                {
+                    key: "auto",
+                    type: "annotation",
+                    origin: "auto",
+                    references: {evaluator: {slug: "auto"}},
+                },
+            ],
+            mappings: schema.mappings,
+        }
+        const row = buildScenarioRowData(
+            {
+                scenario: {id: "sc-1", run_id: "r", status: "success"},
+                results: [
+                    {
+                        run_id: "r",
+                        scenario_id: "sc-1",
+                        step_key: "review",
+                        created_by_id: "user-1",
+                        created_at: "2026-11-27T10:00:00Z",
+                        updated_by_id: "user-2",
+                        updated_at: "2026-11-28T09:00:00Z",
+                    },
+                    {
+                        run_id: "r",
+                        scenario_id: "sc-1",
+                        step_key: "tone",
+                        created_by_id: "user-1",
+                        created_at: "2026-11-27T10:00:00Z",
+                    },
+                    // The run writes an auto step's result as the user who started it.
+                    {
+                        run_id: "r",
+                        scenario_id: "sc-1",
+                        step_key: "auto",
+                        created_by_id: "user-1",
+                        created_at: "2026-11-27T10:00:00Z",
+                    },
+                ],
+                metrics: [],
+                testcase: null,
+                traces: {},
+            },
+            humanSchema,
+        )
+        expect(row.steps["evaluator:review"].author).toEqual({
+            userId: "user-2",
+            at: "2026-11-28T09:00:00Z",
+        })
+        expect(row.steps["evaluator:tone"].author).toEqual({
+            userId: "user-1",
+            at: "2026-11-27T10:00:00Z",
+        })
+        expect(row.steps["evaluator:auto"].author).toBeNull()
+    })
+
     it("Evaluator cells carry the metric kind of the run metric catalog, by step key and path", () => {
         const entry = (stepKey: string, metricKey: string, stats: RunMetricEntry["stats"]) =>
             ({

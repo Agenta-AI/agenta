@@ -193,24 +193,6 @@ const humanAnnotationStepsAtomFamily = atomFamily((runId: string) =>
 )
 
 /**
- * Evaluator workflow IDs extracted from annotation steps' references.
- * Each annotation step references an evaluator via `references.evaluator.id`.
- */
-const evaluatorIdsAtomFamily = atomFamily((runId: string) =>
-    atom<string[]>((get) => {
-        const steps = get(annotationStepsAtomFamily(runId))
-        const ids: string[] = []
-        for (const step of steps) {
-            const evaluatorId = step.references?.evaluator?.id
-            if (evaluatorId) {
-                ids.push(evaluatorId)
-            }
-        }
-        return ids
-    }),
-)
-
-/**
  * Evaluator revision IDs extracted from annotation steps' references.
  * Each annotation step references an evaluator revision via `references.evaluator_revision.id`.
  * These revision IDs are needed by the form controller to fetch evaluator schemas.
@@ -550,8 +532,6 @@ export const evaluationRunMolecule = {
         annotationSteps: annotationStepsAtomFamily,
         /** Annotation steps with origin `human`: the evaluators of the annotation form */
         humanAnnotationSteps: humanAnnotationStepsAtomFamily,
-        /** Evaluator workflow IDs from annotation step references */
-        evaluatorIds: evaluatorIdsAtomFamily,
         /** Evaluator revision IDs from annotation step references */
         evaluatorRevisionIds: evaluatorRevisionIdsAtomFamily,
         /** All mappings from the run data */
@@ -596,8 +576,6 @@ export const evaluationRunMolecule = {
             getStore(options).get(annotationStepsAtomFamily(runId)),
         humanAnnotationSteps: (runId: string, options?: StoreOptions) =>
             getStore(options).get(humanAnnotationStepsAtomFamily(runId)),
-        evaluatorIds: (runId: string, options?: StoreOptions) =>
-            getStore(options).get(evaluatorIdsAtomFamily(runId)),
         evaluatorRevisionIds: (runId: string, options?: StoreOptions) =>
             getStore(options).get(evaluatorRevisionIdsAtomFamily(runId)),
         mappings: (runId: string, options?: StoreOptions) =>

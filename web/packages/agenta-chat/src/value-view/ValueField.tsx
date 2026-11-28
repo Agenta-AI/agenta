@@ -10,7 +10,7 @@ import ChatMarkdown from "../components/ChatMarkdown"
 
 import {CopyValueButton} from "./CopyValueButton"
 import {CHIPS_SHOWN, FieldFold} from "./FieldFold"
-import {MessagesValue, type TurnActivity} from "./MessagesValue"
+import {MessagesValue, TraceActivity, type TurnActivity} from "./MessagesValue"
 import {ValueRows} from "./ValueRows"
 import {useValueViewOptions} from "./ValueViewProvider"
 
@@ -173,8 +173,22 @@ export interface ValueBodyProps {
     /** Keys the open state of long chat messages; unique per field on the screen. */
     stateKey: string
     onOpenFullView?: () => void
-    /** The trace's tool steps per user exchange, for a chat value. */
+    /**
+     * The trace's tool steps per user exchange. A chat draws them in its turns; any other value
+     * draws them as one block above it.
+     */
     turnActivity?: readonly TurnActivity[]
+}
+
+/** Every turn's work as one: all the steps in order, the times added up. */
+const allTurns = (turnActivity: readonly TurnActivity[]): TurnActivity => {
+    const times = turnActivity.flatMap((turn) =>
+        turn.durationMs === undefined ? [] : [turn.durationMs],
+    )
+    return {
+        steps: turnActivity.flatMap((turn) => turn.steps),
+        durationMs: times.length ? times.reduce((sum, ms) => sum + ms, 0) : undefined,
+    }
 }
 
 /** One value drawn by its shape, at any depth of a field. */
@@ -305,13 +319,25 @@ export const ValueBody = ({
         }
     })()
 
-    if (!detected.parsedFromText) return body
-    return (
+    const noted = !detected.parsedFromText ? (
+        body
+    ) : (
         <div className="flex min-w-0 flex-col gap-1">
             <span className="text-meta text-muted-foreground">
                 {t("chat.valueView.parsedFromText")}
             </span>
             {body}
+        </div>
+    )
+    // A chat draws the work in its turns; any other output (text, JSON) gets one block above it.
+    const isChat = detected.shape === "messages" || detected.shape === "message"
+    if (isChat || !turnActivity?.length) return noted
+    return (
+        <div className="flex min-w-0 flex-col gap-2">
+            <TraceActivity
+                activity={{key: `${stateKey}:activity`, activity: allTurns(turnActivity)}}
+            />
+            {noted}
         </div>
     )
 }
@@ -321,8 +347,11 @@ export interface ValueFieldProps {
     /** The field's name: the title of its full view. */
     label?: string
     className?: string
-    /** For a chat: the trace's tool steps per user exchange, drawn in place of the stored calls. */
-    turnActivity?: TurnActivity[]
+    /**
+     * The trace's tool steps per user exchange. A chat draws them in place of its stored calls;
+     * any other value draws all of them as one block above it.
+     */
+    turnActivity?: readonly TurnActivity[]
 }
 
 /**

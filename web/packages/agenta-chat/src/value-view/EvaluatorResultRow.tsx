@@ -195,15 +195,19 @@ export const EvaluatorResultRow = ({
 
     const preview = summary.state === "done" && !open ? previewLine(summary.text[0]?.value) : null
 
+    // The name takes the room it needs (`flex-auto`); when the row is too narrow for the name and
+    // the metrics, the metrics wrap to a second line and the name cuts with its full text on hover.
     const title = (
-        <span className="flex min-w-0 flex-1 items-center gap-1.5">
-            <span className="min-w-0 truncate text-label">{name}</span>
+        <span className="flex min-w-0 flex-auto items-center gap-1.5">
+            <span className="min-w-0 truncate text-label" title={name}>
+                {name}
+            </span>
             {badge}
         </span>
     )
     return (
         <div className="border-0 border-b border-solid border-border-muted">
-            <div className="flex min-h-9 items-center gap-2 py-1">
+            <div className="flex min-h-9 flex-wrap items-center gap-x-2 gap-y-1 py-1">
                 {expandable ? (
                     <Button
                         type="button"
@@ -211,19 +215,19 @@ export const EvaluatorResultRow = ({
                         size="xs"
                         aria-expanded={open}
                         aria-controls={regionId}
-                        className="h-auto min-w-0 flex-1 justify-start gap-2 px-0 text-left text-foreground hover:bg-transparent aria-expanded:bg-transparent"
+                        className="h-auto min-w-0 flex-auto justify-start gap-2 px-0 text-left text-foreground hover:bg-transparent aria-expanded:bg-transparent"
                         onClick={() => setOpen((next) => !next)}
                     >
                         <CollapseCaret open={open} />
                         {title}
                     </Button>
                 ) : (
-                    <>
+                    <span className="flex min-w-0 flex-auto items-center gap-2">
                         <span aria-hidden className="w-3 shrink-0" />
                         {title}
-                    </>
+                    </span>
                 )}
-                <span className="flex flex-wrap items-center justify-end gap-2">
+                <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
                     <InlineMetrics summary={summary} binaryWords={binaryWords} />
                 </span>
                 {actions}

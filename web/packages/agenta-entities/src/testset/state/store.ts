@@ -53,23 +53,6 @@ function primeRevisionDetailCache(
     queryClient.setQueryData(["revision", projectId, revision.id], revision)
 }
 
-function primeLatestRevisionCacheForTestset(
-    queryClient: QueryClient,
-    projectId: string,
-    revision: Revision | null | undefined,
-): void {
-    if (!revision?.testset_id) return
-
-    const existing = queryClient.getQueryData<Revision>([
-        "latest-revision",
-        projectId,
-        revision.testset_id,
-    ])
-    if (!existing || (revision.version ?? 0) > (existing.version ?? 0)) {
-        queryClient.setQueryData(["latest-revision", projectId, revision.testset_id], revision)
-    }
-}
-
 function findRevisionInDetailCache(
     queryClient: QueryClient,
     projectId: string,
@@ -103,29 +86,6 @@ function findRevisionInCache(
         findRevisionInDetailCache(queryClient, projectId, revisionId) ??
         findRevisionInLatestCaches(queryClient, projectId, revisionId)
     )
-}
-
-function findLatestRevisionForTestsetInCache(
-    queryClient: QueryClient,
-    projectId: string,
-    testsetId: string,
-): Revision | undefined {
-    const direct = queryClient.getQueryData<Revision>(["latest-revision", projectId, testsetId])
-    if (direct) return direct
-
-    const revisionQueries = queryClient.getQueriesData<Revision | null>({
-        queryKey: ["revision", projectId],
-    })
-
-    let latest: Revision | null = null
-    for (const [_queryKey, data] of revisionQueries) {
-        if (!data || data.testset_id !== testsetId) continue
-        if (!latest || (data.version ?? 0) > (latest.version ?? 0)) {
-            latest = data
-        }
-    }
-
-    return latest ?? undefined
 }
 
 /**
@@ -179,7 +139,6 @@ const revisionBatchFetcher = createBatchFetcher<RevisionRequest, Revision | null
         const primeCaches = (revision: Revision) => {
             queryClients.forEach((queryClient) => {
                 primeRevisionDetailCache(queryClient, projectId, revision)
-                primeLatestRevisionCacheForTestset(queryClient, projectId, revision)
             })
         }
 
@@ -328,13 +287,8 @@ const latestRevisionBatchFetcher = createBatchFetcher<LatestRevisionRequest, Rev
  */
 const latestRevisionQuery = createLatestEntityQueryFactory<Revision>({
     queryKeyPrefix: "latest-revision",
-    fetchFn: async (testsetId, projectId) => {
-        const store = getDefaultStore()
-        const queryClient = store.get(queryClientAtom)
-        const cached = findLatestRevisionForTestsetInCache(queryClient, projectId, testsetId)
-        if (cached) return cached
-        return latestRevisionBatchFetcher({testsetId, projectId})
-    },
+    // Always the server's answer, so an invalidation reads the new latest revision.
+    fetchFn: (testsetId, projectId) => latestRevisionBatchFetcher({testsetId, projectId}),
     staleTime: 30_000,
 })
 

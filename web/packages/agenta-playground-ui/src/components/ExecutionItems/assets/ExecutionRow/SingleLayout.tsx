@@ -5,6 +5,7 @@ import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
+import {shortTestcaseId} from "@agenta/shared/utils"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
 import {HeightCollapse} from "@agenta/ui/components"
 import {CollapseToggleButton, CollapsibleGroupHeader} from "@agenta/ui/components/presentational"
@@ -37,7 +38,6 @@ import {
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {usePlaygroundNodeLabels} from "../../../../hooks/usePlaygroundNodeLabels"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
-import {getShortTestcaseId} from "../../../../utils/testcaseLabel"
 import ExecutionResultView from "../../../ExecutionResultView"
 import {EvaluatorFieldGrid} from "../../../shared/EvaluatorFieldGrid"
 import {
@@ -679,7 +679,7 @@ const SingleView = ({
         executionItemController.selectors.executionRowIds,
     ) as string[]
     const testCaseLabel = useMemo(
-        () => `testcase ${index !== undefined ? index + 1 : getShortTestcaseId(rowId)}`,
+        () => `testcase ${index !== undefined ? index + 1 : shortTestcaseId(rowId)}`,
         [rowId, index],
     )
 

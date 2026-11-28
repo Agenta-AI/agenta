@@ -1,6 +1,7 @@
 import {
     format3Sig,
     INVOCATION_METRICS,
+    isHumanOrigin,
     metricKind,
     scenarioMetricStats,
     stepMetricStats,
@@ -76,6 +77,36 @@ export interface ScenarioStep {
     traceId: string | null
     /** The stats of the step's own call, by metric key ({@link STEP_METRICS}); null when absent. */
     metrics: Record<string, MetricStats | null>
+    /**
+     * Who last wrote the step's result (a human annotation): the editor of an edited result, else
+     * its creator. Null for a step that is not human, and when the result names no user.
+     */
+    author?: ScenarioAuthor | null
+}
+
+/** A user who wrote a result, and when (ISO), for `UserAuthorLabel`'s `userId` and `at`. */
+export interface ScenarioAuthor {
+    userId: string
+    at: string | null
+}
+
+/** The last author of a result: the editor of an edited result, else its creator. */
+export function resultAuthor(
+    result:
+        | {
+              created_by_id?: string | null
+              updated_by_id?: string | null
+              created_at?: string | null
+              updated_at?: string | null
+          }
+        | undefined,
+): ScenarioAuthor | null {
+    if (!result) return null
+    if (result.updated_by_id) {
+        return {userId: result.updated_by_id, at: result.updated_at ?? result.created_at ?? null}
+    }
+    if (result.created_by_id) return {userId: result.created_by_id, at: result.created_at ?? null}
+    return null
 }
 
 /** The metrics of one step's own call, in the order the old app shows them: time, tokens, cost. */
@@ -224,6 +255,9 @@ export function buildScenarioRowData(
                         stepMetricStats(hydrated.metrics, step.key, metricKey),
                     ]),
                 ),
+                // Only a human step's result names who wrote it; an auto step's result names
+                // the user the run ran as.
+                author: isHumanOrigin(step.origin) ? resultAuthor(resultOf(step.key)) : null,
             }
         }
         const message = stepErrorMessage(resultOf(step.key))

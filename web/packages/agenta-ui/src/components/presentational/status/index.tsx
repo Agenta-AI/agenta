@@ -54,9 +54,12 @@ export const environmentColors: Record<
 
 export type StatusTone = "success" | "warning" | "error" | "processing" | "default"
 
-// Dot + label share one color via `bg-current`, so a tone sets both at once. Tokens
-// resolve through the palette, so each flips light↔dark with the theme.
-const STATUS_TONE_CLASS: Record<StatusTone, string> = {
+/**
+ * The text color of each status tone: the one map for a status word in any view. Dot + label
+ * share one color via `bg-current`, so a tone sets both at once. Tokens resolve through the
+ * palette, so each flips light↔dark with the theme.
+ */
+export const STATUS_TONE_TEXT_COLOR: Readonly<Record<StatusTone, string>> = {
     success: "text-success",
     warning: "text-warning",
     error: "text-destructive",
@@ -73,7 +76,11 @@ export interface StatusIndicatorProps {
 export function StatusIndicator({tone = "default", label, className}: StatusIndicatorProps) {
     return (
         <span
-            className={cn("inline-flex items-center gap-1.5", STATUS_TONE_CLASS[tone], className)}
+            className={cn(
+                "inline-flex items-center gap-1.5",
+                STATUS_TONE_TEXT_COLOR[tone],
+                className,
+            )}
         >
             <span className="h-1.5 w-1.5 shrink-0 rounded-round bg-current" />
             <span className="truncate">{label}</span>
