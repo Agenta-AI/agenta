@@ -35,11 +35,11 @@ const selectTriggerVariants = cva(
         "flex w-full items-center justify-between gap-1 border text-left text-foreground outline-none",
         // Border, fill and text change on the theme timing (MOTION-01).
         "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)]",
-        // Radix's Value span doesn't take a className, so shrink it from here — without this a
-        // long selected label overflows the trigger and pushes the chevron out. Scoped to the value
+        // Radix's Value span doesn't take a className, so shrink and truncate it from here — without
+        // this a long selected label wraps or overflows the trigger and pushes the chevron out. Scoped to the value
         // slot: a bare `[&>span]` also stretched the trailing adornment span (Combobox/Cascader wrap
         // their chevron + clear in one), floating the chevron mid-trigger instead of at its edge.
-        "[&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:flex-1",
+        "[&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:flex-1 [&>[data-slot=select-value]]:truncate",
         "cursor-pointer disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground disabled:border-border-muted",
         // antd greys only the placeholder TEXT; the root keeps the foreground colour.
         "[&[data-placeholder]_[data-slot=select-value]]:text-muted-foreground",
