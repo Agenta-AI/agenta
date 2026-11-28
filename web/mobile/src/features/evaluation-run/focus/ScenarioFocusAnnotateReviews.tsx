@@ -5,6 +5,7 @@ import {resolveOutputSchemaProperties, workflowMolecule} from "@agenta/entities/
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import annotateCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocusAnnotate"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {AutosizeTextarea, Badge, Segmented} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
@@ -97,6 +98,7 @@ export const ScenarioFocusAnnotateReviews = ({
     onDraft,
     focusJudge,
     readOnly,
+    onRetry,
 }: {
     judges: readonly ScenarioJudge[]
     draftFor: (judgeId: string) => ReviewDraft | null
@@ -104,6 +106,8 @@ export const ScenarioFocusAnnotateReviews = ({
     /** The judge whose mark opened the panel: highlighted and scrolled into view. */
     focusJudge: string | null
     readOnly: boolean
+    /** The saved reviews did not load; null when they did. */
+    onRetry: (() => void) | null
 }) => {
     const t = useT(annotateCatalog, valueViewCatalog)
     const focusRef = useRef<HTMLDivElement>(null)
@@ -136,6 +140,12 @@ export const ScenarioFocusAnnotateReviews = ({
                     </span>
                 ) : null}
             </div>
+            {onRetry ? (
+                <LoadError
+                    title={t("evaluations.scenarioFocusAnnotate.reviewsFailed")}
+                    onRetry={onRetry}
+                />
+            ) : null}
             {shown.map((judge) => {
                 const draft = draftFor(judge.id)
                 const answer = (verdict: ReviewDraft["verdict"]) =>
@@ -145,8 +155,7 @@ export const ScenarioFocusAnnotateReviews = ({
                         note: draft?.note ?? "",
                     })
                 const focused = judge.id === focusJudge
-                // A result with no trace and span has nothing a review can link to.
-                const locked = readOnly || !judge.traceId || !judge.spanId
+                const locked = readOnly || !judge.reviewable
                 return (
                     <div
                         key={judge.id}

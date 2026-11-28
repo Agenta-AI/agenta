@@ -8,7 +8,8 @@ import {
     patchRevision,
 } from "@agenta/entities/testset"
 import {projectIdAtom} from "@agenta/shared/state"
-import {useAtomValue} from "jotai"
+import {atom, useAtom, useAtomValue} from "jotai"
+import {atomFamily} from "jotai-family"
 
 /** Test case values are JSON: two values are the same when their JSON is. */
 const sameValue = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
@@ -18,6 +19,16 @@ export interface SavedTestcase {
     revisionId: string | null
     version: number | null
 }
+
+/**
+ * What "Save to test set" made from a run's test set revision, for the life of the page: the
+ * newest revision (the next save starts from it, so it keeps the corrections saved before) and
+ * the saved test cases by scenario. A saved test case has a new id in that revision (ids follow
+ * the content), so it is not edited again from the drawer.
+ */
+const testcaseSavesAtomFamily = atomFamily((_runRevision: string) =>
+    atom<{head: string | null; saved: Record<string, SavedTestcase>}>({head: null, saved: {}}),
+)
 
 interface DraftState {
     /** The scenario the draft belongs to; a draft of another scenario is no draft. */
@@ -35,33 +46,34 @@ interface DraftState {
  * its own revision.
  */
 export function useTestcaseDraft({
+    runId,
     scenarioId,
     testcaseId,
     testset,
     expectedKey,
     output,
 }: {
+    runId: string
     scenarioId: string
     testcaseId: string | null
     /** The run's test set and the revision it ran on; null for a run on traces. */
     testset: {testsetId: string; revisionId: string | null} | null
-    /** The column an evaluator compares the output with; null hides "Use as reference". */
+    /** The column "Use as reference" writes the output to; null hides it (no column, no output). */
     expectedKey: string | null
-    /** The app output of the test case; undefined while it has none (no "Use as reference"). */
+    /** The app output of the test case. */
     output: unknown
 }) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
-    const referenceKey = output === undefined ? null : expectedKey
     const testcase = useAtomValue(
         useMemo(() => testcaseMolecule.query(testcaseId ?? ""), [testcaseId]),
     )
     const [state, setState] = useState<DraftState | null>(null)
     const [saving, setSaving] = useState(false)
-    // What "Save to test set" made in this drawer, by scenario. The next save starts from the
-    // newest of these revisions, so it keeps the corrections saved before it. A saved test case
-    // has a new id in that revision (ids follow the content), so it is not edited again here.
-    const [saved, setSaved] = useState<Record<string, SavedTestcase>>({})
-    const [headRevisionId, setHeadRevisionId] = useState<string | null>(null)
+    const [{head: headRevisionId, saved}, setSaves] = useAtom(
+        testcaseSavesAtomFamily(
+            testset ? `${runId}:${testset.revisionId ?? testset.testsetId}` : "",
+        ),
+    )
     const savedHere = saved[scenarioId] ?? null
     const draft = state?.scenarioId === scenarioId ? state : null
     const base = (testcase.data?.data ?? null) as Record<string, unknown> | null
@@ -73,7 +85,7 @@ export function useTestcaseDraft({
                 .map(([key]) => key),
         [draft?.edits, base],
     )
-    const reference = Boolean(draft?.reference && referenceKey)
+    const reference = Boolean(draft?.reference && expectedKey)
     const dirty = editedFields.length > 0 || reference
 
     const update = useCallback(
@@ -91,9 +103,9 @@ export function useTestcaseDraft({
 
     const values = useMemo(() => {
         const next = {...(base ?? {}), ...(draft?.edits ?? {})}
-        if (reference && referenceKey) next[referenceKey] = output
+        if (reference && expectedKey) next[expectedKey] = output
         return next
-    }, [base, draft?.edits, reference, referenceKey, output])
+    }, [base, draft?.edits, reference, expectedKey, output])
 
     const save = async () => {
         if (!testset || !testcaseId || !base || saving || savedHere) return
@@ -111,12 +123,14 @@ export function useTestcaseDraft({
             invalidateRevisionsListCache(testset.testsetId)
             const revisionId = typeof revision?.id === "string" ? revision.id : null
             setState(null)
-            setHeadRevisionId(revisionId)
-            setSaved((prev) => ({
-                ...prev,
-                [scenarioId]: {
-                    revisionId,
-                    version: revision?.version == null ? null : Number(revision.version),
+            setSaves((prev) => ({
+                head: revisionId ?? prev.head,
+                saved: {
+                    ...prev.saved,
+                    [scenarioId]: {
+                        revisionId,
+                        version: revision?.version == null ? null : Number(revision.version),
+                    },
                 },
             }))
         } finally {
@@ -129,7 +143,7 @@ export function useTestcaseDraft({
         ready: Boolean(base && testcaseId && testset && !savedHere && !saving),
         editing: Boolean(draft?.editing),
         /** The column "Use as reference" writes to; null hides it. */
-        expectedKey: referenceKey,
+        expectedKey,
         values,
         editedFields,
         reference,

@@ -13,6 +13,7 @@
     "noValueYet": "Pas encore de valeur",
     "evaluatorResults": "Résultats des évaluateurs",
     "failedReviewed": "{{reviewed}} sur {{total}} échecs examinés",
+    "reviewsFailed": "Impossible de charger les avis",
     "agree": "D'accord",
     "disagree": "Pas d'accord",
     "agreed": "D'accord",

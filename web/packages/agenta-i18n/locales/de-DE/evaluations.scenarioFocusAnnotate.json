@@ -12,6 +12,7 @@
     "noValueYet": "Noch kein Wert",
     "evaluatorResults": "Evaluator-Ergebnisse",
     "failedReviewed": "{{reviewed}} von {{total}} Fehlschlägen geprüft",
+    "reviewsFailed": "Bewertungen konnten nicht geladen werden",
     "agree": "Zustimmen",
     "disagree": "Widersprechen",
     "agreed": "Zugestimmt",

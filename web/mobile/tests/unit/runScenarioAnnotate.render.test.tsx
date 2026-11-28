@@ -584,6 +584,8 @@ describe("Annotate panel in the test case drawer", () => {
         const trace = creates()[0].body.trace as Record<string, unknown>
         expect(trace.meta).toEqual({name: "Exact Match", verdict: "disagree", note: "Too strict."})
         expect(trace.origin).toBe("human")
+        // The judge's outputs in their own shape (the mapping's path), the note left alone.
+        expect(trace.data).toEqual({outputs: {success: false}})
         expect(trace.links).toEqual({
             invocation: {trace_id: "sc-1-ev-trace", span_id: "sc-1-ev-span"},
         })

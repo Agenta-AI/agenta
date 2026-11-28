@@ -13,6 +13,7 @@
     "noValueYet": "Aún sin valor",
     "evaluatorResults": "Resultados de los evaluadores",
     "failedReviewed": "{{reviewed}} de {{total}} fallidos revisados",
+    "reviewsFailed": "No se pudieron cargar las revisiones",
     "agree": "De acuerdo",
     "disagree": "En desacuerdo",
     "agreed": "De acuerdo",

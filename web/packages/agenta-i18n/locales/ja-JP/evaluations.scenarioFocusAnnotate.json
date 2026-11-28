@@ -11,6 +11,7 @@
     "noValueYet": "まだ値がありません",
     "evaluatorResults": "評価者の結果",
     "failedReviewed": "失敗 {{total}} 件中 {{reviewed}} 件を確認済み",
+    "reviewsFailed": "レビューを読み込めませんでした",
     "agree": "同意",
     "disagree": "不同意",
     "agreed": "同意済み",

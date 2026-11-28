@@ -12,7 +12,12 @@ import {
     readJudgeReview,
     type JudgeVerdict,
 } from "@agenta/entities/evaluationRun"
-import type {RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
+import {
+    computeColumnGroup,
+    type RunColumnGroup,
+    type RunMapping,
+    type RunStep,
+} from "@agenta/entities/evaluationRun/etl"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -33,6 +38,8 @@ export interface ScenarioJudge {
     traceId: string | null
     spanId: string | null
     failed: boolean
+    /** A review can link this result: it has a trace, a span and an evaluator. */
+    reviewable: boolean
     /** The judge's outputs on this test case, by output field. */
     outputs: Record<string, unknown>
 }
@@ -52,10 +59,10 @@ export interface JudgeReview {
 export const JUDGE_REVIEWS_QUERY_KEY = ["evaluationRun", "judgeReviews"] as const
 
 /**
- * Judge results per request, and the page each request asks for (the API's largest): 10 results
- * hold up to 100 reviewers each before a page is full.
+ * Judge results per request, and the page each request asks for (the API's largest): 50 results
+ * hold up to 20 reviewers each before a page is full.
  */
-const LINKS_PER_QUERY = 10
+const LINKS_PER_QUERY = 50
 const REVIEWS_PER_QUERY = 1000
 
 /**
@@ -66,19 +73,21 @@ export async function fetchJudgeReviews(
     projectId: string,
     results: readonly {traceId: string; spanId: string}[],
 ): Promise<JudgeReview[]> {
-    const pages = await Promise.all(
-        Array.from({length: Math.ceil(results.length / LINKS_PER_QUERY)}, (_, page) =>
-            queryAnnotations({
+    // One request after the other: a large run has many batches.
+    const pages = []
+    for (let start = 0; start < results.length; start += LINKS_PER_QUERY) {
+        pages.push(
+            await queryAnnotations({
                 projectId,
                 windowing: {limit: REVIEWS_PER_QUERY},
                 annotation: {
                     links: results
-                        .slice(page * LINKS_PER_QUERY, (page + 1) * LINKS_PER_QUERY)
+                        .slice(start, start + LINKS_PER_QUERY)
                         .map(({traceId, spanId}) => ({trace_id: traceId, span_id: spanId})),
                 },
             }),
-        ),
-    )
+        )
+    }
     return pages.flatMap(({annotations}) =>
         annotations.flatMap((annotation) => {
             const review = readJudgeReview(annotation)
@@ -98,39 +107,88 @@ export async function fetchJudgeReviews(
     )
 }
 
+/** The output field path a mapping reads (`attributes.ag.data.outputs.a.b` -> `a`, `b`). */
+const outputPath = (path: string | null | undefined, name: string): string[] => {
+    const at = path?.indexOf("outputs.") ?? -1
+    return path && at >= 0 ? path.slice(at + "outputs.".length).split(".") : [name]
+}
+
+/** `outputs` with `value` at `path`, nested objects made on the way. */
+const setAtPath = (
+    outputs: Record<string, unknown>,
+    path: readonly string[],
+    value: unknown,
+): Record<string, unknown> => {
+    const [head, ...rest] = path
+    if (rest.length === 0) return {...outputs, [head]: value}
+    const inner = outputs[head]
+    return {
+        ...outputs,
+        [head]: setAtPath(
+            inner && typeof inner === "object" && !Array.isArray(inner)
+                ? (inner as Record<string, unknown>)
+                : {},
+            rest,
+            value,
+        ),
+    }
+}
+
 /** The judges of a test case: the results that are not human, with their step's references. */
 export function scenarioJudges(
     row: ScenarioRow,
     groups: readonly RunColumnGroup[],
     judgeResults: readonly ScenarioEvaluatorResult[],
+    run: {steps: readonly RunStep[]; mappings: readonly RunMapping[]},
 ): ScenarioJudge[] {
     const refsOf = new Map(groups.map(({group}) => [group.key, group.refs]))
+    // The output path of each mapped column, by group and column name: a review stores the
+    // judge's outputs in their own shape, not under the columns' (dotted) names.
+    const groupOfStep = new Map(
+        run.steps.map((step) => [step.key, computeColumnGroup(step, "").key]),
+    )
+    const pathOf = new Map(
+        run.mappings.flatMap((mapping) => {
+            const group = mapping.step?.key ? groupOfStep.get(mapping.step.key) : undefined
+            const name = mapping.column?.name
+            return group && name ? [[`${group}|${name}`, outputPath(mapping.step?.path, name)]] : []
+        }),
+    )
     return judgeResults.map((result) => {
         const refs = refsOf.get(result.id) ?? null
+        const traceId = result.step?.traceId ?? null
+        const spanId = result.step?.spanId ?? null
+        const evaluatorId = refs?.evaluator?.id ?? null
         return {
             id: result.id,
             name: result.name,
             slug: refs ? annotationStepSlug({references: refs}) : null,
-            evaluatorId: refs?.evaluator?.id ?? null,
+            evaluatorId,
             variantId: refs?.evaluator_variant?.id ?? null,
             revisionId: refs?.evaluator_revision?.id ?? null,
-            traceId: result.step?.traceId ?? null,
-            spanId: result.step?.spanId ?? null,
+            traceId,
+            spanId,
             failed: result.summary.failed,
-            outputs: Object.fromEntries(
-                (row.cells[result.id] ?? []).flatMap((cell) => {
+            reviewable: Boolean(traceId && spanId && evaluatorId),
+            outputs: (row.cells[result.id] ?? []).reduce<Record<string, unknown>>(
+                (outputs, cell) => {
                     const value = scenarioMetricValue(cell.value)
-                    return value === undefined ? [] : [[cell.name, value]]
-                }),
+                    if (value === undefined) return outputs
+                    const path = pathOf.get(`${result.id}|${cell.name}`) ?? [cell.name]
+                    return setAtPath(outputs, path, value)
+                },
+                {},
             ),
         }
     })
 }
 
-/** The judge results a review can link: those with a trace and a span. */
+/** The judge results a review can link. */
 const reviewable = (judges: readonly ScenarioJudge[]) =>
     judges.flatMap((judge) =>
-        judge.traceId && judge.spanId ? [{traceId: judge.traceId, spanId: judge.spanId}] : [],
+        judge.reviewable && judge.traceId && judge.spanId
+            ? [{traceId: judge.traceId, spanId: judge.spanId}]
+            : [],
     )
 
 /**
@@ -162,7 +220,13 @@ export function useJudgeReviews(judges: readonly ScenarioJudge[]) {
         return {byJudge: all, own: mine}
     }, [query.data, judges, userId])
     // Until the saved reviews are known, a save could not tell an update from a new review.
-    return {byJudge, own, ready: results.length === 0 || query.isSuccess}
+    return {
+        byJudge,
+        own,
+        ready: results.length === 0 || query.isSuccess,
+        isError: query.isError,
+        refetch: query.refetch,
+    }
 }
 
 /** What the user set for one judge in the panel, not saved yet. */
@@ -238,8 +302,8 @@ export function useJudgeReviewDrafts({
 
     const saveOne = async (judge: ScenarioJudge) => {
         const draft = judge.traceId ? edits[judge.traceId] : undefined
-        if (!draft || !judge.evaluatorId || !judge.traceId || !judge.spanId) {
-            throw new Error(`The result of ${judge.name} has no trace to review`)
+        if (!draft || !judge.reviewable || !judge.evaluatorId || !judge.traceId || !judge.spanId) {
+            throw new Error(`The result of ${judge.name} cannot be reviewed`)
         }
         const payload = buildJudgeReview({
             judge: {

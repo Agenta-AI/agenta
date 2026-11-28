@@ -210,8 +210,11 @@ export const ScenarioFocusSheet = ({
     const [panel, setPanel] = useState<{focusJudge: string | null} | null>(null)
     const {human, notHuman} = useMemo(() => splitByOrigin(results), [results])
     const judges = useMemo(
-        () => (current ? scenarioJudges(current, scenarios.columnGroups, notHuman) : []),
-        [current, scenarios.columnGroups, notHuman],
+        () =>
+            current
+                ? scenarioJudges(current, scenarios.columnGroups, notHuman, scenarios.schema)
+                : [],
+        [current, scenarios.columnGroups, notHuman, scenarios.schema],
     )
     const judgeReviews = useJudgeReviews(judges)
     const reviews = useMemo(
@@ -251,10 +254,13 @@ export const ScenarioFocusSheet = ({
         return cells.some((cell) => cell.value !== undefined) ? outputValue(cells) : undefined
     }, [current, scenarios.columnGroups])
     const draft = useTestcaseDraft({
+        runId,
         scenarioId: current?.scenario.id ?? "",
         testcaseId: current?.testcaseId ?? null,
-        testset,
-        expectedKey,
+        // Without `edit_testsets` the test case is not editable at all, so no draft starts.
+        testset: canEditTestsets ? testset : null,
+        // No output (none yet, or the app call failed): nothing to use as the reference.
+        expectedKey: output === undefined ? null : expectedKey,
         output,
     })
     guardRef.current = (go) => (draft.dirty ? setPendingMove(() => go) : go())
@@ -382,6 +388,9 @@ export const ScenarioFocusSheet = ({
                         judges={judges}
                         ownReviews={judgeReviews.own}
                         reviewsReady={judgeReviews.ready}
+                        onRetryReviews={
+                            judgeReviews.isError ? () => void judgeReviews.refetch() : null
+                        }
                         focusJudge={panel.focusJudge}
                         testset={testset}
                         draft={draft}

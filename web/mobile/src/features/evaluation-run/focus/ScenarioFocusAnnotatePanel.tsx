@@ -50,6 +50,7 @@ export const ScenarioFocusAnnotatePanel = ({
     judges,
     ownReviews,
     reviewsReady,
+    onRetryReviews,
     focusJudge,
     testset,
     draft,
@@ -64,6 +65,8 @@ export const ScenarioFocusAnnotatePanel = ({
     ownReviews: ReadonlyMap<string, JudgeReview>
     /** The saved reviews are loaded: until then the reviews are read only. */
     reviewsReady: boolean
+    /** The saved reviews did not load: Try again reads them again. */
+    onRetryReviews: (() => void) | null
     focusJudge: string | null
     /** The run's test set with its name and version; null for a run on traces. */
     testset: {
@@ -224,6 +227,7 @@ export const ScenarioFocusAnnotatePanel = ({
                         onDraft={reviews.setDraft}
                         focusJudge={focusJudge}
                         readOnly={closed || !reviewsReady}
+                        onRetry={onRetryReviews}
                     />
                     {testset && canEditTestsets ? (
                         <ScenarioFocusAnnotateTestcase

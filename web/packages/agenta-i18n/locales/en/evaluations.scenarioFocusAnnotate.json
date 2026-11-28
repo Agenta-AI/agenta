@@ -12,6 +12,7 @@
     "noValueYet": "No value yet",
     "evaluatorResults": "Evaluator results",
     "failedReviewed": "{{reviewed}} of {{total}} failed reviewed",
+    "reviewsFailed": "Could not load the reviews",
     "agree": "Agree",
     "disagree": "Disagree",
     "agreed": "Agreed",

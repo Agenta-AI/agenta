@@ -66,7 +66,10 @@ export const ScenarioFocusAnnotateEvaluators = ({
     const formSlugs = formRefs.flatMap((ref) => ref.slug ?? [])
     const added = formEvaluators?.added ?? []
     const inRun = new Set(run.slugs)
-    const listed = canEditRun
+    // A new evaluator joins the run as a step after its app step: a run with none (one that reads
+    // traces) and a user who may not edit runs annotate with the run's own evaluators only.
+    const canAdd = canEditRun && Boolean(run.inputKey && run.invocationKey)
+    const listed = canAdd
         ? humanEvaluators.evaluators
         : humanEvaluators.evaluators.filter((evaluator) => inRun.has(evaluator.slug ?? ""))
     const noteBySlug = Object.fromEntries(

@@ -11,6 +11,7 @@
     "noValueYet": "暂无值",
     "evaluatorResults": "评测器结果",
     "failedReviewed": "已复核 {{reviewed}}/{{total}} 个失败项",
+    "reviewsFailed": "无法加载复核",
     "agree": "同意",
     "disagree": "不同意",
     "agreed": "已同意",
