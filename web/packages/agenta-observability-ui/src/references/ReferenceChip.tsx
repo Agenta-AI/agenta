@@ -18,7 +18,7 @@ import {
 import clsx from "clsx"
 import Link from "next/link"
 
-export type ReferenceKind = "app" | "variant" | "testset" | "evaluator" | "environment"
+export type ReferenceKind = "app" | "variant" | "testset" | "testcase" | "evaluator" | "environment"
 
 /** What the hovercard lists under the name. */
 export interface ReferenceIdentifiers {
@@ -26,6 +26,7 @@ export interface ReferenceIdentifiers {
     id?: string | null
     version?: number | string | null
     revisionId?: string | null
+    testcaseId?: string | null
 }
 
 export interface ReferenceChipProps {
@@ -43,6 +44,7 @@ const KIND_META = {
     app: {labelKey: "observabilityUi.references.application", Icon: SquaresFour},
     variant: {labelKey: "observabilityUi.references.variant", Icon: GitCommit},
     testset: {labelKey: "observabilityUi.references.testSet", Icon: Database},
+    testcase: {labelKey: "observabilityUi.references.testCase", Icon: Database},
     evaluator: {labelKey: "observabilityUi.references.evaluator", Icon: Gavel},
     environment: {labelKey: "observabilityUi.references.environment", Icon: CloudArrowUp},
 } as const satisfies Record<
@@ -52,18 +54,23 @@ const KIND_META = {
             | "observabilityUi.references.application"
             | "observabilityUi.references.variant"
             | "observabilityUi.references.testSet"
+            | "observabilityUi.references.testCase"
             | "observabilityUi.references.evaluator"
             | "observabilityUi.references.environment"
         Icon: ComponentType<IconProps>
     }
 >
 
-// The per-kind tone variables from @agenta/ui/theme-variables.css, light and dark.
-const toneStyle = (kind: ReferenceKind) => ({
-    color: `var(--ag-ref-${kind}-text)`,
-    backgroundColor: `var(--ag-ref-${kind}-bg)`,
-    borderColor: `var(--ag-ref-${kind}-border)`,
-})
+// The per-kind tone variables from @agenta/ui/theme-variables.css, light and dark. A test case
+// takes its test set's tone.
+const toneStyle = (kind: ReferenceKind) => {
+    const tone = kind === "testcase" ? "testset" : kind
+    return {
+        color: `var(--ag-ref-${tone}-text)`,
+        backgroundColor: `var(--ag-ref-${tone}-bg)`,
+        borderColor: `var(--ag-ref-${tone}-border)`,
+    }
+}
 
 const middleTruncate = (value: string) =>
     value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value
@@ -150,6 +157,14 @@ export const ReferenceChip = ({
                         name: t("observabilityUi.references.revisionId"),
                         value: middleTruncate(identifiers.revisionId),
                         copy: identifiers.revisionId,
+                    }
+                  : null,
+              identifiers?.testcaseId
+                  ? {
+                        id: "testcaseId",
+                        name: t("observabilityUi.references.testCaseId"),
+                        value: middleTruncate(identifiers.testcaseId),
+                        copy: identifiers.testcaseId,
                     }
                   : null,
           ].filter(

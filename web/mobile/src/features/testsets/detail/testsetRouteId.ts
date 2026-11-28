@@ -13,3 +13,6 @@ export const isTestsetRouteId = (id: string): boolean =>
 /** The test set page of one revision. */
 export const testsetRevisionPath = (base: string, revisionId: string): string =>
     `${base}/testsets/${revisionId}`
+
+/** The query parameter that opens the editor on one test case, the classic app's name for it. */
+export const TESTCASE_QUERY_PARAM = "testcase_id"

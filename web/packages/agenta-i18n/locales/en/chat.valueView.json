@@ -35,5 +35,12 @@
     "copyValue": "Copy value",
     "copied": "Copied",
     "noOutput": "No output",
-    "fullView": "Full view"
+    "fullView": "Full view",
+    "passedOf": "{{passed}} of {{total}} passed",
+    "moreMetrics": "+{{count}} more",
+    "notRun": "Not run, the app call failed",
+    "openTrace": "Open trace",
+    "errorLabel": "error",
+    "passedLabel": "Passed",
+    "assertionsValue": "{{passed}} of {{total}}"
 }

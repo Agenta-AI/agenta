@@ -9,6 +9,7 @@ import {useAtomValue} from "jotai"
 
 import type {ReferenceLabelProps} from "../traceDrawer/referenceSlots"
 
+import {testcaseChipLabel} from "./mergeReferenceChips"
 import {ReferenceChip, ReferenceChipSkeleton} from "./ReferenceChip"
 
 /** Where each kind of reference links to. Each app passes its own routes. */
@@ -159,9 +160,11 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         )
     }
 
+    /** A test set, or with `testcaseId` one test case of it: "support-faq / 7f3a1c". */
     const TestsetTag = (props: Props) => {
         const t = useT(referencesCatalog)
         const testsetId = str(props.testsetId)
+        const testcaseId = str(props.testcaseId)
         const query = useAtomValue(
             useMemo(() => testsetQueryAtomFamily(testsetId ?? ""), [testsetId]),
         )
@@ -174,15 +177,20 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         if (query.isPending) return <ReferenceChipSkeleton />
         const testset = query.data
         const deleted = !query.isError && !testset?.name
+        const name = testset?.name ?? testsetId
         return (
             <ReferenceChip
-                kind="testset"
+                kind={testcaseId ? "testcase" : "testset"}
                 label={
-                    deleted ? t("observabilityUi.references.deleted") : (testset?.name ?? testsetId)
+                    deleted
+                        ? t("observabilityUi.references.deleted")
+                        : testcaseId
+                          ? testcaseChipLabel(name, testcaseId)
+                          : name
                 }
                 href={deleted ? null : href}
                 openExternally={props.openExternally === true}
-                identifiers={{id: testsetId, revisionId: str(props.revisionId)}}
+                identifiers={{id: testsetId, revisionId: str(props.revisionId), testcaseId}}
                 deleted={deleted}
             />
         )

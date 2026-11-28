@@ -1,6 +1,10 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
+import {
+    loadMoreTestcasesAtom,
+    testcaseDataController,
+    type TestcaseTableRow,
+} from "@agenta/entities/testcase"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -19,7 +23,7 @@ import {
     Button,
 } from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -38,7 +42,7 @@ import {ArchivedTestsetNotice} from "./ArchivedTestsetNotice"
 import {TestsetDetailSkeleton} from "./states/TestsetDetailSkeleton"
 import {TestsetGrid} from "./TestsetGrid"
 import {TestsetHeader} from "./TestsetHeader"
-import {testsetRevisionPath} from "./testsetRouteId"
+import {TESTCASE_QUERY_PARAM, testsetRevisionPath} from "./testsetRouteId"
 import {TestsetToolbar} from "./TestsetToolbar"
 import {useArchivedTestset} from "./useArchivedTestset"
 import {useRevisionArchive} from "./useRevisionArchive"
@@ -158,6 +162,41 @@ export const TestsetDetailScreen = ({
     const rows = useAtomValue(testcaseDataController.selectors.rows(editor.tableConfig))
     const columns = useAtomValue(testcaseDataController.selectors.columns(editor.tableConfig))
     const columnKeys = useMemo(() => columns.map((column) => column.key), [columns])
+    const hasMoreRows = useAtomValue(testcaseDataController.selectors.hasMore(editor.tableConfig))
+    const loadingRows = useAtomValue(testcaseDataController.selectors.isLoading(editor.tableConfig))
+    const loadMoreRows = useSetAtom(loadMoreTestcasesAtom)
+    // A link with `?testcase_id=` opens the editor on that test case once, when it is in the
+    // revision. The rows load 100 per page, so pages load until the test case or the end.
+    const linkedTestcaseId = router.query[TESTCASE_QUERY_PARAM]
+    // The linked id handled last: a link to another test case opens it too.
+    const linkHandled = useRef<string | null>(null)
+    useEffect(() => {
+        if (
+            typeof linkedTestcaseId !== "string" ||
+            linkHandled.current === linkedTestcaseId ||
+            rows.length === 0
+        )
+            return
+        if (rows.some((row) => row.id === linkedTestcaseId)) {
+            linkHandled.current = linkedTestcaseId
+            openRow(linkedTestcaseId)
+        } else if (loadingRows) {
+            // A page is on the way; `hasMore` is false until it arrives.
+        } else if (hasMoreRows) {
+            loadMoreRows(editor.tableConfig)
+        } else {
+            linkHandled.current = linkedTestcaseId
+        }
+    }, [
+        editor.tableConfig,
+        hasMoreRows,
+        linkedTestcaseId,
+        loadMoreRows,
+        loadingRows,
+        openRow,
+        rows,
+    ])
+
     const navigation = useTestcaseDrawerNavigation({
         rows,
         getRowId: rowId,

@@ -23,11 +23,13 @@ const state = vi.hoisted(() => ({
     drawer: null as null | Record<string, unknown>,
     openRow: null as null | ((id: string) => void),
     rowAdded: null as null | ((id: string) => void),
+    query: {} as Record<string, string>,
+    morePages: false,
 }))
 
 vi.mock("next/router", () => ({
     useRouter: () => ({
-        query: {workspace_id: "ws", project_id: "pr", testset_id: REVISION},
+        query: {workspace_id: "ws", project_id: "pr", testset_id: REVISION, ...state.query},
         push: vi.fn(),
     }),
 }))
@@ -82,12 +84,37 @@ vi.mock("@/features/testsets/detail/TestsetGrid", () => ({
     },
 }))
 vi.mock("@agenta/entities/testcase", () => {
-    const rows = atom([
+    const firstPage = [
         {id: "case-1", key: "case-1"},
         {id: "case-2", key: "case-2"},
-    ])
+    ]
+    const rows = atom(firstPage)
     const columns = atom([{key: "question"}])
-    return {testcaseDataController: {selectors: {rows: () => rows, columns: () => columns}}}
+    // A second page with one more test case, loaded on request while `state.morePages` is set.
+    // As in the store, `hasMore` reads false while the page loads, and the rows come later.
+    const loading = atom(false)
+    const hasMore = atom(
+        (get) => state.morePages && !get(loading) && get(rows).length === firstPage.length,
+    )
+    const loadMoreTestcasesAtom = atom(null, (get, set) => {
+        if (!get(hasMore)) return
+        set(loading, true)
+        setTimeout(() => {
+            set(rows, [...firstPage, {id: "case-150", key: "case-150"}])
+            set(loading, false)
+        }, 0)
+    })
+    return {
+        loadMoreTestcasesAtom,
+        testcaseDataController: {
+            selectors: {
+                rows: () => rows,
+                columns: () => columns,
+                hasMore: () => hasMore,
+                isLoading: () => loading,
+            },
+        },
+    }
 })
 vi.mock("@agenta/entity-ui/testcase", async () => ({
     useTestcaseDrawerNavigation: (
@@ -132,6 +159,8 @@ describe("Test set page", () => {
         state.drawer = null
         state.openRow = null
         state.rowAdded = null
+        state.query = {}
+        state.morePages = false
         queryClient = new QueryClient()
         store = createStore()
         host = document.createElement("div")
@@ -203,6 +232,35 @@ describe("Test set page", () => {
 
         act(() => (state.drawer?.onPrevious as () => void)())
         expect(state.drawer).toMatchObject({testcaseId: "case-1"})
+    })
+
+    it("A link with testcase_id opens the editor on that test case", () => {
+        state.query = {testcase_id: "case-2"}
+        render()
+        expect(state.drawer).toMatchObject({testcaseId: "case-2", testcaseNumber: 2})
+    })
+
+    it("A link to a test case on a later page loads pages until it opens the editor", async () => {
+        state.morePages = true
+        state.query = {testcase_id: "case-150"}
+        render()
+        expect(state.drawer).toBeNull()
+        await act(() => new Promise((resolve) => setTimeout(resolve, 10)))
+        expect(state.drawer).toMatchObject({testcaseId: "case-150", testcaseNumber: 3})
+    })
+
+    it("A testcase_id that is not in the revision opens nothing", () => {
+        state.query = {testcase_id: "case-9"}
+        render()
+        expect(state.drawer).toBeNull()
+    })
+
+    it("The link opens the editor once: closing it does not open it again", () => {
+        state.query = {testcase_id: "case-1"}
+        render()
+        act(() => (state.drawer?.onClose as () => void)())
+        render()
+        expect(state.drawer).toMatchObject({testcaseId: null})
     })
 
     it("While a save runs, the drawer opens view only", () => {

@@ -35,5 +35,12 @@
     "copyValue": "Wert kopieren",
     "copied": "Kopiert",
     "noOutput": "Keine Ausgabe",
-    "fullView": "Vollansicht"
+    "fullView": "Vollansicht",
+    "passedOf": "{{passed}} von {{total}} bestanden",
+    "moreMetrics": "+{{count}} weitere",
+    "notRun": "Nicht ausgeführt, der App-Aufruf ist fehlgeschlagen",
+    "openTrace": "Trace öffnen",
+    "errorLabel": "Fehler",
+    "passedLabel": "Bestanden",
+    "assertionsValue": "{{passed}} von {{total}}"
 }
