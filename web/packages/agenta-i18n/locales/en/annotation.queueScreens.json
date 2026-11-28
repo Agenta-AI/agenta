@@ -44,5 +44,6 @@
     "openConfiguration": "Open Configuration",
     "clearValue": "Clear value",
     "copyRaw": "Raw",
-    "copyParsed": "Copy as JSON"
+    "copyParsed": "Copy as JSON",
+    "itemLoadFailed": "Could not load this item"
 }

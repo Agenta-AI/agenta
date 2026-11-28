@@ -47,5 +47,6 @@
     "openConfiguration": "Abrir configuração",
     "clearValue": "Limpar valor",
     "copyRaw": "Bruto",
-    "copyParsed": "Copiar como JSON"
+    "copyParsed": "Copiar como JSON",
+    "itemLoadFailed": "Não foi possível carregar este item"
 }

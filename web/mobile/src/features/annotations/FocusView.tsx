@@ -184,7 +184,9 @@ export const FocusView = ({
                 Annotations
             </h2>
             {resultsUnknown ? (
-                runItem?.loadFailed ? null : (
+                runItem?.loadFailed ? (
+                    <ScenarioMessage title={t("annotation.queueScreens.itemLoadFailed")} />
+                ) : (
                     <div className="flex flex-col gap-3 p-4" role="status">
                         <SkeletonBlock className="h-8" />
                         <SkeletonBlock className="h-8" />

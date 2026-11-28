@@ -51,7 +51,10 @@ export interface QueueRunItem {
  */
 export const useQueueRunItem = (scenarioId: string): QueueRunItem | null => {
     const runId = useAtomValue(annotationSessionController.selectors.activeRunId()) ?? ""
-    const steps = useAtomValue(evaluationRunQueryAtomFamily(runId)).data?.data?.steps ?? []
+    const runQuery = useAtomValue(evaluationRunQueryAtomFamily(runId))
+    const steps = runQuery.data?.data?.steps ?? []
+    // Until the run loads nothing tells a run's item from a plain one: wait, as for the results.
+    const runUnknown = Boolean(runId) && runQuery.isPending
     const invocationStep = steps.find((step) => step.type === "invocation")
     const isRunItem =
         Boolean(invocationStep) &&
@@ -66,7 +69,7 @@ export const useQueueRunItem = (scenarioId: string): QueueRunItem | null => {
             scenarioId,
         }),
     )
-    const ready = resultsQuery.isSuccess
+    const ready = resultsQuery.isSuccess && !runUnknown
     const invocationResult = resultsQuery.data?.find(
         (result) => result.step_key === invocationStep?.key,
     )
@@ -78,7 +81,7 @@ export const useQueueRunItem = (scenarioId: string): QueueRunItem | null => {
             ? {id: scenarioId, invocationStatus: invocationResult?.status}
             : null,
     )
-    return isRunItem
+    return isRunItem || runUnknown
         ? {
               runId,
               ready,
@@ -146,7 +149,7 @@ export const QueueRunItemContent = ({
             )}
             {runItem.loadFailed ? (
                 <LoadError
-                    title="Failed to load trace data"
+                    title={t("annotation.queueScreens.itemLoadFailed")}
                     description={null}
                     retryLabel={tCommon("common.retry")}
                     onRetry={runItem.retry}
@@ -165,6 +168,15 @@ export const QueueRunItemContent = ({
                 />
             ) : traceId && traceQuery.isPending ? (
                 <SkeletonBlock className="h-24" />
+            ) : traceId && traceQuery.isError ? (
+                <LoadError
+                    title="Failed to load trace data"
+                    description={null}
+                    retryLabel={tCommon("common.retry")}
+                    onRetry={() => void traceQuery.refetch()}
+                />
+            ) : traceId ? (
+                <ScenarioMessage title="Trace data not available" />
             ) : null}
         </div>
     )

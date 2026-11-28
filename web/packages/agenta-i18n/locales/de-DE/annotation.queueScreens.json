@@ -44,5 +44,6 @@
     "openConfiguration": "Konfiguration öffnen",
     "clearValue": "Wert löschen",
     "copyRaw": "Roh",
-    "copyParsed": "Als JSON kopieren"
+    "copyParsed": "Als JSON kopieren",
+    "itemLoadFailed": "Dieser Eintrag konnte nicht geladen werden"
 }

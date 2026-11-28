@@ -88,17 +88,16 @@ export const QueueItemRow = ({
     selected: boolean
     onOpen: () => void
 }) => {
-    const {traceId} = useAtomValue(
-        annotationSessionController.selectors.scenarioTraceRef(scenarioId),
-    )
-    const {testcaseId} = useAtomValue(
-        annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
-    )
-    // A row reads its trace or test case only once it nears the viewport: a long queue does not
-    // load every item to draw one line each.
+    // A row reads its references, trace or test case only once it nears the viewport: a long
+    // queue does not load every item (in a run's queue, its step results too) to draw one line.
     const {ref, inView} = useInView<HTMLButtonElement>()
-    const testcaseText = useTestcaseText(inView ? testcaseId : "")
-    const traceText = useTraceText(inView && !testcaseId ? traceId : "")
+    const readId = inView ? scenarioId : ""
+    const {traceId} = useAtomValue(annotationSessionController.selectors.scenarioTraceRef(readId))
+    const {testcaseId} = useAtomValue(
+        annotationSessionController.selectors.scenarioTestcaseRef(readId),
+    )
+    const testcaseText = useTestcaseText(testcaseId)
+    const traceText = useTraceText(testcaseId ? "" : traceId)
     const text = oneLine((testcaseId ? testcaseText : traceText) ?? "") || "—"
     const shortId = truncateScenarioId(testcaseId || traceId || scenarioId)
     const age = createdAt ? timeAgo(Date.parse(createdAt)) : ""

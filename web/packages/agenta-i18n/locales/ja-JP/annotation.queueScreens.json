@@ -41,5 +41,6 @@
     "openConfiguration": "設定を開く",
     "clearValue": "値をクリア",
     "copyRaw": "Raw",
-    "copyParsed": "JSON としてコピー"
+    "copyParsed": "JSON としてコピー",
+    "itemLoadFailed": "この項目を読み込めませんでした"
 }

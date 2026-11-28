@@ -41,5 +41,6 @@
     "openConfiguration": "打开配置",
     "clearValue": "清除值",
     "copyRaw": "原始",
-    "copyParsed": "复制为 JSON"
+    "copyParsed": "复制为 JSON",
+    "itemLoadFailed": "无法加载此条目"
 }

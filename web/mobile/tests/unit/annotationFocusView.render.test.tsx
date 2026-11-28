@@ -72,10 +72,14 @@ vi.mock("@agenta/entities/trace", async (importOriginal) => {
         refetch: vi.fn(),
     })
     const span = atom(root)
+    const failed = atom({isPending: false, isError: true, data: undefined, refetch: vi.fn()})
+    const noSpan = atom(null)
     return {
         ...(await importOriginal<typeof import("@agenta/entities/trace")>()),
-        traceEntityAtomFamily: () => loaded,
-        traceRootSpanAtomFamily: () => span,
+        traceEntityAtomFamily: (traceId: string | null) =>
+            traceId === "trace-missing" ? failed : loaded,
+        traceRootSpanAtomFamily: (traceId: string | null) =>
+            traceId === "trace-missing" ? noSpan : span,
     }
 })
 vi.mock("@agenta/entities/evaluationRun", async (importOriginal) => {
@@ -420,17 +424,41 @@ describe("the queue's Annotate tab", () => {
             expect(fixture.runApp).toHaveBeenCalledTimes(1)
         })
 
-        it("waits for the step results before it offers Run, and offers Retry when they fail", async () => {
-            fixture.invocationPending = true
+        const setResultsState = (state: {isSuccess: boolean; isError: boolean}) => {
+            const refetch = vi.fn()
             fakeStore.set(
                 evaluationRunMolecule.selectors.scenarioSteps({runId: "", scenarioId: ""}) as never,
-                {data: undefined, isSuccess: false, isError: true, refetch: vi.fn()} as never,
+                {data: undefined, ...state, refetch} as never,
             )
+            return refetch
+        }
+
+        it("while the step results load, offers neither Run nor the form", async () => {
+            fixture.invocationPending = true
+            setResultsState({isSuccess: false, isError: false})
             await render()
             expect(host.textContent).not.toContain("Generate output to annotate")
             expect(button("Mark completed and next")).toBeUndefined()
+            expect(host.querySelectorAll("[role=status]").length).toBeGreaterThan(0)
+            await press(document.body, {key: "Enter", metaKey: true})
+            expect(fixture.runApp).not.toHaveBeenCalled()
+        })
+
+        it("a failed trace read of a finished app call offers Retry", async () => {
+            setStepResults([{step_key: "app", status: "success", trace_id: "trace-missing"}])
+            await render()
             expect(host.textContent).toContain("Failed to load trace data")
             expect(button("Retry")).toBeDefined()
+        })
+
+        it("when the step results fail, says so and Retry reads them again", async () => {
+            fixture.invocationPending = true
+            const refetch = setResultsState({isSuccess: false, isError: true})
+            await render()
+            expect(host.textContent).not.toContain("Generate output to annotate")
+            expect(host.textContent).toContain("Could not load this item")
+            await act(async () => button("Retry")!.click())
+            expect(refetch).toHaveBeenCalled()
             await press(document.body, {key: "Enter", metaKey: true})
             expect(fixture.runApp).not.toHaveBeenCalled()
         })
