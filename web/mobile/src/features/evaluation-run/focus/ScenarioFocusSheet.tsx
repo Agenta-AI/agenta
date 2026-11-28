@@ -33,6 +33,7 @@ import {ScenarioFocusBody} from "./ScenarioFocusBody"
 import {ScenarioFocusHeader} from "./ScenarioFocusHeader"
 import {ScenarioFocusHumanLine} from "./ScenarioFocusHumanLine"
 import {ScenarioFocusMetadataTab} from "./ScenarioFocusMetadataTab"
+import {outputValue} from "./ScenarioFocusOutput"
 import {
     evaluatorOriginsOf,
     scenarioEvaluatorResults,
@@ -40,7 +41,6 @@ import {
     type ScenarioEvaluatorResult,
     type ScenarioResultReviews,
 } from "./ScenarioFocusResultsTab"
-import {outputValue} from "./ScenarioFocusOutput"
 import {ScenarioFocusSummaryLine} from "./ScenarioFocusSummaryLine"
 import {ScenarioFocusTabs, type ScenarioFocusTab} from "./ScenarioFocusTabs"
 import {ScenarioFocusTestsetLink} from "./ScenarioFocusTestsetLink"

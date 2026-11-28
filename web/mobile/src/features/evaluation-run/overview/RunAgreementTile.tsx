@@ -2,15 +2,14 @@ import {reviewAgreement} from "@agenta/entities/evaluationRun"
 import {formatNumber, useT} from "@agenta/i18n"
 import annotateCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocusAnnotate"
 
-import {useRunReviews} from "../focus/useRunReviews"
+import type {RunReview} from "../focus/useRunReviews"
 
 /**
  * "Evaluator agreement": how many saved reviews of the run's automatic evaluators agree, and the
  * evaluator people disagree with most. Not shown while nobody reviewed one.
  */
-export const RunAgreementTile = ({runId}: {runId: string}) => {
+export const RunAgreementTile = ({reviews}: {reviews: readonly RunReview[]}) => {
     const t = useT(annotateCatalog)
-    const {reviews} = useRunReviews(runId)
     const {agreed, total, disagreementsByJudge} = reviewAgreement(reviews)
     if (total === 0) return null
     const most = disagreementsByJudge[0]

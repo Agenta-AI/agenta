@@ -1,5 +1,6 @@
 import {describe, expect, it} from "vitest"
 
+import {buildHumanRunConfig} from "../../src/evaluationRun/core/humanRunConfig"
 import {
     deriveEvaluationKind,
     humanizeRunStatus,
@@ -8,7 +9,6 @@ import {
     runDisplayStatus,
     runStatusTone,
 } from "../../src/evaluationRun/core/runKind"
-import {buildHumanRunConfig} from "../../src/evaluationRun/core/humanRunConfig"
 
 const humanStep = {key: "ann", type: "annotation", origin: "human"}
 

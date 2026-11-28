@@ -10,9 +10,11 @@ import {
     type RunReferences,
 } from "@agenta/entities/evaluationRun"
 
+import type {RunReview} from "../focus/useRunReviews"
+
 import {EvaluatorResultsSection} from "./EvaluatorResultsSection"
-import {RunFailuresAlert} from "./RunFailuresAlert"
 import {RunAgreementTile} from "./RunAgreementTile"
+import {RunFailuresAlert} from "./RunFailuresAlert"
 import {RunMetaTiles} from "./RunMetaTiles"
 import type {OverviewMetric, OverviewNames, ScenarioMetricsState} from "./useRunOverview"
 
@@ -26,7 +28,11 @@ export interface RunOverviewViewProps {
     names: OverviewNames
     scenarioMetrics: ScenarioMetricsState
     onRetryMetrics?: () => void
+    /** The saved reviews of the run's automatic evaluators ("Evaluator agreement"). */
+    reviews?: readonly RunReview[]
 }
+
+const NO_REVIEWS: readonly RunReview[] = []
 
 /** The Overview tab: the meta tiles, then one table row per evaluator (and charts over time online). */
 export const RunOverviewView = ({
@@ -39,6 +45,7 @@ export const RunOverviewView = ({
     names,
     scenarioMetrics,
     onRetryMetrics,
+    reviews = NO_REVIEWS,
 }: RunOverviewViewProps) => {
     const online = header.kind === "online"
 
@@ -95,7 +102,7 @@ export const RunOverviewView = ({
         <div className="flex flex-col gap-6">
             {failed ? <RunFailuresAlert failures={failures} /> : null}
             <RunMetaTiles tiles={tiles} online={online}>
-                <RunAgreementTile runId={runId} />
+                <RunAgreementTile reviews={reviews} />
             </RunMetaTiles>
             <EvaluatorResultsSection
                 runId={runId}

@@ -142,7 +142,7 @@ export const ScenariosTab = ({
     // A polling tick gives new rows but almost never new columns: keep the same model then, so
     // the table keeps its column list and does not draw every header and cell again.
     const modelText = JSON.stringify(freshModel)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     const model = useMemo(() => freshModel, [modelText])
     const {density, hide, show} = view
     // Not on the whole view: a width drag must not rebuild the column list.

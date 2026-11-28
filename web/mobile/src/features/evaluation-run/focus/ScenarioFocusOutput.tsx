@@ -2,8 +2,8 @@ import {CopyValueButton, ValueCompareRows, ValueField} from "@agenta/chat/value-
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import focusCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocus"
-import {compareWithExpected, detectValueShape} from "@agenta/shared/utils"
 import annotateCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocusAnnotate"
+import {compareWithExpected, detectValueShape} from "@agenta/shared/utils"
 import {Badge, Button, SkeletonBlock} from "@agenta/ui/ui"
 
 import type {ScenarioCell, ScenarioStep} from "../scenarios/scenarioColumns"
