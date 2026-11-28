@@ -48,5 +48,15 @@
     "valueTrue": "True",
     "valueFalse": "False",
     "turnLabel": "Turn {{n}}",
-    "systemPrompt": "System prompt"
+    "systemPrompt": "System prompt",
+    "fieldsMatch_one": "{{matched}} of {{count}} field matches",
+    "fieldsMatch_other": "{{matched}} of {{count}} fields match",
+    "columnField": "field",
+    "columnOutput": "output",
+    "columnExpected": "expected (from {{key}})",
+    "same": "same",
+    "differs": "differs",
+    "match": "Match",
+    "mismatch": "Mismatch",
+    "missing": "Missing"
 }

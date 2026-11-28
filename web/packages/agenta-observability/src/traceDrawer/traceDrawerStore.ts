@@ -169,21 +169,47 @@ export const setTraceDrawerTraceAtom = atom(
     },
 )
 
-// Fetches the currently selected trace.
-export const traceDrawerQueryAtom = atomWithQuery((get) => {
-    const traceId = get(traceDrawerTraceIdAtom)
-    const projectId = get(projectIdAtom)
+/** How long a trace that came back with spans counts as fresh. */
+const TRACE_FRESH_MS = 5 * 60_000
 
-    return {
-        queryKey: ["trace-drawer", traceId ?? "none", projectId ?? "none"],
-        enabled: Boolean(traceId) && get(canViewSpansAtom),
-        refetchOnWindowFocus: false,
-        queryFn: async () => {
-            if (!traceId) return null
-            return fetchPreviewTrace(traceId, projectId ?? "")
-        },
-    }
+/**
+ * The one query of a trace by id (`GET /traces/{trace_id}`). The trace drawer and the test case
+ * drawer both use it, so opening a trace that the test case drawer already read sends no second
+ * request. A trace with spans stays fresh for a while, so a second reader that mounts later does
+ * not read it again; an empty or failed answer (a run whose spans have not landed) is read again.
+ */
+export const traceDrawerQueryOptions = ({
+    traceId,
+    projectId,
+    canViewSpans,
+}: {
+    traceId: string | null
+    projectId: string | null
+    canViewSpans: boolean
+}) => ({
+    queryKey: ["trace-drawer", traceId ?? "none", projectId ?? "none"] as const,
+    enabled: Boolean(traceId) && canViewSpans,
+    refetchOnWindowFocus: false,
+    staleTime: (query: {state: {data: TracesResponse | null | undefined}}) =>
+        Object.values(query.state.data?.traces ?? {}).some(
+            (entry) => Object.keys(entry.spans ?? {}).length > 0,
+        )
+            ? TRACE_FRESH_MS
+            : 0,
+    queryFn: async (): Promise<TracesResponse | null> => {
+        if (!traceId) return null
+        return fetchPreviewTrace(traceId, projectId ?? "")
+    },
 })
+
+// Fetches the currently selected trace.
+export const traceDrawerQueryAtom = atomWithQuery((get) =>
+    traceDrawerQueryOptions({
+        traceId: get(traceDrawerTraceIdAtom),
+        projectId: get(projectIdAtom),
+        canViewSpans: get(canViewSpansAtom),
+    }),
+)
 
 const normalizeTracesResponse = (raw: unknown): TracesResponse | null => {
     if (!raw) return null

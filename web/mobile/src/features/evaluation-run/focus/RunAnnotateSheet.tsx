@@ -16,14 +16,12 @@ export const RunAnnotateSheet = ({
     runId,
     row,
     groups,
-    labels,
     onRetry,
     onClose,
 }: {
     runId: string
     row: ScenarioRow
     groups: RunColumnGroup[]
-    labels: Record<string, string>
     onRetry: () => void
     onClose: () => void
 }) => {
@@ -46,7 +44,6 @@ export const RunAnnotateSheet = ({
                             runId={runId}
                             row={row}
                             groups={groups}
-                            labels={labels}
                             onRetry={onRetry}
                             onSaved={onSaved}
                             invocation={invocation}

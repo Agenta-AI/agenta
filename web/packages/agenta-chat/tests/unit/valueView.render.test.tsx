@@ -13,6 +13,7 @@ import {
     type EvaluatorResultMetricInput,
     type EvaluatorResultState,
 } from "@agenta/entities/evaluationRun"
+import {compareWithExpected} from "@agenta/shared/utils"
 import {cleanup, fireEvent, render, screen, waitFor} from "@testing-library/react"
 import type {ToolUIPart} from "ai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -24,7 +25,9 @@ import {
     EvaluatorResultList,
     EvaluatorResultRow,
     FieldFold,
+    ValueCompareRows,
     ValueField,
+    ValueFieldTable,
     ValueFullView,
     type TurnActivity,
 } from "../../src/value-view"
@@ -905,5 +908,80 @@ describe("CopyValueButton", () => {
         render(<CopyValueButton value={{a: 1}} label="Copy inputs" />)
         const button = screen.getByRole("button", {name: "Copy inputs"})
         expect(button.getAttribute("title")).toBe("Copy inputs")
+    })
+})
+
+describe("ValueFieldTable", () => {
+    it("lists short fields first, then JSON, then long text with its name above it", () => {
+        const website = Array.from({length: 2400}, (_, index) => `line ${index + 1}`).join("\n")
+        const {container} = render(
+            <ValueFieldTable
+                fields={[
+                    {name: "website_text", value: website},
+                    {
+                        name: "context",
+                        value: {
+                            region: "north",
+                            tier: "gold",
+                            seats: 4,
+                            owner: "Ana Silva",
+                            since: 2019,
+                        },
+                    },
+                    {name: "country", value: "Estonia"},
+                ]}
+            />,
+        )
+        const text = container.textContent ?? ""
+        expect(text.indexOf("country")).toBeLessThan(text.indexOf("context"))
+        expect(text.indexOf("context")).toBeLessThan(text.indexOf("website_text"))
+        expect(text).toContain("Estonia")
+        expect(text).toContain("5 fields")
+        expect(text).toContain("Show all 2,400 lines")
+    })
+
+    it("draws nothing extra for no fields", () => {
+        const {container} = render(<ValueFieldTable fields={[]} />)
+        expect(container.textContent).toBe("")
+    })
+})
+
+describe("ValueCompareRows", () => {
+    it("marks each field and counts the matches", () => {
+        const comparison = compareWithExpected({tier: "gold", seats: 4}, {tier: "gold", seats: 5})
+        if (!comparison) throw new Error("no comparison")
+        const {container} = render(
+            <ValueCompareRows comparison={comparison} expectedKey="correct_answer" />,
+        )
+        expect(container.textContent).toContain("1 of 2 fields match")
+        expect(container.textContent).toContain("expected (from correct_answer)")
+        expect(container.querySelectorAll('[aria-label="Match"]')).toHaveLength(1)
+        expect(container.querySelectorAll('[aria-label="Mismatch"]')).toHaveLength(1)
+    })
+
+    it("folds a nested object behind its key and says whether it differs", () => {
+        const comparison = compareWithExpected(
+            {invoice: {number: "1", amount: "10"}},
+            {invoice: {number: "1", amount: "12"}},
+        )
+        if (!comparison) throw new Error("no comparison")
+        render(<ValueCompareRows comparison={comparison} expectedKey="correct_answer" />)
+        expect(screen.getByText("differs")).toBeTruthy()
+        expect(screen.getByText("amount")).toBeTruthy()
+        fireEvent.click(screen.getByRole("button", {name: /invoice/}))
+        expect(screen.queryByText("amount")).toBeNull()
+    })
+
+    it("draws a list leaf with its values, not only its count", () => {
+        const comparison = compareWithExpected(
+            {items: [{sku: "A-1", qty: 1}]},
+            {items: [{sku: "A-1", qty: 2}]},
+        )
+        if (!comparison) throw new Error("no comparison")
+        const {container} = render(
+            <ValueCompareRows comparison={comparison} expectedKey="correct_answer" />,
+        )
+        expect(container.querySelectorAll('[aria-label="Mismatch"]')).toHaveLength(1)
+        expect(container.textContent).toContain("A-1")
     })
 })

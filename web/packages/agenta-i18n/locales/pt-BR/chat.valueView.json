@@ -58,5 +58,16 @@
     "valueTrue": "Verdadeiro",
     "valueFalse": "Falso",
     "turnLabel": "Turno {{n}}",
-    "systemPrompt": "Prompt do sistema"
+    "systemPrompt": "Prompt do sistema",
+    "fieldsMatch_one": "{{matched}} de {{count}} campo confere",
+    "fieldsMatch_many": "{{matched}} de {{count}} campos conferem",
+    "fieldsMatch_other": "{{matched}} de {{count}} campos conferem",
+    "columnField": "campo",
+    "columnOutput": "saída",
+    "columnExpected": "esperado (de {{key}})",
+    "same": "igual",
+    "differs": "diferente",
+    "match": "Confere",
+    "mismatch": "Não confere",
+    "missing": "Ausente"
 }

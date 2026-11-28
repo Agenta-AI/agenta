@@ -6,7 +6,7 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, getDefaultStore, Provider} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
 // Only the HTTP layer is fake: the run query, its selectors and the pause and resume calls are
 // the real package code.
@@ -342,6 +342,12 @@ describe("run details page", () => {
 })
 
 describe("scenario focus drawer", () => {
+    // The page loads the drawer with `next/dynamic`. A cold test run takes longer to load the
+    // module than the waits below, so load it first: the test is about what the drawer sends.
+    beforeAll(async () => {
+        await import("@/features/evaluation-run/focus/ScenarioFocusSheet")
+    }, 120_000)
+
     it("The focus drawer code loads only when a scenario is focused", async () => {
         serveRun({})
         await mount()

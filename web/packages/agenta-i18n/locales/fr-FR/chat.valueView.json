@@ -58,5 +58,16 @@
     "valueTrue": "Vrai",
     "valueFalse": "Faux",
     "turnLabel": "Tour {{n}}",
-    "systemPrompt": "Prompt système"
+    "systemPrompt": "Prompt système",
+    "fieldsMatch_one": "{{matched}} champ sur {{count}} correspond",
+    "fieldsMatch_many": "{{matched}} champs sur {{count}} correspondent",
+    "fieldsMatch_other": "{{matched}} champs sur {{count}} correspondent",
+    "columnField": "champ",
+    "columnOutput": "sortie",
+    "columnExpected": "attendu (de {{key}})",
+    "same": "identique",
+    "differs": "différent",
+    "match": "Correspond",
+    "mismatch": "Ne correspond pas",
+    "missing": "Manquant"
 }

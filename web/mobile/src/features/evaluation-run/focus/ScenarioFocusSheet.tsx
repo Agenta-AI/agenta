@@ -1,31 +1,113 @@
 import {useEffect, useMemo, useState} from "react"
 
-import type {RunHeader} from "@agenta/entities/evaluationRun"
+import {ValueViewProvider, type ValueViewMode} from "@agenta/chat/value-view"
+import {evaluationRunQueryAtomFamily, type RunHeader} from "@agenta/entities/evaluationRun"
+import type {RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
+import {useT} from "@agenta/i18n"
+import focusCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocus"
+import {isDrawerOpenAtom} from "@agenta/observability/traceDrawer"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {Sheet, SheetContent, SheetDescription, SheetTitle} from "@agenta/ui/ui"
+import {useAtomValue} from "jotai"
 
+import {chatProseClassName, markdownIcons} from "@/features/chat/AssistantMarkdown"
+
+import type {ScenarioRow} from "../scenarios/scenarioColumns"
 import {ScenariosLoadMoreError} from "../scenarios/states/ScenariosLoadMoreError"
 import {ScenariosRefreshError} from "../scenarios/states/ScenariosRefreshError"
+import {ScenarioValuesError} from "../scenarios/states/ScenarioValuesError"
 import {useRunScenarios} from "../scenarios/useRunScenarios"
 import {useScenarioGroupLabels} from "../scenarios/useScenarioGroupLabels"
 
-import {INPUTS_SECTION, OUTPUTS_SECTION, ScenarioFocusBody} from "./ScenarioFocusBody"
+import {ScenarioFocusBody} from "./ScenarioFocusBody"
 import {ScenarioFocusHeader} from "./ScenarioFocusHeader"
-import type {ScenarioFocusFormat} from "./ScenarioFocusToolbar"
+import {ScenarioFocusMetadataTab} from "./ScenarioFocusMetadataTab"
+import {
+    evaluatorOriginsOf,
+    scenarioEvaluatorResults,
+    ScenarioFocusResultsTab,
+    type ScenarioEvaluatorResult,
+} from "./ScenarioFocusResultsTab"
+import {ScenarioFocusSummaryLine} from "./ScenarioFocusSummaryLine"
+import {ScenarioFocusTabs, type ScenarioFocusTab} from "./ScenarioFocusTabs"
+import {ScenarioFocusTestsetLink} from "./ScenarioFocusTestsetLink"
 import {scenarioNoun} from "./scenarioNoun"
-import {scenarioPayload} from "./scenarioPayload"
+import {scenarioPayload, scenarioTabPayload} from "./scenarioPayload"
 import {ScenarioPayloadView} from "./ScenarioPayloadView"
 import {ScenarioFocusNotFound} from "./states/ScenarioFocusNotFound"
 import {ScenarioFocusSkeleton} from "./states/ScenarioFocusSkeleton"
+import {useExpectedColumn} from "./useExpectedColumn"
 import {useFocusScenarioParam} from "./useFocusScenarioParam"
 import {useScenarioStepper} from "./useScenarioStepper"
+import {useScenarioTrace} from "./useScenarioTrace"
+
+const VALUE_VIEW = {markdownClassName: chatProseClassName, markdownIcons}
+
+/** The open test case's tabs; a component of its own so its trace query keys on the row. */
+const ScenarioFocusContent = ({
+    runId,
+    kind,
+    row,
+    groups,
+    labels,
+    results,
+    onRetry,
+    tab,
+    mode,
+}: {
+    runId: string
+    kind: RunHeader["kind"]
+    row: ScenarioRow
+    groups: RunColumnGroup[]
+    labels: Record<string, string>
+    results: ScenarioEvaluatorResult[]
+    onRetry: () => void
+    tab: ScenarioFocusTab
+    mode: ValueViewMode
+}) => {
+    const t = useT(focusCatalog)
+    const trace = useScenarioTrace(row)
+    const expectedKey = useExpectedColumn(runId)
+    if (mode === "raw") {
+        const payload = scenarioTabPayload(scenarioPayload(row, groups, labels), tab, row)
+        return (
+            <ScenarioPayloadView
+                payload={JSON.stringify(payload, null, 2)}
+                label={t("evaluations.scenarioFocus.asJson")}
+            />
+        )
+    }
+    if (tab === "results") {
+        return (
+            <div className="flex flex-col gap-6">
+                {row.valuesFailed ? <ScenarioValuesError onRetry={onRetry} /> : null}
+                <ScenarioFocusResultsTab
+                    results={results}
+                    hasEvaluators={groups.some(({group}) => group.kind === "evaluator")}
+                />
+            </div>
+        )
+    }
+    if (tab === "metadata") return <ScenarioFocusMetadataTab row={row} trace={trace} />
+    return (
+        <ScenarioFocusBody
+            row={row}
+            groups={groups}
+            onRetry={onRetry}
+            awaitingRun={kind === "human"}
+            trace={trace}
+            expectedKey={expectedKey}
+        />
+    )
+}
 
 /**
  * One scenario of the run in a drawer, read only. The address names it (`focusScenarioId`).
  * A page must load this file with `next/dynamic` and render it only once a scenario is focused.
  * The drawer reads pages until it finds the scenario; Next on the last loaded row reads one more.
- * The view (full screen, folded sections, Form or JSON) stays as the user moves between scenarios.
+ * The view (full screen, the open tab, Formatted or Raw) stays as the user moves between
+ * scenarios.
  */
 export const ScenarioFocusSheet = ({
     runId,
@@ -60,18 +142,26 @@ export const ScenarioFocusSheet = ({
         loadMore()
     }, [scenarioId, current, hasMore, isPending, isFetchingMore, loadMoreError, loadMore])
 
+    // Two modal sheets stack in the order they open. A link or a reload with both a test case and a
+    // trace opens the trace first, so this drawer waits until the trace closes; it would cover the
+    // trace otherwise. Opened from this drawer, the trace comes later and sits on top.
+    const traceOpen = useAtomValue(isDrawerOpenAtom)
+    const [traceClosedOnce, setTraceClosedOnce] = useState(!traceOpen)
+    useEffect(() => {
+        if (!traceOpen) setTraceClosedOnce(true)
+    }, [traceOpen])
+
     const [fullScreen, setFullScreen] = useState(false)
-    const [format, setFormat] = useState<ScenarioFocusFormat>("form")
-    const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
-    const sectionKeys = useMemo(
-        () => [
-            INPUTS_SECTION,
-            OUTPUTS_SECTION,
-            ...scenarios.columnGroups
-                .filter(({group}) => group.kind === "evaluator")
-                .map(({group}) => group.key),
-        ],
-        [scenarios.columnGroups],
+    const [tab, setTab] = useState<ScenarioFocusTab>("io")
+    const [mode, setMode] = useState<ValueViewMode>("formatted")
+    const steps = useAtomValue(evaluationRunQueryAtomFamily(runId)).data?.data?.steps
+    const origins = useMemo(() => evaluatorOriginsOf(steps ?? []), [steps])
+    const results = useMemo(
+        () =>
+            current
+                ? scenarioEvaluatorResults(current, scenarios.columnGroups, labels, origins)
+                : [],
+        [current, scenarios.columnGroups, labels, origins],
     )
     const payload = useMemo(
         () =>
@@ -80,18 +170,15 @@ export const ScenarioFocusSheet = ({
                 : "",
         [current, scenarios.columnGroups, labels],
     )
-    const toggleSection = (key: string) =>
-        setCollapsed((previous) => {
-            const next = new Set(previous)
-            if (!next.delete(key)) next.add(key)
-            return next
-        })
 
     const noun = scenarioNoun(header.kind)
     const notFound = !current && !hasMore && !isPending && !isFetchingMore && !scenarios.isError
 
     return (
-        <Sheet open={Boolean(scenarioId)} onOpenChange={(open) => !open && setScenarioId(null)}>
+        <Sheet
+            open={Boolean(scenarioId) && traceClosedOnce}
+            onOpenChange={(open) => !open && setScenarioId(null)}
+        >
             <SheetContent
                 side="responsive"
                 aria-label={noun}
@@ -107,7 +194,7 @@ export const ScenarioFocusSheet = ({
                 {scenarios.isError ? (
                     <LoadError title="Could not load scenarios" onRetry={scenarios.refetch} />
                 ) : current ? (
-                    <>
+                    <ValueViewProvider {...VALUE_VIEW}>
                         <ScenarioFocusHeader
                             kind={header.kind}
                             compareRun={
@@ -119,33 +206,34 @@ export const ScenarioFocusSheet = ({
                             hasNext={hasMore}
                             onSelect={setScenarioId}
                             onNext={onNext}
-                            toolbar={{
-                                fullScreen,
-                                onFullScreen: setFullScreen,
-                                someCollapsed: collapsed.size > 0,
-                                onCollapseAll: (collapse) =>
-                                    setCollapsed(new Set(collapse ? sectionKeys : [])),
-                                payload,
-                                format,
-                                onFormat: setFormat,
-                            }}
+                            toolbar={{fullScreen, onFullScreen: setFullScreen, payload}}
+                            link={
+                                <ScenarioFocusTestsetLink
+                                    runId={runId}
+                                    kind={header.kind}
+                                    row={current}
+                                />
+                            }
+                            summary={<ScenarioFocusSummaryLine row={current} results={results} />}
                         />
-                        {format === "json" ? (
-                            <ScenarioPayloadView payload={payload} />
-                        ) : (
-                            <ScenarioFocusBody
+                        <ScenarioFocusTabs tab={tab} onTab={setTab} mode={mode} onMode={setMode}>
+                            <ScenarioFocusContent
+                                runId={runId}
+                                kind={header.kind}
                                 row={current}
                                 groups={scenarios.columnGroups}
                                 labels={labels}
+                                results={results}
                                 onRetry={scenarios.retryValues}
-                                view={{collapsed, onToggle: toggleSection}}
+                                tab={tab}
+                                mode={mode}
                             />
-                        )}
+                        </ScenarioFocusTabs>
                         {loadMoreError ? <ScenariosLoadMoreError onRetry={loadMore} /> : null}
                         {scenarios.refreshFailed ? (
                             <ScenariosRefreshError onRetry={scenarios.retryRefresh} />
                         ) : null}
-                    </>
+                    </ValueViewProvider>
                 ) : loadMoreError ? (
                     <LoadError title="Could not load more scenarios" onRetry={loadMore} />
                 ) : notFound ? (

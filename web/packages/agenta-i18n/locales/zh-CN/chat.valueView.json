@@ -38,5 +38,14 @@
     "valueTrue": "真",
     "valueFalse": "假",
     "turnLabel": "第 {{n}} 轮",
-    "systemPrompt": "系统提示词"
+    "systemPrompt": "系统提示词",
+    "fieldsMatch_other": "{{count}} 个字段中有 {{matched}} 个一致",
+    "columnField": "字段",
+    "columnOutput": "输出",
+    "columnExpected": "期望值（来自 {{key}}）",
+    "same": "一致",
+    "differs": "不同",
+    "match": "一致",
+    "mismatch": "不一致",
+    "missing": "缺失"
 }

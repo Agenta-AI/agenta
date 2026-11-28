@@ -48,5 +48,15 @@
     "valueTrue": "Wahr",
     "valueFalse": "Falsch",
     "turnLabel": "Runde {{n}}",
-    "systemPrompt": "Systemprompt"
+    "systemPrompt": "Systemprompt",
+    "fieldsMatch_one": "{{matched}} von {{count}} Feld stimmt überein",
+    "fieldsMatch_other": "{{matched}} von {{count}} Feldern stimmen überein",
+    "columnField": "Feld",
+    "columnOutput": "Ausgabe",
+    "columnExpected": "erwartet (aus {{key}})",
+    "same": "gleich",
+    "differs": "abweichend",
+    "match": "Stimmt überein",
+    "mismatch": "Weicht ab",
+    "missing": "Fehlt"
 }

@@ -563,6 +563,7 @@ export const ActivityTimeline = ({
                                     part={step.part}
                                     files={step.files}
                                     live={liveTail && i === steps.length - 1}
+                                    durationMs={step.durationMs}
                                 />
                             )}
                         </StepReveal>

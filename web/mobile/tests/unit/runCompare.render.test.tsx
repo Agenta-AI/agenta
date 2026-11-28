@@ -700,7 +700,11 @@ describe("compared scenario drawer", () => {
             focusRunId: verbose,
         })
         const drawer = () => document.querySelector<HTMLElement>('[role="dialog"]')
-        await until(() => Boolean(drawer()?.textContent?.includes("false")), "drawer shown")
+        // Text that every drawer version shows for this scenario of the compared run.
+        await until(() => {
+            const text = drawer()?.textContent ?? ""
+            return text.includes("Test case of Capitals: verbose") && text.includes("France")
+        }, "drawer shown")
         expect(drawer()?.textContent).toContain("France")
         expect(drawer()?.textContent).toContain("Test case of Capitals: verbose")
 
