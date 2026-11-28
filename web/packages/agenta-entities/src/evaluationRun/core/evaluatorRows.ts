@@ -13,6 +13,9 @@ import {
     isAggregatableMetric,
     isBooleanMetricStats,
     normalizeMetricStats,
+    roundCost,
+    roundDuration,
+    roundTokens,
     type MetricStats,
 } from "./metricStats"
 
@@ -357,6 +360,8 @@ export interface RunTile {
      * `notRun` detail holds the count that ran; the view writes "{ran} of {total}".
      */
     value: string
+    /** The number behind `value` (a share of 0 to 1 for "Passed"); null when there is none. */
+    amount: number | null
     detail: RunTileDetail | null
     /** The "Passed" tile only: true binary values over all binary values of the run. */
     assertions: {passed: number; total: number} | null
@@ -392,7 +397,13 @@ const totalOf = (stats: MetricStats) =>
     stats.sum ??
     (stats.mean !== undefined && stats.count !== undefined ? stats.mean * stats.count : undefined)
 
-const percent = (part: number, whole: number) => `${Math.round((part / whole) * 100)}%`
+/**
+ * A share of 0 to 1 in whole percents, rounded as `Intl.NumberFormat` rounds the shown percent:
+ * 23 of 40 is 57.5% (not the float 57.49999…), so 58.
+ */
+const wholePercent = (share: number) => Math.round(Number((share * 100).toPrecision(12)))
+
+const percent = (part: number, whole: number) => `${wholePercent(part / whole)}%`
 
 /**
  * The tiles in order: test cases, passed, cost, duration, tokens, errors. No "Passed" tile when
@@ -425,9 +436,11 @@ export function runTiles({
         detail: RunTileDetail | null,
     ): RunTile => {
         const stats = statsOf(id === "testCases" ? "duration" : id)
+        const amount = stats ? pick(stats) : undefined
         return {
             id,
-            value: show(stats ? pick(stats) : undefined, format, Boolean(stats)),
+            value: show(amount, format, Boolean(stats)),
+            amount: amount ?? null,
             detail,
             assertions: null,
         }
@@ -442,6 +455,7 @@ export function runTiles({
             ? {
                   id: "testCases" as const,
                   value: String(failures.total - notRun),
+                  amount: failures.total - notRun,
                   detail: {kind: "notRun", count: notRun, total: failures.total} as const,
                   assertions: null,
               }
@@ -468,6 +482,8 @@ export function runTiles({
                     : passed.status === "ready" && passed.total > 0
                       ? percent(passed.passed, passed.total)
                       : TILE_MISSING,
+            amount:
+                passed.status === "ready" && passed.total > 0 ? passed.passed / passed.total : null,
             detail:
                 passed.status === "ready" && passed.total > 0
                     ? {
@@ -480,6 +496,7 @@ export function runTiles({
             assertions: values > 0 ? {passed: truths, total: values} : null,
         })
     }
+    const runErrors = tile("errors", totalOf, whole, {kind: "total"})
     tiles.push(
         tile("cost", meanOf, formatCost, average),
         tile("duration", meanOf, formatDuration, average),
@@ -488,10 +505,259 @@ export function runTiles({
             ? {
                   id: "errors",
                   value: String(failedCases),
+                  amount: failedCases,
                   detail: {kind: "errorsSplit", runs: notRun, evaluator: failures.evaluatorFailed},
                   assertions: null,
               }
-            : tile("errors", totalOf, whole, {kind: "total"}),
+            : // With the per-test-case rows, Errors counts failed test cases, 0 included. The trace
+              // errors total also counts errors the application recovered from, so two runs would
+              // count different things. Tracing writes no errors metric for a run without errors.
+              failures && failures.total > 0
+              ? {...runErrors, value: "0", amount: 0}
+              : runErrors,
     )
     return tiles
+}
+
+// ============================================================================
+// COMPARE
+// ============================================================================
+
+/** The two compared runs the change reads, as column indexes. */
+export interface CompareRoles {
+    newest: number
+    before: number
+}
+
+/**
+ * The run with the latest `createdAt` and the run created just before it. Runs created at the
+ * same time keep their column order (the later column counts as newer). Null with fewer than two
+ * runs that have a date.
+ */
+export function compareRoles(
+    createdAts: readonly (string | null | undefined)[],
+): CompareRoles | null {
+    const dated = createdAts
+        .map((createdAt, index) => ({index, time: createdAt ? Date.parse(createdAt) : NaN}))
+        .filter(({time}) => Number.isFinite(time))
+        .sort((a, b) => b.time - a.time || b.index - a.index)
+    return dated.length >= 2 ? {newest: dated[0].index, before: dated[1].index} : null
+}
+
+/**
+ * How a value is shown, so a change is read from the shown values: `rate` is a share of 0 to 1
+ * shown in whole percents, `unit` a value on 0 to 1 with 2 decimals, `number` any other value with
+ * 3 significant digits, and the tile scales in each tile's own format.
+ */
+export type CompareScale = "rate" | "unit" | "number" | "count" | "cost" | "duration" | "tokens"
+
+/** The change of the newest run against the run before it, after rounding. */
+export type CompareChange =
+    | {kind: "missing"}
+    | {kind: "none"}
+    | {kind: "points"; points: number}
+    | {kind: "difference"; delta: number}
+
+const round3Sig = (value: number) => Number(value.toPrecision(3))
+const roundTo = (value: number, digits: number) => Number(value.toFixed(digits))
+
+/** Each scale's value as its cell prints it (`percent`, `formatMean`, `format3Sig`, `formatCost`, ...). */
+const SHOWN: Record<CompareScale, (value: number) => number> = {
+    rate: wholePercent,
+    unit: (value) => roundTo(value, 2),
+    number: round3Sig,
+    count: Math.round,
+    cost: roundCost,
+    duration: roundDuration,
+    tokens: roundTokens,
+}
+
+/**
+ * `newest` against `before`, from the values as they are shown, so the change always matches
+ * them: pass rates in points (the difference of the rounded percents), other values as the
+ * difference of the rounded values. "none" when the shown values are equal; "missing" when
+ * either value is not there.
+ */
+export function compareChange(
+    newest: number | null | undefined,
+    before: number | null | undefined,
+    scale: CompareScale,
+): CompareChange {
+    if (
+        typeof newest !== "number" ||
+        typeof before !== "number" ||
+        !Number.isFinite(newest) ||
+        !Number.isFinite(before)
+    ) {
+        return {kind: "missing"}
+    }
+    // 12 significant digits drop the float noise of the subtraction (0.35 - 0.33).
+    const delta = Number((SHOWN[scale](newest) - SHOWN[scale](before)).toPrecision(12))
+    if (delta === 0) return {kind: "none"}
+    return scale === "rate" ? {kind: "points", points: delta} : {kind: "difference", delta}
+}
+
+/** A difference with its sign: "+0.12", "−0.08" (a minus sign, not a hyphen). */
+export function formatSigned(delta: number, format: (value: number) => string): string {
+    return `${delta > 0 ? "+" : "−"}${format(Math.abs(delta))}`
+}
+
+const TILE_FORMAT: Record<RunTileId, (value: number) => string> = {
+    testCases: (value) => String(Math.round(value)),
+    passed: (value) => percent(value, 1),
+    cost: formatCost,
+    duration: formatDuration,
+    tokens: formatTokens,
+    errors: (value) => String(Math.round(value)),
+}
+
+/** A tile value in the tile's own format, for example a cost difference as "$0.002". */
+export const formatTileAmount = (id: RunTileId, value: number) => TILE_FORMAT[id](value)
+
+/**
+ * One row of the compare summary: the tile of each run and the change. A tile is "loading" while
+ * its run loads, and null when the loaded run has no such tile (no "Passed" without a binary
+ * metric).
+ */
+export interface CompareSummaryRow {
+    id: RunTileId
+    tiles: (RunTile | "loading" | null)[]
+    change: CompareChange
+}
+
+const TILE_SCALE: Record<RunTileId, CompareScale> = {
+    testCases: "count",
+    passed: "rate",
+    cost: "cost",
+    duration: "duration",
+    tokens: "tokens",
+    errors: "count",
+}
+
+const TILE_ORDER: RunTileId[] = ["testCases", "passed", "cost", "duration", "tokens", "errors"]
+
+/**
+ * The tiles of every compared run as rows, in tile order. A row no run has (no "Passed" without a
+ * binary metric) is left out.
+ */
+export function buildCompareSummaryRows(
+    tilesByRun: readonly (readonly RunTile[] | null)[],
+    roles: CompareRoles | null,
+): CompareSummaryRow[] {
+    return TILE_ORDER.flatMap((id) => {
+        const tiles = tilesByRun.map((tiles) =>
+            tiles ? (tiles.find((tile) => tile.id === id) ?? null) : ("loading" as const),
+        )
+        if (!tiles.some((tile) => tile !== null && tile !== "loading")) return []
+        const amountOf = (index: number) => {
+            const tile = tiles[index]
+            return tile && tile !== "loading" ? tile.amount : undefined
+        }
+        const change = roles
+            ? compareChange(amountOf(roles.newest), amountOf(roles.before), TILE_SCALE[id])
+            : ({kind: "missing"} as const)
+        return [{id, tiles, change}]
+    })
+}
+
+/** One metric of a compare row: the stats of each run in column order, and the change. */
+export interface CompareRowMetric {
+    /** The same in every run (`compareMetricKey`), with the kind added when it differs by run. */
+    id: string
+    label: string
+    kind: MetricKind
+    /** A numeric metric whose values are on 0 to 1 in every run that has it. */
+    unitScale: boolean
+    /** One per run; null when that run has no value for the metric. */
+    stats: (MetricStats | null)[]
+    /** Null for a categorical metric: it has no change. */
+    change: CompareChange | null
+}
+
+/** One evaluator of the compared runs, with every metric any run reports. */
+export interface CompareEvaluatorRow {
+    /** The evaluator id, else the step key. */
+    key: string
+    name: string
+    metrics: CompareRowMetric[]
+}
+
+/** The value a change reads: the pass rate of a binary metric, the mean of a numeric one. */
+function compareMetricValue(kind: MetricKind, stats: MetricStats | null): number | null {
+    if (kind === "binary") return chartValue(stats)
+    return kind === "numeric" ? (stats?.mean ?? null) : null
+}
+
+/**
+ * One row per evaluator over every compared run, matched by evaluator, and inside it every metric
+ * any run reports, matched by metric id. Rows and metrics keep the order they first appear in,
+ * page run first; metrics are then ordered by kind and label as in one run. Two steps of one
+ * evaluator in one run share a row.
+ */
+export function buildCompareEvaluatorRows(
+    rowsByRun: readonly (readonly EvaluatorRow[])[],
+    roles: CompareRoles | null,
+): CompareEvaluatorRow[] {
+    // Each metric keeps its first entry (one with a value, if any) and one stats per run.
+    const order: {
+        key: string
+        name: string
+        metrics: Map<string, {metric: EvaluatorRowMetric; stats: (MetricStats | null)[]}>
+    }[] = []
+    rowsByRun.forEach((rows, runIndex) => {
+        for (const row of rows) {
+            const key = row.evaluatorId ?? row.stepKey
+            let entry = order.find((candidate) => candidate.key === key)
+            if (!entry) {
+                entry = {key, name: row.name, metrics: new Map()}
+                order.push(entry)
+            }
+            for (const metric of row.metrics) {
+                // A metric whose type changed between evaluator versions is a line per type.
+                const metricKey = `${metric.id}:${metric.kind}`
+                let known = entry.metrics.get(metricKey)
+                if (!known) {
+                    known = {metric, stats: rowsByRun.map(() => null)}
+                    entry.metrics.set(metricKey, known)
+                }
+                if (!known.metric.stats && metric.stats) known.metric = metric
+                known.stats[runIndex] ??= metric.stats
+            }
+        }
+    })
+
+    return order.map(({key, name, metrics}) => ({
+        key,
+        name,
+        metrics: [...metrics.values()]
+            .map(({metric, stats}, _, all): CompareRowMetric => {
+                const present = stats.filter((value): value is MetricStats => value !== null)
+                const unitScale =
+                    metric.kind === "numeric" && present.length > 0 && present.every(isUnitScale)
+                const change =
+                    metric.kind === "categorical"
+                        ? null
+                        : roles
+                          ? compareChange(
+                                compareMetricValue(metric.kind, stats[roles.newest]),
+                                compareMetricValue(metric.kind, stats[roles.before]),
+                                metric.kind === "binary" ? "rate" : unitScale ? "unit" : "number",
+                            )
+                          : {kind: "missing" as const}
+                const typeChanged = all.some(
+                    (other) => other.metric.id === metric.id && other.metric.kind !== metric.kind,
+                )
+                return {
+                    id: typeChanged ? `${metric.id}:${metric.kind}` : metric.id,
+                    label: metric.label,
+                    kind: metric.kind,
+                    unitScale,
+                    stats,
+                    change,
+                }
+            })
+            .sort(
+                (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.label.localeCompare(b.label),
+            ),
+    }))
 }

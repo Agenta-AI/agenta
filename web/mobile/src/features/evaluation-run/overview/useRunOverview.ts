@@ -15,6 +15,8 @@ import {atom, useAtomValue} from "jotai"
 
 import {metricDisplayLabel} from "../metricLabel"
 
+import {scenarioMetricsStateOf} from "./runOverviewModel"
+
 /** A catalog entry with the evaluator's display name resolved. */
 export interface OverviewMetric extends RunMetricEntry {
     /** The evaluator's name, else its slug; null for invocation metrics. */
@@ -123,11 +125,11 @@ export function useRunOverview(runId: string) {
         }
     }, [scenarioQuery.isError, scenarioQuery.error])
 
-    const scenarioMetrics: ScenarioMetricsState = scenarioQuery.isSuccess
-        ? {status: "ready", ...scenarioQuery.data}
-        : scenarioQuery.fetchStatus === "fetching"
-          ? {status: "pending"}
-          : {status: "unavailable"}
+    const {isSuccess, data, fetchStatus} = scenarioQuery
+    const scenarioMetrics = useMemo(
+        () => scenarioMetricsStateOf({isSuccess, data, fetchStatus}),
+        [isSuccess, data, fetchStatus],
+    )
 
     return {
         references,

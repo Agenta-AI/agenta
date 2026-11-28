@@ -6,11 +6,6 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {EvaluatorResultsSection} from "@/features/evaluation-run/overview/EvaluatorResultsSection"
-import {
-    RunRadarCard,
-    showsRadar,
-    useRunRadar,
-} from "@/features/evaluation-run/overview/RunRadarCard"
 import type {OverviewMetric} from "@/features/evaluation-run/overview/useRunOverview"
 
 import {
@@ -78,33 +73,7 @@ afterEach(() => {
     host.remove()
 })
 
-describe("overview states, radar and charts over time", () => {
-    it("The overview shows a radar only with three axes or more, or while metrics load", () => {
-        // Fewer axes: the summary takes the card's width and the metric cards carry the scores.
-        expect(showsRadar(1, false)).toBe(false)
-        expect(showsRadar(2, true)).toBe(false)
-        expect(showsRadar(0, false)).toBe(false)
-        expect(showsRadar(0, true)).toBe(true)
-        expect(showsRadar(3, false)).toBe(true)
-    })
-
-    it("Three radar axes draw the run's radar", () => {
-        const runs = [
-            {
-                id: RUN_ID,
-                name: "Capitals check",
-                metrics: [
-                    evaluatorMetric("attributes.ag.data.outputs.score", NUMERIC),
-                    invocationMetric("duration", {mean: 1, max: 2}),
-                    invocationMetric("cost", {mean: 0.001, max: 0.002}),
-                ],
-            },
-        ]
-        const Probe = () => createElement(RunRadarCard, {runs, radar: useRunRadar(runs)})
-        render(createElement(Probe))
-        expect(host.querySelector("svg")?.getAttribute("aria-label")).toContain("Capitals check")
-    })
-
+describe("overview states and charts over time", () => {
     it("A metrics load error shows the alert without the raw error text", () => {
         const log = vi.spyOn(console, "error").mockImplementation(() => undefined)
         render(

@@ -1,64 +1,158 @@
+import {
+    formatTileAmount,
+    TILE_MISSING,
+    TILE_PENDING,
+    type CompareSummaryRow,
+    type RunTileId,
+} from "@agenta/entities/evaluationRun"
+import {useT} from "@agenta/i18n"
+import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
+
+import {isFailureDetail, useRunTileText} from "../../overview/RunMetaTiles"
 import {compareColor} from "../compareColor"
 
-import type {CompareSummaryRow} from "./compareSummaryRows"
+import {useChangeText} from "./useChangeText"
 
-/** The run facts of every compared run: one column per run, headed by its name in its color. */
+/** A compared run's column: its color, its name, and its part in the change, if any. */
+export interface CompareColumn {
+    runId: string
+    slot: number
+    name: string
+    role: "newest" | "before" | null
+}
+
+const LABEL_KEY = {
+    testCases: "evaluations.runOverview.testCases",
+    passed: "evaluations.runOverview.passed",
+    cost: "evaluations.runOverview.costPerTestCase",
+    duration: "evaluations.runOverview.durationPerTestCase",
+    tokens: "evaluations.runOverview.tokensPerTestCase",
+    errors: "evaluations.runOverview.errors",
+} as const satisfies Record<RunTileId, string>
+
+/** The color square of a run, before its name or its line. */
+export const RunSwatch = ({slot}: {slot: number}) => (
+    <span
+        aria-hidden
+        className="size-2 shrink-0 rounded-xs"
+        style={{backgroundColor: compareColor(slot)}}
+    />
+)
+
+/**
+ * The tiles of every compared run side by side: one column per run with the tile's value and
+ * lines, and the change of the newest run against the run before it.
+ */
 export const CompareSummaryTable = ({
-    runs,
+    columns,
     rows,
 }: {
-    runs: readonly {runId: string; slot: number; name: string}[]
+    columns: readonly CompareColumn[]
     rows: readonly CompareSummaryRow[]
-}) => (
-    <div className="min-w-0 overflow-x-auto">
-        <table className="w-full border-collapse text-left text-body">
-            <thead>
-                <tr className="border-0 border-b border-solid border-border">
-                    <th scope="col" className="py-2 pr-3 font-normal text-muted-foreground">
-                        <span className="sr-only">Field</span>
-                    </th>
-                    {runs.map((run) => (
-                        <th
-                            key={run.runId}
-                            scope="col"
-                            className="min-w-35 py-2 pr-3 font-medium text-foreground"
-                        >
-                            <span className="flex items-center gap-1.5">
-                                <span
-                                    aria-hidden
-                                    className="size-2 shrink-0 rounded-xs"
-                                    style={{backgroundColor: compareColor(run.slot)}}
-                                />
-                                <span className="truncate">{run.name}</span>
-                            </span>
-                        </th>
-                    ))}
-                </tr>
-            </thead>
-            <tbody>
-                {rows.map((row) => (
-                    <tr
-                        key={row.key}
-                        data-testid={`compare-summary-${row.key}`}
-                        className="border-0 border-b border-solid border-border last:border-b-0"
-                    >
-                        <th
-                            scope="row"
-                            className="w-[30%] min-w-35 py-2 pr-3 align-top font-normal text-muted-foreground"
-                        >
-                            {row.label}
-                        </th>
-                        {row.values.map((value, index) => (
-                            <td
-                                key={runs[index]?.runId ?? index}
-                                className="break-words py-2 pr-3 align-top text-foreground"
+}) => {
+    const t = useT(runOverviewCatalog)
+    const {value: tileValue, detail, assertions} = useRunTileText(false)
+    const changeText = useChangeText()
+
+    return (
+        <section className="flex flex-col gap-2">
+            <div className="box-border min-w-0 overflow-x-auto rounded-lg border border-solid border-border">
+                <table className="w-full border-collapse text-left text-body">
+                    <thead>
+                        <tr className="bg-muted text-meta text-muted-foreground">
+                            <th scope="col" className="px-3 py-2 font-normal">
+                                {t("evaluations.runOverview.summary")}
+                            </th>
+                            {columns.map((column) => (
+                                <th
+                                    key={column.runId}
+                                    scope="col"
+                                    className="px-3 py-2 font-normal"
+                                >
+                                    <span className="flex min-w-0 items-center gap-1.5">
+                                        <RunSwatch slot={column.slot} />
+                                        <span className="truncate text-foreground">
+                                            {column.name}
+                                        </span>
+                                        {column.role ? (
+                                            <span className="shrink-0">
+                                                {t(`evaluations.runOverview.${column.role}`)}
+                                            </span>
+                                        ) : null}
+                                    </span>
+                                </th>
+                            ))}
+                            <th scope="col" className="px-3 py-2 text-right font-normal">
+                                {t("evaluations.runOverview.change")}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row) => (
+                            <tr
+                                key={row.id}
+                                data-testid={`compare-summary-${row.id}`}
+                                className="border-0 border-t border-solid border-border-muted"
                             >
-                                {value}
-                            </td>
+                                <th
+                                    scope="row"
+                                    className="min-w-35 px-3 py-2 align-top text-label font-normal text-foreground"
+                                >
+                                    {t(LABEL_KEY[row.id])}
+                                </th>
+                                {row.tiles.map((cell, index) => {
+                                    const tile = cell === "loading" ? null : cell
+                                    const value =
+                                        cell === "loading"
+                                            ? TILE_PENDING
+                                            : tile
+                                              ? tileValue(tile)
+                                              : TILE_MISSING
+                                    return (
+                                        <td
+                                            key={columns[index]?.runId ?? index}
+                                            className="min-w-30 px-3 py-2 align-top"
+                                        >
+                                            <span className="flex flex-col">
+                                                <span className="tabular-nums text-foreground">
+                                                    {value}
+                                                </span>
+                                                {tile?.detail ? (
+                                                    <span
+                                                        className={`text-meta ${
+                                                            isFailureDetail(tile.detail)
+                                                                ? "text-destructive"
+                                                                : "text-muted-foreground"
+                                                        }`}
+                                                    >
+                                                        {detail(tile.detail)}
+                                                    </span>
+                                                ) : null}
+                                                {tile?.assertions ? (
+                                                    <span className="text-caption text-muted-foreground">
+                                                        {assertions(tile)}
+                                                    </span>
+                                                ) : null}
+                                            </span>
+                                        </td>
+                                    )
+                                })}
+                                <td
+                                    data-testid="compare-change"
+                                    className="px-3 py-2 text-right align-top tabular-nums text-muted-foreground"
+                                >
+                                    {changeText(row.change, (value) =>
+                                        formatTileAmount(row.id, value),
+                                    )}
+                                </td>
+                            </tr>
                         ))}
-                    </tr>
-                ))}
-            </tbody>
-        </table>
-    </div>
-)
+                    </tbody>
+                </table>
+            </div>
+            <p className="m-0 text-meta text-muted-foreground">
+                {t("evaluations.runOverview.changeNote")}
+            </p>
+        </section>
+    )
+}

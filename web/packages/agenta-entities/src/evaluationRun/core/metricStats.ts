@@ -8,8 +8,6 @@
  * @packageDocumentation
  */
 
-import type {RadarAxis} from "@agenta/ui/components/presentational/charts"
-
 export interface MetricFrequency {
     value: unknown
     count: number
@@ -176,17 +174,6 @@ export interface MetricBar {
     value: number
 }
 
-/**
- * Histogram rows. Each label comes from its own bin's interval, so a bin the API left out (an
- * empty one) does not shift the labels of the bins after it.
- */
-export function histogramBars(stats: MetricStats | null | undefined): MetricBar[] {
-    return (stats?.distribution ?? []).map(({interval: [from, to], count}) => ({
-        category: from === to ? format3Sig(from) : `${format3Sig(from)}–${format3Sig(to)}`,
-        value: count,
-    }))
-}
-
 const frequencyLabel = (value: unknown): string => {
     if (value === true) return "true"
     if (value === false) return "false"
@@ -209,90 +196,25 @@ export function frequencyBars(stats: MetricStats | null | undefined, limit?: num
         .map((item) => ({category: frequencyLabel(item.value), value: item.count}))
 }
 
-/** One metric of one run, as the radar reads it. */
-export interface RadarMetricInput {
-    /** Same id across runs: the axis key. */
-    id: string
-    kind: "evaluator" | "invocation"
-    /** Axis title, for example "Exact match: success" or "Duration". */
-    name: string
-    stats: MetricStats | null
-}
-
-/** The invocation axes the radar adds, in order, when there are fewer than 3 evaluator axes. */
-export const RADAR_FALLBACK_INVOCATION_IDS = ["duration", "cost"] as const
-
-/**
- * Radar axes over the runs in `runIds` (the series keys). Evaluator axes come first; Duration and
- * Cost invocation axes are added when there are fewer than 3 evaluator axes. A boolean axis has a
- * max of 100; a numeric axis has the largest `max` over the runs, else `max(mean, 1)`. A run with
- * no value on an axis gets null, not 0.
- */
-export function radarAxes(
-    metricsByRun: Readonly<Record<string, readonly RadarMetricInput[]>>,
-    runIds: readonly string[],
-): RadarAxis[] {
-    const order: RadarMetricInput[] = []
-    const seen = new Set<string>()
-    for (const runId of runIds) {
-        for (const metric of metricsByRun[runId] ?? []) {
-            if (seen.has(metric.id)) continue
-            seen.add(metric.id)
-            order.push(metric)
-        }
-    }
-    const toAxis = (axisMetric: RadarMetricInput): RadarAxis | null => {
-        const statsByRun = runIds.map(
-            (runId) =>
-                (metricsByRun[runId] ?? []).find((metric) => metric.id === axisMetric.id)?.stats ??
-                null,
-        )
-        const isBoolean = statsByRun.some((stats) => isBooleanMetricStats(stats))
-        const rawByRun = statsByRun.map((stats) =>
-            isBoolean ? booleanTruePercent(stats) : (metricSummary(stats)?.value ?? null),
-        )
-        if (rawByRun.every((raw) => raw === null)) return null
-
-        let max = 100
-        if (!isBoolean) {
-            const maxes = statsByRun.flatMap((stats) =>
-                stats?.max !== undefined ? [stats.max] : [],
-            )
-            const means = rawByRun.flatMap((raw) => (raw === null ? [] : [raw]))
-            max = maxes.length ? Math.max(...maxes) : Math.max(...means, 1)
-            if (max <= 0) max = 1
-        }
-
-        const values: Record<string, {normalized: number; raw: number} | null> = {}
-        runIds.forEach((runId, index) => {
-            const raw = rawByRun[index]
-            values[runId] =
-                raw === null ? null : {raw, normalized: Math.min(Math.max(raw / max, 0), 1)}
-        })
-        return {name: axisMetric.name, max, values}
-    }
-
-    // Count only axes that carry a value: a categorical metric draws no axis, so it must not
-    // keep the invocation axes out.
-    const evaluatorAxes = order
-        .filter((metric) => metric.kind === "evaluator")
-        .flatMap((metric) => toAxis(metric) ?? [])
-    if (evaluatorAxes.length >= 3) return evaluatorAxes
-    const invocationAxes = RADAR_FALLBACK_INVOCATION_IDS.flatMap((id) =>
-        order.filter((metric) => metric.kind === "invocation" && metric.id === id),
-    ).flatMap((metric) => toAxis(metric) ?? [])
-    return [...evaluatorAxes, ...invocationAxes]
-}
-
 /** USD. 2 decimals from $1, else 3 significant digits ("$0.000123"). */
+const costDigits = (value: number) =>
+    Math.abs(value) >= 1 || value === 0
+        ? {minimumFractionDigits: 2, maximumFractionDigits: 2}
+        : {maximumSignificantDigits: 3}
+
 export function formatCost(value: number): string {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
-        ...(Math.abs(value) >= 1 || value === 0
-            ? {minimumFractionDigits: 2, maximumFractionDigits: 2}
-            : {maximumSignificantDigits: 3}),
+        ...costDigits(value),
     }).format(value)
+}
+
+/** A cost rounded as {@link formatCost} prints it, by the same `Intl` rounding. */
+export function roundCost(value: number): number {
+    return Number(
+        new Intl.NumberFormat("en-US", {useGrouping: false, ...costDigits(value)}).format(value),
+    )
 }
 
 /**
@@ -304,10 +226,24 @@ export function formatDuration(milliseconds: number): string {
     return `${(milliseconds / 1000).toFixed(2)} s`
 }
 
+/** A duration in milliseconds rounded as {@link formatDuration} prints it. */
+export function roundDuration(milliseconds: number): number {
+    if (Math.abs(milliseconds) < 1000) return Math.round(milliseconds)
+    return Number((milliseconds / 1000).toFixed(2)) * 1000
+}
+
 /** "950", "12.3K", "4.5M". */
 export function formatTokens(value: number): string {
     const abs = Math.abs(value)
     if (abs >= 1_000_000) return `${format3Sig(value / 1_000_000)}M`
     if (abs >= 1_000) return `${format3Sig(value / 1_000)}K`
     return String(Math.round(value))
+}
+
+/** A token count rounded as {@link formatTokens} prints it. */
+export function roundTokens(value: number): number {
+    const abs = Math.abs(value)
+    if (abs >= 1_000_000) return Number((value / 1_000_000).toPrecision(3)) * 1_000_000
+    if (abs >= 1_000) return Number((value / 1_000).toPrecision(3)) * 1_000
+    return Math.round(value)
 }
