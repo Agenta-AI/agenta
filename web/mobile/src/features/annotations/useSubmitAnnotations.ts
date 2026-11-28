@@ -1,6 +1,7 @@
 import {useCallback} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
+import {runHeaderAtomFamily} from "@agenta/entities/evaluationRun"
 import {useT} from "@agenta/i18n"
 import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {message} from "@agenta/ui/app-message"
@@ -35,6 +36,7 @@ export const useSubmitAnnotations = (
     const runId = "runId" in scope ? scope.runId : undefined
     const statuses = useAtomValue(annotationSessionController.selectors.scenarioStatuses())
     const isCompleted = Boolean(queueId) && statuses[scenarioId] === "success"
+    const runKind = useAtomValue(runHeaderAtomFamily(runId ?? ""))?.kind
     const isSubmitting = useAtomValue(annotationFormController.selectors.isSubmitting(scenarioId))
     const hasFilledMetrics = useAtomValue(
         annotationFormController.selectors.hasFilledMetrics(scenarioId),
@@ -64,9 +66,10 @@ export const useSubmitAnnotations = (
             await submitAnnotations({
                 scenarioId,
                 queueId,
-                // Always true in a run (no completed state there): each save sets the scenario
-                // to success and checks whether the run is done.
-                markComplete: !isCompleted,
+                // In a human run the scenario status means "annotated", so a save sets it to
+                // success and checks whether the run is done. In any other run the status is the
+                // app call's result, which a save must not change.
+                markComplete: runId ? runKind === "human" : !isCompleted,
             })
         } catch (cause) {
             console.error("Saving the annotations failed", cause)
@@ -81,7 +84,7 @@ export const useSubmitAnnotations = (
                   : "Item marked completed",
         )
         onSaved?.({scenarioId, replacedTraceIds})
-    }, [store, submitAnnotations, scenarioId, queueId, runId, isCompleted, onSaved])
+    }, [store, submitAnnotations, scenarioId, queueId, runId, runKind, isCompleted, onSaved])
 
     return {
         submit,
