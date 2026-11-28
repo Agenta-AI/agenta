@@ -22,13 +22,13 @@ import {
 } from "@agenta/entities/simpleQueue"
 import type {SimpleQueueKind} from "@agenta/entities/simpleQueue"
 import {useEntityDelete} from "@agenta/entity-ui"
-import {copyToClipboard} from "@agenta/ui"
 import {
     InfiniteVirtualTableFeatureShell,
     useTableManager,
     createStandardColumns,
     FiltersPopoverTrigger,
 } from "@agenta/ui/table"
+import {copyToClipboard} from "@agenta/ui/utils"
 import {ArrowRight, Copy, PlusIcon, Trash} from "@phosphor-icons/react"
 import {Button, Divider, Input, Select, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"

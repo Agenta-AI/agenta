@@ -9,7 +9,7 @@ import {
     restartSystemBack,
     useSystemBack,
     type SystemBackRank,
-} from "../../src/view-stack/systemBack"
+} from "../../src/shell/view-stack/systemBack"
 
 /** A level that is open until its back says it may close. */
 const Level = ({

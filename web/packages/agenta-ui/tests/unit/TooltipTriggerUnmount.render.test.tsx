@@ -4,16 +4,16 @@ import {useState} from "react"
 import {act, cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {SimpleTooltip} from "../../src/components/composed/simple-tooltip"
-import {Button} from "../../src/components/ui/button"
+import {SimpleTooltip} from "../../src/composed/feedback/simple-tooltip"
+import TableSettingsDropdown from "../../src/data/infinite-virtual-table/components/columnVisibility/TableSettingsDropdown"
+import type {ColumnVisibilityState} from "../../src/data/infinite-virtual-table/types"
+import {Button} from "../../src/primitives/button"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuTrigger,
-} from "../../src/components/ui/dropdown-menu"
-import {Popover, PopoverContent, PopoverTrigger} from "../../src/components/ui/popover"
-import TableSettingsDropdown from "../../src/InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown"
-import type {ColumnVisibilityState} from "../../src/InfiniteVirtualTable/types"
+} from "../../src/primitives/dropdown-menu"
+import {Popover, PopoverContent, PopoverTrigger} from "../../src/primitives/popover"
 
 /**
  * `/evaluations` died with "Maximum update depth exceeded" whose stack bottomed out in

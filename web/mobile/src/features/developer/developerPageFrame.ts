@@ -1,5 +1,5 @@
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {pageContentWidthClass} from "@agenta/ui/layout"
 import {useAtomValue} from "jotai"
 
 import type {PageWidth} from "../page-layout/pageFrame"

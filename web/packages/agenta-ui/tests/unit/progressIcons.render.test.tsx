@@ -2,7 +2,7 @@
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {Progress} from "../../src/components/ui/progress"
+import {Progress} from "../../src/primitives/progress"
 
 /**
  * The status glyphs come from Phosphor, not @ant-design/icons, so the presentational barrel does

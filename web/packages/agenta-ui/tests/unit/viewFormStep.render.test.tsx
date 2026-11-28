@@ -14,7 +14,7 @@ import {
     ViewStackHost,
     type ViewDef,
     type ViewForm,
-} from "../../src/view-stack"
+} from "../../src/shell/view-stack"
 
 type Extra = Pick<ViewForm, "actionRow" | "cancel" | "back" | "backTitle">
 

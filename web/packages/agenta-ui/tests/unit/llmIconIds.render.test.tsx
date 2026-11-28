@@ -2,8 +2,8 @@
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import Bedrock from "../../src/LLMIcons/assets/Bedrock"
-import Sagemaker from "../../src/LLMIcons/assets/Sagemaker"
+import Bedrock from "../../src/icons/llm-icons/assets/Bedrock"
+import Sagemaker from "../../src/icons/llm-icons/assets/Sagemaker"
 
 afterEach(cleanup)
 

@@ -28,13 +28,13 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
 - Never copy component source from the shadcn website by hand; the CLI resolves
   the Tailwind v4 variant correctly.
 - Installing a shadcn component that references a new theme variable (e.g. `chart-*`)
-  requires adding it to `web/packages/agenta-ui/src/design/theme.config.ts` (a color, or a
+  requires adding it to `web/packages/agenta-ui/src/foundation/design/theme.config.ts` (a color, or a
   `colorAliases` entry) and running `pnpm --filter @agenta/ui generate:theme` first — Tailwind v4
   silently generates nothing for an unmapped name.
 
 ## Theme and design rules
 
-Not here. Values and rules live in `web/packages/agenta-ui/src/design/` (`theme.config.ts`, `rules.json`),
+Not here. Values and rules live in `web/packages/agenta-ui/src/foundation/design/` (`theme.config.ts`, `rules.json`),
 and the principles and the layout in `web/DESIGN.md`.
 
 ## Extending components

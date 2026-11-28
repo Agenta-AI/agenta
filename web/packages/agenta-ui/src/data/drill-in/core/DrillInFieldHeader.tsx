@@ -1,0 +1,633 @@
+/**
+ * DrillInFieldHeader
+ *
+ * Reusable field header component for drill-in views.
+ * Displays field name, controls for collapse/expand, raw mode toggle,
+ * copy, delete, and column mapping.
+ *
+ * The showMessage function is injectable for clipboard notifications.
+ */
+
+import {memo, useCallback, useState, type ReactNode} from "react"
+
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
+import drillInButtonCatalog from "@agenta/i18n/catalogs/ui.drillInButton"
+import {
+    CaretRight,
+    Check,
+    Code,
+    Copy,
+    MapPin,
+    MapPinSimple,
+    TextAa,
+    Trash,
+    X,
+} from "@phosphor-icons/react"
+
+import {CollapseCaret} from "../../../primitives/collapse-caret"
+import type {FieldHeaderVariant, FieldViewModeOption, ViewMode} from "../coreTypes"
+
+import {ViewModeDropdown} from "./ViewModeDropdown"
+
+export interface DrillInFieldHeaderProps {
+    /**
+     * Visual variant. Defaults to "card" (legacy grey-card chrome with full
+     * control set). "flat" renders a white row with bottom-divider chrome and
+     * hides the copy/raw/markdown/drill-in controls (Proposal V2 testcase).
+     */
+    variant?: FieldHeaderVariant
+    /** Field name to display */
+    name: string
+    /** Field value (for copy functionality) */
+    value: unknown
+    /** Whether the field is collapsed */
+    isCollapsed: boolean
+    /** Callback when collapse toggle is clicked */
+    onToggleCollapse: () => void
+    /** Item count string (e.g., "5 items" or "3 properties") */
+    itemCount?: string
+    /** Whether the field can be drilled into */
+    expandable?: boolean
+    /** Callback when drill in is clicked */
+    onDrillIn?: () => void
+    /** Whether raw mode toggle should be shown */
+    showRawToggle?: boolean
+    /** Whether raw mode is active */
+    isRawMode?: boolean
+    /** Callback when raw mode is toggled */
+    onToggleRawMode?: () => void
+    /** Whether delete button should be shown */
+    showDelete?: boolean
+    /** Callback when delete is clicked */
+    onDelete?: () => void
+    /** Whether to always show copy button (vs only when collapsed/expandable) */
+    alwaysShowCopy?: boolean
+    /** Column options for mapping dropdown */
+    columnOptions?: {value: string; label: string}[]
+    /** Callback when user selects a column to map to */
+    onMapToColumn?: (column: string) => void
+    /** Callback when user wants to remove the mapping */
+    onUnmap?: () => void
+    /** Whether the field is already mapped */
+    isMapped?: boolean
+    /** The column name this field is mapped to (for display) */
+    mappedColumn?: string
+    /** Number of nested paths that are mapped (for parent objects) */
+    nestedMappingCount?: number
+    /** Whether markdown toggle should be shown */
+    showMarkdownToggle?: boolean
+    /** Whether markdown view is active */
+    isMarkdownView?: boolean
+    /** Callback when markdown view is toggled */
+    onToggleMarkdownView?: () => void
+    /** Available content view modes for this field */
+    viewModeOptions?: FieldViewModeOption[]
+    /** Current content view mode */
+    viewMode?: ViewMode
+    /** Callback when content view mode changes */
+    onViewModeChange?: (mode: ViewMode) => void
+    /** Whether to show collapse toggle (default: true) */
+    showCollapse?: boolean
+    /** Show collapse toggle in the header (default: true) */
+    showCollapseToggle?: boolean
+    /**
+     * Optional chip rendered after the field name.
+     * Pass <TypeChip value={fieldValue} /> for Axis 1.
+     */
+    typeChip?: ReactNode
+    /** Show drill-in action button in the header (default: true) */
+    showDrillInButton?: boolean
+    /** Injectable message display function (for clipboard notifications) */
+    showMessage?: (content: string, type?: "success" | "error" | "info") => void
+
+    // Icon slots - allow custom icons to be passed in
+    /** Check icon */
+    checkIcon?: ReactNode
+    /** Copy icon */
+    copyIcon?: ReactNode
+    /** Code icon */
+    codeIcon?: ReactNode
+    /** Markdown icon */
+    markdownIcon?: ReactNode
+    /** Text icon */
+    textIcon?: ReactNode
+    /** Delete/trash icon */
+    deleteIcon?: ReactNode
+    /** Map pin icon */
+    mapPinIcon?: ReactNode
+    /** Map pin filled icon */
+    mapPinFilledIcon?: ReactNode
+    /** Close icon */
+    closeIcon?: ReactNode
+
+    // Component slots - allow custom components to be passed in
+    /** Custom button component */
+    Button?: React.ComponentType<{
+        type?: "text" | "primary"
+        size?: "small"
+        danger?: boolean
+        className?: string
+        icon?: ReactNode
+        onClick?: () => void
+        children?: ReactNode
+        "aria-label"?: string
+    }>
+    /** Custom tooltip component */
+    Tooltip?: React.ComponentType<{
+        title?: string
+        children: ReactNode
+    }>
+    /** Custom popover component */
+    Popover?: React.ComponentType<{
+        content?: ReactNode
+        trigger?: "click" | "hover"
+        open?: boolean
+        onOpenChange?: (visible: boolean) => void
+        placement?: string
+        children: ReactNode
+    }>
+    /** Custom input component */
+    Input?: React.ComponentType<{
+        size?: "small"
+        placeholder?: string
+        value?: string
+        onChange?: (e: {target: {value: string}}) => void
+        onPressEnter?: () => void
+        autoFocus?: boolean
+    }>
+}
+
+/**
+ * Default button implementation using native HTML
+ */
+const DefaultButton = ({
+    type,
+    size: _size,
+    danger,
+    className,
+    icon,
+    onClick,
+    children,
+    "aria-label": ariaLabel,
+}: {
+    type?: "text" | "primary"
+    size?: "small"
+    danger?: boolean
+    className?: string
+    icon?: ReactNode
+    onClick?: () => void
+    children?: ReactNode
+    "aria-label"?: string
+}) => (
+    <button
+        type="button"
+        className={`inline-flex items-center justify-center gap-1 px-2 py-1 text-label rounded border-none cursor-pointer ${
+            type === "text"
+                ? "bg-transparent hover:bg-accent"
+                : "bg-primary text-primary-foreground hover:bg-primary-hover"
+        } ${danger ? "text-destructive" : ""} ${className ?? ""}`}
+        onClick={onClick}
+        aria-label={ariaLabel}
+    >
+        {icon}
+        {children}
+    </button>
+)
+
+/**
+ * Default tooltip implementation (no-op, just renders children)
+ */
+const DefaultTooltip = ({children}: {title?: string; children: ReactNode}) => <>{children}</>
+
+/**
+ * Default icons using Phosphor icons
+ */
+const defaultIcons = {
+    drillIn: <CaretRight size={14} />,
+    check: <Check size={14} />,
+    copy: <Copy size={14} />,
+    code: <Code size={14} />,
+    markdown: <span className="text-label">M↓</span>,
+    text: <TextAa size={14} />,
+    delete: <Trash size={14} />,
+    mapPin: <MapPinSimple size={14} />,
+    mapPinFilled: <MapPin size={14} weight="fill" />,
+    close: <X size={14} />,
+}
+
+/**
+ * Mapping popover component for mapping a field to a column
+ */
+const MappingPopoverContent = memo(
+    ({
+        columnOptions,
+        onMapToColumn,
+        onUnmap,
+        isMapped,
+        onClose,
+        Button,
+        Input,
+        closeIcon,
+    }: {
+        columnOptions?: {value: string; label: string}[]
+        onMapToColumn: (column: string) => void
+        onUnmap?: () => void
+        isMapped: boolean
+        onClose: () => void
+        Button: NonNullable<DrillInFieldHeaderProps["Button"]>
+        Input?: DrillInFieldHeaderProps["Input"]
+        closeIcon: ReactNode
+    }) => {
+        const t = useT(uiDrillInCatalog, drillInButtonCatalog, commonCatalog)
+        const [newColumnName, setNewColumnName] = useState("")
+        const [showNewColumnInput, setShowNewColumnInput] = useState(false)
+
+        const handleSelectColumn = useCallback(
+            (column: string) => {
+                onMapToColumn(column)
+                onClose()
+            },
+            [onMapToColumn, onClose],
+        )
+
+        const handleCreateColumn = useCallback(() => {
+            if (newColumnName.trim()) {
+                onMapToColumn(newColumnName.trim())
+                setNewColumnName("")
+                setShowNewColumnInput(false)
+                onClose()
+            }
+        }, [newColumnName, onMapToColumn, onClose])
+
+        const handleUnmap = useCallback(() => {
+            onUnmap?.()
+            onClose()
+        }, [onUnmap, onClose])
+
+        if (isMapped) {
+            return (
+                <div className="flex flex-col gap-1 min-w-[180px]">
+                    <Button
+                        type="text"
+                        danger
+                        size="small"
+                        className="justify-start"
+                        onClick={handleUnmap}
+                    >
+                        {closeIcon}
+                        {t("ui.drillIn.removeMapping")}
+                    </Button>
+                </div>
+            )
+        }
+
+        return (
+            <div className="flex flex-col gap-1 min-w-[180px]">
+                {showNewColumnInput ? (
+                    <div className="flex gap-1">
+                        {Input ? (
+                            <Input
+                                size="small"
+                                placeholder={t("ui.drillIn.columnName")}
+                                value={newColumnName}
+                                onChange={(e) => setNewColumnName(e.target.value)}
+                                onPressEnter={handleCreateColumn}
+                                autoFocus
+                            />
+                        ) : (
+                            <input
+                                type="text"
+                                placeholder={t("ui.drillIn.columnName")}
+                                value={newColumnName}
+                                onChange={(e) => setNewColumnName(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && handleCreateColumn()}
+                                autoFocus
+                                className="flex-1 px-2 py-1 text-label border border-solid border-border rounded"
+                            />
+                        )}
+                        <Button size="small" type="primary" onClick={handleCreateColumn}>
+                            {t("common.add")}
+                        </Button>
+                    </div>
+                ) : (
+                    <Button
+                        type="text"
+                        size="small"
+                        className="justify-start text-link"
+                        onClick={() => setShowNewColumnInput(true)}
+                    >
+                        {t("ui.drillIn.createNewColumn")}
+                    </Button>
+                )}
+                {columnOptions && columnOptions.length > 0 && (
+                    <>
+                        <div className="border-0 border-t border-solid border-border-muted my-1" />
+                        {columnOptions.map((opt) => (
+                            <Button
+                                key={opt.value}
+                                type="text"
+                                size="small"
+                                className="justify-start"
+                                onClick={() => handleSelectColumn(opt.value)}
+                            >
+                                {opt.label}
+                            </Button>
+                        ))}
+                    </>
+                )}
+            </div>
+        )
+    },
+)
+
+MappingPopoverContent.displayName = "MappingPopoverContent"
+
+/**
+ * Reusable field header component for drill-in views
+ * Used by TestcaseEditDrawer and TraceDataDrillIn
+ */
+const DrillInFieldHeader = memo(
+    ({
+        variant = "card",
+        name,
+        value,
+        isCollapsed,
+        onToggleCollapse,
+        itemCount,
+        expandable = false,
+        onDrillIn,
+        showRawToggle = false,
+        isRawMode = false,
+        onToggleRawMode,
+        showDelete = false,
+        onDelete,
+        alwaysShowCopy = false,
+        columnOptions,
+        onMapToColumn,
+        onUnmap,
+        isMapped = false,
+        mappedColumn,
+        nestedMappingCount = 0,
+        showMarkdownToggle = false,
+        isMarkdownView = false,
+        onToggleMarkdownView,
+        showCollapse = true,
+        showCollapseToggle,
+        showDrillInButton = true,
+        viewModeOptions,
+        viewMode,
+        onViewModeChange,
+        showMessage,
+        typeChip,
+        // Icons
+        checkIcon = defaultIcons.check,
+        copyIcon = defaultIcons.copy,
+        codeIcon = defaultIcons.code,
+        markdownIcon = defaultIcons.markdown,
+        textIcon = defaultIcons.text,
+        deleteIcon = defaultIcons.delete,
+        mapPinIcon = defaultIcons.mapPin,
+        mapPinFilledIcon = defaultIcons.mapPinFilled,
+        closeIcon = defaultIcons.close,
+        // Components
+        Button = DefaultButton,
+        Tooltip = DefaultTooltip,
+        Popover,
+        Input,
+    }: DrillInFieldHeaderProps) => {
+        const t = useT(uiDrillInCatalog, drillInButtonCatalog, commonCatalog)
+        const [copiedField, setCopiedField] = useState<string | null>(null)
+        const [popoverOpen, setPopoverOpen] = useState(false)
+        const shouldShowCollapse = showCollapseToggle ?? showCollapse
+
+        const handleCopy = useCallback(() => {
+            const valueToCopy = typeof value === "string" ? value : JSON.stringify(value, null, 2)
+            navigator.clipboard.writeText(valueToCopy)
+            setCopiedField(name)
+            showMessage?.("Copied to clipboard", "success")
+            setTimeout(() => setCopiedField(null), 1000)
+        }, [value, name, showMessage])
+
+        const isFlat = variant === "flat"
+        // In the flat (V2) variant, the right side is intentionally minimal:
+        // only the "View as ▾" dropdown + delete/map (when present). Copy,
+        // raw, markdown, and drill-in are suppressed regardless of input flags.
+        const showCopyButton = !isFlat && (alwaysShowCopy || isCollapsed || expandable)
+        const showRawInVariant = !isFlat && showRawToggle
+        const showMarkdownInVariant = !isFlat && showMarkdownToggle
+        const showDrillInInVariant = !isFlat && showDrillInButton
+        // Whole header is a click target for collapse — gives users a generous
+        // hit area instead of the small caret icon.
+        const headerInteractive = shouldShowCollapse
+            ? "cursor-pointer hover:bg-accent transition-colors"
+            : ""
+        const headerClassName = isFlat
+            ? `flex items-center justify-between py-1 px-3 bg-background ${headerInteractive}`
+            : `flex items-center justify-between py-2 px-3 bg-muted rounded-md border border-solid border-border-muted ${headerInteractive}`
+
+        // Mapping popover content
+        const mappingContent = onMapToColumn && (
+            <MappingPopoverContent
+                columnOptions={columnOptions}
+                onMapToColumn={onMapToColumn}
+                onUnmap={onUnmap}
+                isMapped={isMapped}
+                onClose={() => setPopoverOpen(false)}
+                Button={Button}
+                Input={Input}
+                closeIcon={closeIcon}
+            />
+        )
+
+        return (
+            <div
+                className={headerClassName}
+                onClick={shouldShowCollapse ? onToggleCollapse : undefined}
+                role={shouldShowCollapse ? "button" : undefined}
+                tabIndex={shouldShowCollapse ? 0 : undefined}
+                onKeyDown={
+                    shouldShowCollapse
+                        ? (event) => {
+                              if (event.currentTarget !== event.target) return
+                              if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault()
+                                  onToggleCollapse()
+                              }
+                          }
+                        : undefined
+                }
+            >
+                <div className="flex items-center gap-2">
+                    {shouldShowCollapse ? (
+                        <>
+                            <span className="flex items-center text-muted-foreground">
+                                <CollapseCaret open={!isCollapsed} size={14} />
+                            </span>
+                            <span className="text-foreground font-medium">{name}</span>
+                            {typeChip}
+                        </>
+                    ) : (
+                        <>
+                            <span className="text-foreground font-medium">{name}</span>
+                            {typeChip}
+                        </>
+                    )}
+                    {mappedColumn ? (
+                        <span className="text-meta text-success font-medium">
+                            {t("ui.drillIn.mappedTo", {column: mappedColumn})}
+                        </span>
+                    ) : nestedMappingCount > 0 ? (
+                        <span className="text-meta text-success font-medium">
+                            {t("ui.drillIn.containsMappings", {count: nestedMappingCount})}
+                        </span>
+                    ) : null}
+                    {itemCount ? (
+                        <span className="text-meta text-muted-foreground">{itemCount}</span>
+                    ) : null}
+                </div>
+                {/* Right-side controls stop click bubbling so they don't toggle collapse */}
+                <div
+                    className="flex items-center gap-2"
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    {viewModeOptions &&
+                        viewModeOptions.length > 1 &&
+                        viewMode &&
+                        onViewModeChange && (
+                            <ViewModeDropdown
+                                value={viewMode}
+                                options={viewModeOptions}
+                                onChange={onViewModeChange}
+                            />
+                        )}
+                    {showCopyButton && (
+                        <Tooltip
+                            title={copiedField === name ? t("common.copied") : t("common.copy")}
+                        >
+                            <Button
+                                type="text"
+                                size="small"
+                                className="!px-1 !h-6 text-label text-muted-foreground"
+                                onClick={handleCopy}
+                            >
+                                {copiedField === name ? checkIcon : copyIcon}
+                            </Button>
+                        </Tooltip>
+                    )}
+                    {showRawInVariant && onToggleRawMode && (
+                        <Tooltip
+                            title={
+                                isRawMode ? t("ui.drillIn.showFormatted") : t("ui.drillIn.showRaw")
+                            }
+                        >
+                            <Button
+                                type="text"
+                                size="small"
+                                className={`!px-1 !h-6 text-label ${isRawMode ? "text-link" : "text-muted-foreground"}`}
+                                onClick={onToggleRawMode}
+                            >
+                                {codeIcon}
+                            </Button>
+                        </Tooltip>
+                    )}
+                    {showMarkdownInVariant && onToggleMarkdownView && (
+                        <Tooltip
+                            title={
+                                isMarkdownView
+                                    ? t("ui.drillIn.previewText")
+                                    : t("ui.drillIn.previewMarkdown")
+                            }
+                        >
+                            <Button
+                                type="text"
+                                size="small"
+                                className={`!px-1 !h-6 text-label ${isMarkdownView ? "text-link" : "text-muted-foreground"}`}
+                                onClick={onToggleMarkdownView}
+                            >
+                                {isMarkdownView ? textIcon : markdownIcon}
+                            </Button>
+                        </Tooltip>
+                    )}
+                    {showDrillInInVariant && expandable && onDrillIn && (
+                        <Button
+                            type="text"
+                            size="small"
+                            onClick={onDrillIn}
+                            className="!px-2 !h-6 text-label text-muted-foreground"
+                        >
+                            {defaultIcons.drillIn}
+                            <span className="ml-1">{t("ui.drillInButton.drillIn")}</span>
+                        </Button>
+                    )}
+                    {onMapToColumn &&
+                        (Popover ? (
+                            <Popover
+                                content={mappingContent}
+                                trigger="click"
+                                open={popoverOpen}
+                                onOpenChange={setPopoverOpen}
+                                placement="bottomRight"
+                            >
+                                <Tooltip
+                                    title={
+                                        isMapped
+                                            ? t("ui.drillIn.mappingOptions")
+                                            : t("ui.drillIn.mapToColumn")
+                                    }
+                                >
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        className={`!px-1 !h-6 text-label ${isMapped ? "text-success" : "text-muted-foreground"}`}
+                                    >
+                                        {isMapped ? mapPinFilledIcon : mapPinIcon}
+                                    </Button>
+                                </Tooltip>
+                            </Popover>
+                        ) : (
+                            <div className="relative">
+                                <Tooltip
+                                    title={
+                                        isMapped
+                                            ? t("ui.drillIn.mappingOptions")
+                                            : t("ui.drillIn.mapToColumn")
+                                    }
+                                >
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        className={`!px-1 !h-6 text-label ${isMapped ? "text-success" : "text-muted-foreground"}`}
+                                        onClick={() => setPopoverOpen(!popoverOpen)}
+                                    >
+                                        {isMapped ? mapPinFilledIcon : mapPinIcon}
+                                    </Button>
+                                </Tooltip>
+                                {popoverOpen && (
+                                    <div className="absolute right-0 top-full mt-1 bg-popover rounded-lg shadow-overlay z-50">
+                                        {mappingContent}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    {showDelete && onDelete && (
+                        <Button
+                            type="text"
+                            size="small"
+                            danger
+                            onClick={onDelete}
+                            aria-label={t("ui.drillIn.deleteField")}
+                        >
+                            {deleteIcon}
+                        </Button>
+                    )}
+                </div>
+            </div>
+        )
+    },
+)
+
+DrillInFieldHeader.displayName = "DrillInFieldHeader"
+
+export {DrillInFieldHeader}

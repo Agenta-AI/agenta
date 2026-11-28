@@ -17,7 +17,7 @@ import {
     ViewFooterStart,
     ViewStackHost,
     type ViewChromeProps,
-} from "../../src/view-stack"
+} from "../../src/shell/view-stack"
 
 afterEach(cleanup)
 

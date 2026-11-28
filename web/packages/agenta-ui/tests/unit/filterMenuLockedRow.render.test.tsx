@@ -4,8 +4,8 @@ import * as React from "react"
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {FilterMenuRow} from "../../src/filter-menu/FilterMenuRow"
-import type {FilterMenuSection} from "../../src/filter-menu/types"
+import {FilterMenuRow} from "../../src/data/filter-menu/FilterMenuRow"
+import type {FilterMenuSection} from "../../src/data/filter-menu/types"
 
 /** The Agent row of a page locked to one agent (A10): read only, a lock, no flyout. */
 

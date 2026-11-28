@@ -2,8 +2,8 @@ import {Fragment, useEffect, useId, useState} from "react"
 
 import {richText, useT} from "@agenta/i18n"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
-import {copyToClipboard} from "@agenta/ui"
 import {Button, Input} from "@agenta/ui/ui"
+import {copyToClipboard} from "@agenta/ui/utils"
 import {Check, WarningCircle} from "@phosphor-icons/react"
 
 import {SignInStep} from "./SignInStep"

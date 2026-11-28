@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {isFilterMenuNarrowed, type FilterMenuItem} from "../../src/filter-menu/types"
+import {isFilterMenuNarrowed, type FilterMenuItem} from "../../src/data/filter-menu/types"
 
 const row = (value: string, defaultValue: string, block?: "filter" | "sort"): FilterMenuItem => ({
     key: `row-${value}`,

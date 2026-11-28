@@ -13,7 +13,7 @@
     "aliases": {
         "components": "@agenta/ui/ui",
         "utils": "@agenta/ui/ui",
-        "ui": "src/components/ui"
+        "ui": "src/primitives"
     },
     "iconLibrary": "lucide"
 }

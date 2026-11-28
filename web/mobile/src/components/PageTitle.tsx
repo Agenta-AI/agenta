@@ -1,4 +1,4 @@
-import {PageTitle, type PageTitleProps} from "@agenta/ui/page-title"
+import {PageTitle, type PageTitleProps} from "@agenta/ui/layout"
 
 // Compat shim: the component lives in @agenta/ui so mobile and desktop cannot drift apart.
 export {PageTitle}

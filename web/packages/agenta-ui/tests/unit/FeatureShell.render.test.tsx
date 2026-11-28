@@ -3,8 +3,8 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import type {ColumnDefs} from "../../src/InfiniteVirtualTable/columnDef"
-import {InfiniteVirtualTableFeatureShell} from "../../src/InfiniteVirtualTable/features"
+import type {ColumnDefs} from "../../src/data/infinite-virtual-table/columnDef"
+import {InfiniteVirtualTableFeatureShell} from "../../src/data/infinite-virtual-table/features"
 
 /**
  * Both observability tables render through this shell, so the empty case has to keep its

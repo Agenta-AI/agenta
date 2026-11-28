@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // AuthorLabel is not re-exported from the presentational barrel; import it from the revision
 // index directly (relative path, mirroring how non-barrel components are imported).
-import {AuthorLabel} from "../../packages/agenta-ui/src/components/presentational/revision"
+import {AuthorLabel} from "../../packages/agenta-ui/src/patterns/presentational/revision"
 
 const meta = {
     title: "@agenta/ui/Presentational/Labels/AuthorLabel",

@@ -4,7 +4,7 @@ import * as React from "react"
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {THEME_STORAGE_KEY, useThemeMode} from "../../src/theme/useThemeMode"
+import {THEME_STORAGE_KEY, useThemeMode} from "../../src/foundation/theme/useThemeMode"
 
 const Probe = () => {
     useThemeMode()

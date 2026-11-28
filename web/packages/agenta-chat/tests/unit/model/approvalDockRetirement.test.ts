@@ -9,7 +9,7 @@
  * The round-8 report said the dock stayed open reading "Answered, waiting for the agent". The
  * screenshots taken at the same moment (evidence 41 and 47) show no dock at all. A closed
  * `HeightCollapse` keeps its latched card mounted at height 0 with `aria-hidden` and `inert`
- * (web/packages/agenta-ui/src/components/HeightCollapse.tsx), and `ApprovalDock` only resets its
+ * (web/packages/agenta-ui/src/layout/HeightCollapse.tsx), and `ApprovalDock` only resets its
  * `answered` flag when the current approval id changes — so a DOM or text read still finds the
  * stale eyebrow long after the dock has closed. This test pins the state that actually drives the
  * pixels, so the next round measures the same thing the user sees.
@@ -18,7 +18,6 @@ import {describe, expect, it} from "vitest"
 
 import {transcriptToMessages} from "../../../src/assets/transcriptToMessages"
 import {getPendingApprovals} from "../../../src/model/approvals"
-
 import records from "../assets/__fixtures__/approvalDockRetirement.records.json"
 
 const APPROVAL_ID = "995951ee-bfec-4ef3-bd82-ea8bd0bbe313"

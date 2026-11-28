@@ -2,7 +2,7 @@
 import {cleanup, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {Select, SelectTrigger, SelectValue} from "../../src/components/ui/select"
+import {Select, SelectTrigger, SelectValue} from "../../src/primitives/select"
 
 /**
  * Input is 16px below md so iOS Safari does not zoom the page on focus. The Select trigger kept

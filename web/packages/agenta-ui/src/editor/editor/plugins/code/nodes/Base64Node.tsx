@@ -1,0 +1,378 @@
+/**
+ * Base64Node.tsx
+ *
+ * A custom Lexical node for rendering base64 strings in a collapsed/truncated view.
+ * Shows a preview with file icon and allows viewing/copying the full content on hover.
+ */
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
+
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiChatActionsCatalog from "@agenta/i18n/catalogs/ui.chatActions"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
+import {FileArchive, FilePdf, FileText, Image as ImageIcon} from "@phosphor-icons/react"
+import {
+    DecoratorNode,
+    EditorConfig,
+    LexicalNode,
+    NodeKey,
+    SerializedLexicalNode,
+    Spread,
+} from "lexical"
+
+import {message} from "../../../../../composed/feedback/appMessageContext"
+import {copyToClipboard} from "../../../../../foundation/utils/copyToClipboard"
+import {Button} from "../../../../../primitives/button"
+import {Popover, PopoverAnchor, PopoverContent} from "../../../../../primitives/popover"
+
+const tNow = createT(uiEditorCatalog, commonCatalog, uiChatActionsCatalog)
+
+/** Regex to detect base64 data URLs */
+const BASE64_DATA_URL_REGEX = /^"?data:([^;]+);base64,([A-Za-z0-9+/=]{50,})"?$/
+
+/** Regex to detect raw base64 strings (at least 100 chars of base64 content) */
+const RAW_BASE64_REGEX = /^"?([A-Za-z0-9+/=]{100,})"?$/
+
+/** Maximum length to show in truncated view */
+const TRUNCATE_LENGTH = 50
+
+/**
+ * Check if a string is a base64 value that should be collapsed
+ */
+export function isBase64String(value: string): boolean {
+    return BASE64_DATA_URL_REGEX.test(value) || RAW_BASE64_REGEX.test(value)
+}
+
+/**
+ * Extract mime type and truncated preview from base64 string
+ */
+export function parseBase64String(value: string): {
+    mimeType: string | null
+    preview: string
+    fullValue: string
+    isDataUrl: boolean
+} {
+    const dataUrlMatch = value.match(BASE64_DATA_URL_REGEX)
+    if (dataUrlMatch) {
+        const mimeType = dataUrlMatch[1]
+        const base64Content = dataUrlMatch[2]
+        const prefix = `data:${mimeType};base64,`
+        const truncatedBase64 = base64Content.substring(0, TRUNCATE_LENGTH)
+        return {
+            mimeType,
+            preview: `${prefix}${truncatedBase64}...[truncated]`,
+            fullValue: value.replace(/^"|"$/g, ""),
+            isDataUrl: true,
+        }
+    }
+
+    const rawMatch = value.match(RAW_BASE64_REGEX)
+    if (rawMatch) {
+        const base64Content = rawMatch[1]
+        const truncated = base64Content.substring(0, TRUNCATE_LENGTH)
+        return {
+            mimeType: null,
+            preview: `${truncated}...[truncated]`,
+            fullValue: value.replace(/^"|"$/g, ""),
+            isDataUrl: false,
+        }
+    }
+
+    return {
+        mimeType: null,
+        preview: value,
+        fullValue: value,
+        isDataUrl: false,
+    }
+}
+
+/**
+ * Get file type label from mime type
+ */
+function getFileTypeLabel(mimeType: string | null): string {
+    if (!mimeType) return tNow("ui.editor.base64Data")
+
+    if (mimeType.startsWith("image/")) {
+        return tNow("ui.editor.imageType", {type: mimeType.split("/")[1].toUpperCase()})
+    }
+    if (mimeType.startsWith("application/pdf")) {
+        return tNow("ui.editor.pdfDocument")
+    }
+    if (mimeType.startsWith("application/")) {
+        return mimeType.split("/")[1].toUpperCase()
+    }
+    if (mimeType.startsWith("text/")) {
+        return tNow("ui.editor.textType", {type: mimeType.split("/")[1]})
+    }
+    return mimeType
+}
+
+/**
+ * Serialized form of Base64Node
+ */
+export type SerializedBase64Node = Spread<
+    {
+        fullValue: string
+        mimeType: string | null
+        highlightType: string
+    },
+    SerializedLexicalNode
+>
+
+/**
+ * Get the appropriate icon for a mime type
+ */
+function FileTypeIcon({mimeType, size = 48}: {mimeType: string | null; size?: number}) {
+    if (!mimeType) return <FileArchive size={size} className="text-muted-foreground" />
+
+    if (mimeType.startsWith("image/")) {
+        return <ImageIcon size={size} className="text-muted-foreground" />
+    }
+    if (mimeType === "application/pdf") {
+        return <FilePdf size={size} className="text-muted-foreground" />
+    }
+    if (mimeType.startsWith("text/")) {
+        return <FileText size={size} className="text-muted-foreground" />
+    }
+    return <FileArchive size={size} className="text-muted-foreground" />
+}
+
+/**
+ * Hover-open state for a Radix Popover, reproducing antd `trigger="hover"`
+ * (open after `enterDelayMs`, close after `leaveDelayMs`).
+ */
+function useHoverOpen(enterDelayMs: number, leaveDelayMs: number) {
+    const [open, setOpen] = useState(false)
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    const clearTimer = useCallback(() => {
+        if (timerRef.current != null) {
+            clearTimeout(timerRef.current)
+            timerRef.current = null
+        }
+    }, [])
+
+    useEffect(() => clearTimer, [clearTimer])
+
+    const schedule = useCallback(
+        (next: boolean, delay: number) => {
+            clearTimer()
+            timerRef.current = setTimeout(() => {
+                timerRef.current = null
+                setOpen(next)
+            }, delay)
+        },
+        [clearTimer],
+    )
+
+    const onMouseEnter = useCallback(() => schedule(true, enterDelayMs), [schedule, enterDelayMs])
+    const onMouseLeave = useCallback(() => schedule(false, leaveDelayMs), [schedule, leaveDelayMs])
+    const setOpenNow = useCallback(
+        (next: boolean) => {
+            clearTimer()
+            setOpen(next)
+        },
+        [clearTimer],
+    )
+
+    return {open, setOpen: setOpenNow, hoverProps: {onMouseEnter, onMouseLeave}}
+}
+
+/**
+ * React component for rendering the base64 content
+ */
+function Base64Component({
+    fullValue,
+    mimeType,
+    nodeKey,
+}: {
+    fullValue: string
+    mimeType: string | null
+    nodeKey: string
+}) {
+    const t = useT(uiStatusCatalog, commonCatalog)
+    const [copied, setCopied] = useState(false)
+    // antd `trigger="hover"` defaults: mouseEnterDelay/mouseLeaveDelay 0.1s.
+    const {open, setOpen, hoverProps} = useHoverOpen(100, 100)
+    const parsed = parseBase64String(fullValue)
+    const fileTypeLabel = getFileTypeLabel(mimeType)
+    const isImage = mimeType?.startsWith("image/")
+
+    // Build the full data URL for image preview
+    const dataUrl = useMemo(() => {
+        if (parsed.isDataUrl) {
+            // Reconstruct full data URL
+            return `data:${mimeType};base64,${parsed.fullValue.replace(/^data:[^;]+;base64,/, "")}`
+        }
+        return null
+    }, [parsed, mimeType])
+
+    const handleCopy = useCallback(async () => {
+        const success = await copyToClipboard(parsed.fullValue)
+        if (success) {
+            setCopied(true)
+            message.success(tNow("common.copiedToClipboard"))
+            setTimeout(() => setCopied(false), 2000)
+        } else {
+            message.error(tNow("common.failedToCopy"))
+        }
+    }, [parsed.fullValue])
+
+    const isPdf = mimeType === "application/pdf"
+
+    const popoverContent = (
+        <div className="max-w-[400px]">
+            <div className="flex items-center justify-between gap-4 mb-3">
+                <span className="font-semibold">{fileTypeLabel}</span>
+                <Button variant="outline" size="sm" onClick={handleCopy}>
+                    {copied ? t("ui.status.copiedBang") : t("common.copy")}
+                </Button>
+            </div>
+
+            {/* File Preview */}
+            <div className="flex items-center justify-center bg-muted rounded-lg overflow-hidden">
+                {isImage && dataUrl ? (
+                    <img
+                        src={dataUrl}
+                        alt={tNow("ui.chatActions.preview")}
+                        className="max-w-full max-h-[250px] rounded object-contain"
+                    />
+                ) : isPdf && dataUrl ? (
+                    <iframe
+                        src={dataUrl}
+                        title={tNow("ui.editor.pdfPreview")}
+                        className="w-full h-75 border-0"
+                    />
+                ) : (
+                    <div className="flex flex-col items-center gap-2 p-6">
+                        <FileTypeIcon mimeType={mimeType} size={48} />
+                        <span className="text-meta text-muted-foreground">{fileTypeLabel}</span>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            {/* Anchor (not Trigger): the popover is hover-driven, so the span must keep its own
+                click semantics instead of Radix's click-to-toggle. */}
+            <PopoverAnchor asChild>
+                <span
+                    className="token token-string cursor-help border-b border-dashed border-border"
+                    data-lexical-base64="true"
+                    data-node-key={nodeKey}
+                    {...hoverProps}
+                >
+                    &quot;{parsed.preview}&quot;
+                </span>
+            </PopoverAnchor>
+            <PopoverContent
+                side="bottom"
+                align="center"
+                className="p-3"
+                // Hover popovers must not pull focus out of the editor.
+                onOpenAutoFocus={(e) => e.preventDefault()}
+                onCloseAutoFocus={(e) => e.preventDefault()}
+                {...hoverProps}
+            >
+                {popoverContent}
+            </PopoverContent>
+        </Popover>
+    )
+}
+
+/**
+ * Base64Node - A decorator node for rendering base64 strings
+ */
+export class Base64Node extends DecoratorNode<React.ReactElement> {
+    __fullValue: string
+    __mimeType: string | null
+    __highlightType: string
+
+    static getType(): string {
+        return "base64"
+    }
+
+    static clone(node: Base64Node): Base64Node {
+        return new Base64Node(node.__fullValue, node.__mimeType, node.__highlightType, node.__key)
+    }
+
+    constructor(
+        fullValue: string,
+        mimeType: string | null,
+        highlightType = "string",
+        key?: NodeKey,
+    ) {
+        super(key)
+        this.__fullValue = fullValue
+        this.__mimeType = mimeType
+        this.__highlightType = highlightType
+    }
+
+    createDOM(config: EditorConfig): HTMLElement {
+        const span = document.createElement("span")
+        span.className = "base64-node-wrapper"
+        return span
+    }
+
+    updateDOM(): boolean {
+        return false
+    }
+
+    decorate(): React.ReactElement {
+        return (
+            <Base64Component
+                fullValue={this.__fullValue}
+                mimeType={this.__mimeType}
+                nodeKey={this.__key}
+            />
+        )
+    }
+
+    exportJSON(): SerializedBase64Node {
+        return {
+            type: "base64",
+            version: 1,
+            fullValue: this.__fullValue,
+            mimeType: this.__mimeType,
+            highlightType: this.__highlightType,
+        }
+    }
+
+    static importJSON(json: SerializedBase64Node): Base64Node {
+        return new Base64Node(json.fullValue, json.mimeType, json.highlightType)
+    }
+
+    getTextContent(): string {
+        // Return the full value for copy/paste and serialization
+        return `"${this.__fullValue}"`
+    }
+
+    getFullValue(): string {
+        return this.__fullValue
+    }
+
+    getMimeType(): string | null {
+        return this.__mimeType
+    }
+}
+
+/**
+ * Helper to create a Base64Node
+ */
+export function $createBase64Node(
+    fullValue: string,
+    mimeType: string | null,
+    highlightType = "string",
+): Base64Node {
+    return new Base64Node(fullValue, mimeType, highlightType)
+}
+
+/**
+ * Type guard for Base64Node
+ */
+export function $isBase64Node(node: LexicalNode | null | undefined): node is Base64Node {
+    return node instanceof Base64Node
+}

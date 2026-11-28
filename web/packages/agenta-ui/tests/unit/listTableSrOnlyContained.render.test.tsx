@@ -4,8 +4,8 @@ import * as React from "react"
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {ListTable} from "../../src/list-table/ListTable"
-import type {ListTableColumn, ListTableGroup} from "../../src/list-table/types"
+import {ListTable} from "../../src/data/list-table/ListTable"
+import type {ListTableColumn, ListTableGroup} from "../../src/data/list-table/types"
 
 afterEach(cleanup)
 

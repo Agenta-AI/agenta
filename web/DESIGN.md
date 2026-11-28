@@ -4,12 +4,12 @@ The design system for the Agenta frontend: the app in `web/mobile` (served at `/
 
 Each fact has one home:
 
-| What                                                                                       | Where                                           |
-| ------------------------------------------------------------------------------------------ | ----------------------------------------------- |
-| The glossary, the principles, the layout and the patterns                                  | This file                                       |
-| The values: colors, text styles, sizes, radii, shadows, motion, and where each one is used | `packages/agenta-ui/src/design/theme.config.ts` |
-| The rules, each with an ID, a reason, an Avoid and a Do, and the icon of each product term | `packages/agenta-ui/src/design/rules.json`      |
-| A live Do and Avoid example for each rule                                                  | `/m/design-system`, which reads `rules.json`    |
+| What                                                                                       | Where                                                      |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| The glossary, the principles, the layout and the patterns                                  | This file                                                  |
+| The values: colors, text styles, sizes, radii, shadows, motion, and where each one is used | `packages/agenta-ui/src/foundation/design/theme.config.ts` |
+| The rules, each with an ID, a reason, an Avoid and a Do, and the icon of each product term | `packages/agenta-ui/src/foundation/design/rules.json`      |
+| A live Do and Avoid example for each rule                                                  | `/m/design-system`, which reads `rules.json`               |
 
 ## Glossary
 
@@ -18,7 +18,7 @@ One word for one thing. Use these words in code, comments, docs and reviews.
 | Word           | Means                                                                                                                                 | Do not say                                                                  |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | Theme variable | A named value from `theme.config.ts`: `--muted`, `bg-muted`, `text-label`, `control-md`. `tokens.json` exports them for design tools. | token (the word stays only in the legacy script names and in `tokens.json`) |
-| Kit            | The shared components: shadcn primitives in `@agenta/ui/ui` (`components/ui/`), the parts built on them in `@agenta/ui/composed`.     | primitives library, shadcn folder                                           |
+| Kit            | The shared components: shadcn primitives in `@agenta/ui/ui` (`src/primitives/`), the parts built on them in `@agenta/ui/composed`.    | primitives library, shadcn folder                                           |
 | Mark           | The square tile with an icon or a letter that stands for an entity. The component is `IconTile`.                                      | avatar, letter tile, icon tile                                              |
 | Compact window | A window under 640px (`breakpoint-sm`). Medium is 640–1023px, expanded is 1024px and up.                                              | phone, small screen, mobile                                                 |
 | Touch          | A coarse pointer (`pointer: coarse`). It is not a window size: a tablet is touch on a medium window.                                  | mobile                                                                      |

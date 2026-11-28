@@ -4,7 +4,7 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 // Direct source import: avatar.tsx is new and not yet re-exported from the `@agenta/ui/ui`
 // barrel (that wiring is a separate step). Storybook transpiles the package source, so the
 // relative path renders the real component.
-import {AvatarBox} from "../../packages/agenta-ui/src/components/ui/avatar"
+import {AvatarBox} from "../../packages/agenta-ui/src/primitives/avatar"
 
 const meta = {
     title: "@agenta/ui/Primitives/Display/Avatar",

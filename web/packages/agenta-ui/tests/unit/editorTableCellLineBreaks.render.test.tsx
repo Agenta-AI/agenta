@@ -3,7 +3,7 @@ import {act, cleanup, render, waitFor} from "@testing-library/react"
 import {$createParagraphNode, $createTextNode, $getRoot, type LexicalEditor} from "lexical"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {Editor, EditorProvider} from "../../src/Editor"
+import {Editor, EditorProvider} from "../../src/editor/editor"
 
 afterEach(cleanup)
 

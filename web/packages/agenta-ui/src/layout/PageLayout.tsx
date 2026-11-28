@@ -1,0 +1,153 @@
+import type {ElementType, ReactNode} from "react"
+
+import {cn} from "../foundation/utils/cn"
+import {Tabs, TabsList, TabsTrigger} from "../primitives/tabs"
+
+import {pageGutterClass} from "./pageWidth"
+
+/** One header tab. Loose enough that an antd `TabsProps["items"]` entry is assignable. */
+interface PageLayoutTabItem {
+    key?: string
+    label?: ReactNode
+}
+
+/**
+ * Minimal header tab config. A local type (no antd dependency) that an antd `TabsProps`
+ * object stays structurally assignable to — only `items` / `activeKey` / `defaultActiveKey`
+ * / `onChange` are read, and translated onto the `@agenta/ui` (Radix) `Tabs`.
+ */
+interface HeaderTabsConfig {
+    items?: PageLayoutTabItem[]
+    activeKey?: string
+    defaultActiveKey?: string
+    onChange?: (key: string) => void
+}
+
+export interface PageLayoutProps {
+    title?: ReactNode
+    titleLevel?: 1 | 2 | 3 | 4 | 5
+    /**
+     * One line under the title, in the same block so it reads as the title's own. Opt-in: without
+     * it the header keeps its fixed h-11 row, so pages that don't pass one are unchanged.
+     */
+    description?: ReactNode
+    headerTabs?: ReactNode
+    /** Header tab bar. Local config type (no runtime/type antd). */
+    headerTabsProps?: HeaderTabsConfig
+    children: ReactNode
+    className?: string
+    headerClassName?: string
+}
+
+/** antd's heading ramp as literals (`fontSizeHeading*` / `lineHeightHeading*` from
+ * antd-themeConfig.json), used only as fallbacks for hosts that never generate the vars. */
+/**
+ * The fallbacks for the `--ant-font-size-heading-*` vars, and they must MIRROR
+ * `oss/src/styles/tokens/antd-themeConfig.json` — a host without antd (mobile) renders entirely
+ * from these, so a stale copy silently gives that app a different type scale. They were left at
+ * the pre-#5850 sizes when the ladder moved heading-3 from 20 to 24, which is why every mobile
+ * page title sat one rung below its desktop twin.
+ */
+const HEADING_SCALE: Record<1 | 2 | 3 | 4 | 5, {fontSize: string; lineHeight: number}> = {
+    1: {fontSize: "32px", lineHeight: 1.25},
+    2: {fontSize: "26px", lineHeight: 1.3076923076923077},
+    3: {fontSize: "24px", lineHeight: 1.3333333333333333},
+    4: {fontSize: "18px", lineHeight: 1.5},
+    5: {fontSize: "16px", lineHeight: 1.5},
+}
+
+const PageLayout = ({
+    title,
+    titleLevel = 3,
+    description,
+    headerTabs,
+    headerTabsProps,
+    children,
+    className,
+    headerClassName,
+}: PageLayoutProps) => {
+    const titleText = typeof title === "string" || typeof title === "number" ? String(title) : ""
+    const HeadingTag = `h${titleLevel}` as ElementType
+
+    const headerTabsContent = headerTabsProps?.items?.length ? (
+        // Header tab BAR only (no content panels — the page body is `children`). The header
+        // tabs are 14px/medium (antd default here overrode the 12px control size), so re-apply
+        // that on the triggers; the sliding ink bar + states come from the primitive.
+        <Tabs
+            value={headerTabsProps.activeKey as string | undefined}
+            defaultValue={headerTabsProps.defaultActiveKey as string | undefined}
+            onValueChange={(value) => headerTabsProps.onChange?.(value)}
+            // mb-0 replaces the old `[&_.ant-tabs-nav]:mb-0`: a bar-only tab list must not keep
+            // the 16px gap the primitive leaves for panels, or it rides 8px high in the header.
+            className="[&_[data-slot=tabs-list]]:mb-0"
+        >
+            <TabsList>
+                {headerTabsProps.items.map((item) => (
+                    <TabsTrigger key={item?.key} value={String(item?.key ?? "")}>
+                        {item && "label" in item ? item.label : null}
+                    </TabsTrigger>
+                ))}
+            </TabsList>
+        </Tabs>
+    ) : (
+        headerTabs
+    )
+
+    return (
+        <div
+            className={cn(
+                "flex w-full flex-col gap-4 self-stretch min-h-full",
+                pageGutterClass,
+                className,
+            )}
+        >
+            {title ? (
+                <div
+                    className={cn(
+                        // shrink-0 keeps the header at exactly h-11 in the flex column.
+                        // Without it, a title-only header (little intrinsic content) gets
+                        // compressed below 44px while a tabbed header resists shrinking
+                        // (tabs have a taller min-content height) — producing different
+                        // header heights and a layout shift when navigating between
+                        // tabbed and non-tabbed full-screen table pages.
+                        "flex shrink-0 items-center justify-between gap-3",
+                        // A description makes the block taller than one line, so the fixed row
+                        // height only applies without one.
+                        description ? "items-start" : "h-11",
+                        headerClassName,
+                    )}
+                >
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        {/* antd Title replacement: a real heading sized off antd's own heading
+                            tokens so it flips/scales with the theme; `m-0` kills the UA margin
+                            (preflight is off). Weight is fontWeightStrong — antd's own Title rule
+                            won over the prior `font-medium` className, so 600 IS the baseline.
+                            The literals are fallbacks, not decoration: antd generates the
+                            `--ant-*` vars, so on a host without it (the mobile app) every page
+                            title silently fell back to body text. */}
+                        <HeadingTag
+                            className="m-0 truncate"
+                            style={{
+                                fontSize: `var(--ant-font-size-heading-${titleLevel}, ${HEADING_SCALE[titleLevel].fontSize})`,
+                                lineHeight: `var(--ant-line-height-heading-${titleLevel}, ${HEADING_SCALE[titleLevel].lineHeight})`,
+                                fontWeight: "var(--ant-font-weight-strong, 600)",
+                            }}
+                            title={titleText || undefined}
+                        >
+                            {title}
+                        </HeadingTag>
+                        {description ? (
+                            <p className="m-0 text-muted-foreground">{description}</p>
+                        ) : null}
+                    </div>
+                    {headerTabsContent ? (
+                        <div className="flex items-center justify-end">{headerTabsContent}</div>
+                    ) : null}
+                </div>
+            ) : null}
+            {children}
+        </div>
+    )
+}
+
+export default PageLayout

@@ -6,8 +6,8 @@ import {
     resolveColor,
     statusTints,
     tint,
-} from "../../src/design/contrast"
-import {colorAliases, colors} from "../../src/design/theme.config"
+} from "../../src/foundation/design/contrast"
+import {colorAliases, colors} from "../../src/foundation/design/theme.config"
 
 describe("design theme contrast", () => {
     it("computes known WCAG ratios", () => {

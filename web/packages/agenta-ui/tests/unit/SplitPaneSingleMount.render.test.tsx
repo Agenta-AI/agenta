@@ -4,7 +4,7 @@ import {useEffect, useRef} from "react"
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {SplitPane} from "../../src/components/composed/split-pane"
+import {SplitPane} from "../../src/composed/layout/split-pane"
 
 /**
  * `/m`'s session workspace drives ONE SplitPane at every width rather than a phone container plus

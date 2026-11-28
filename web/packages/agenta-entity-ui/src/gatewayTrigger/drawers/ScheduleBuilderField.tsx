@@ -15,7 +15,7 @@ import {
 import {createT, useT} from "@agenta/i18n"
 import scheduleCatalog from "@agenta/i18n/catalogs/entityUi.scheduleBuilder"
 import scheduleTextCatalog from "@agenta/i18n/catalogs/entityUi.scheduleText"
-import {message} from "@agenta/ui"
+import {message} from "@agenta/ui/app-message"
 import {TimePicker} from "@agenta/ui/composed"
 import {
     Button,

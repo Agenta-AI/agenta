@@ -10,8 +10,8 @@ import {
     useAutoRefresh,
 } from "@agenta/observability-ui"
 import {AddActionsDropdown, deleteTraceModalAtom} from "@agenta/observability-ui"
-import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
+import {PageLayout} from "@agenta/ui/layout"
 import {ChatsIcon, NetworkIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useSetAtom} from "jotai"

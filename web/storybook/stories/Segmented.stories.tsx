@@ -1,7 +1,7 @@
 import {ListBullets, SquaresFour, Rows} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-import {Segmented} from "../../packages/agenta-ui/src/components/composed/segmented"
+import {Segmented} from "../../packages/agenta-ui/src/composed/controls/segmented"
 
 const meta = {
     title: "@agenta/ui/Primitives/Forms/Segmented",

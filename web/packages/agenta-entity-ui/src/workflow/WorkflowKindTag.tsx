@@ -2,7 +2,7 @@ import {memo} from "react"
 
 import {useT} from "@agenta/i18n"
 import workflowTagCatalog from "@agenta/i18n/catalogs/entityUi.workflowTag"
-import {cn} from "@agenta/ui"
+import {cn} from "@agenta/ui/styles"
 import {Badge} from "@agenta/ui/ui"
 
 export interface WorkflowKindTagProps {

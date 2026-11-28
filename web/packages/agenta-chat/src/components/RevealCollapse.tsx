@@ -1,6 +1,6 @@
 import {type ReactNode} from "react"
 
-import {HeightCollapse} from "@agenta/ui"
+import {HeightCollapse} from "@agenta/ui/layout"
 
 /**
  * Appear/disappear collapse for chat-composer chrome (connect-model banner, queued messages, HITL

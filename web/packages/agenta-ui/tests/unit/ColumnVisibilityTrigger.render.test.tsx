@@ -2,9 +2,9 @@
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import ColumnVisibilityTrigger from "../../src/InfiniteVirtualTable/components/ColumnVisibilityTrigger"
-import TableSettingsDropdown from "../../src/InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown"
-import type {ColumnVisibilityState} from "../../src/InfiniteVirtualTable/types"
+import TableSettingsDropdown from "../../src/data/infinite-virtual-table/components/columnVisibility/TableSettingsDropdown"
+import ColumnVisibilityTrigger from "../../src/data/infinite-virtual-table/components/ColumnVisibilityTrigger"
+import type {ColumnVisibilityState} from "../../src/data/infinite-virtual-table/types"
 
 /**
  * `/evaluations` died with "Maximum update depth exceeded" once every table started rendering

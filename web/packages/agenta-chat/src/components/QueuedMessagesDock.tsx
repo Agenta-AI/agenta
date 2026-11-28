@@ -20,7 +20,7 @@ import {useT} from "@agenta/i18n"
 import chatQueuedMessagesDockCatalog from "@agenta/i18n/catalogs/chat.queuedMessagesDock"
 import {splitQuotedMessage, truncateQuoteText, type QuotedExcerpt} from "@agenta/shared/quotes"
 import {getCollapseLabel} from "@agenta/ui/components/presentational"
-import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {HeightCollapse} from "@agenta/ui/layout"
 import {Button} from "@agenta/ui/ui"
 import {
     CaretUp,

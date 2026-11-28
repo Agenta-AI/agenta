@@ -1,4 +1,4 @@
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {pageContentWidthClass} from "@agenta/ui/layout"
 
 /**
  * The frame Home applies: the shared column plus a phone's own gutters below `lg`, widening to

@@ -2,7 +2,7 @@
 import {act, cleanup, fireEvent, render} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {SplitPane} from "../../src/components/composed/split-pane"
+import {SplitPane} from "../../src/composed/layout/split-pane"
 
 let width = 1200
 let notifyResize: () => void

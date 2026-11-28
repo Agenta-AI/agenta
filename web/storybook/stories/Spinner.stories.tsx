@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // Spinner is not exported from the `@agenta/ui/ui` barrel yet (index.ts is off-limits for
 // this change), so the story imports the primitive directly from its source file.
-import {Spinner} from "../../packages/agenta-ui/src/components/ui/spinner"
+import {Spinner} from "../../packages/agenta-ui/src/primitives/spinner"
 
 const meta = {
     title: "@agenta/ui/Primitives/Feedback/Spinner",

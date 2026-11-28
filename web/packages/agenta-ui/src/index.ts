@@ -52,8 +52,8 @@
  * - Hooks (useTableManager, useTableActions, useRowHeight, etc.)
  * - Types and helpers
  */
-export * from "./InfiniteVirtualTable"
-export {MarkdownPreview, type MarkdownPreviewProps} from "./MarkdownPreview"
+export * from "./data/infinite-virtual-table"
+export {MarkdownPreview, type MarkdownPreviewProps} from "./editor/MarkdownPreview"
 
 // ============================================================================
 // COMPONENTS
@@ -64,13 +64,13 @@ export {MarkdownPreview, type MarkdownPreviewProps} from "./MarkdownPreview"
  * - Selection: SearchInput, ListItem, VirtualList, LoadMoreButton, LoadAllButton, EntityBreadcrumb
  * - Presentational: VersionBadge, RevisionLabel, EntityPathLabel, EntityNameWithVersion
  */
-export * from "./components"
+export * from "./patterns"
 
 // ============================================================================
 // UTILITIES
 // ============================================================================
 
-export {copyToClipboard} from "./utils/copyToClipboard"
+export {copyToClipboard} from "./foundation/utils/copyToClipboard"
 
 /**
  * Column grouping utilities for tables:
@@ -86,12 +86,12 @@ export {
     getLeafColumnName,
     type GroupableColumn,
     type GroupColumnsOptions,
-} from "./utils/groupColumns"
+} from "./data/infinite-virtual-table/utils/groupColumns"
 
 /**
  * Styling utilities: `cn` (the tailwind-merge class combiner) and the shared layout sizes.
  */
-export {cn, layoutSizes, modalSizes, type SizeVariant} from "./utils/styles"
+export {cn, layoutSizes, modalSizes, type SizeVariant} from "./foundation/utils/styles"
 
 /**
  * App Message Context - Static message/modal/notification services
@@ -100,7 +100,12 @@ export {cn, layoutSizes, modalSizes, type SizeVariant} from "./utils/styles"
  * its own surfaces to document.body), then use the static message/modal/notification
  * exports anywhere — including outside React.
  */
-export {default as AppMessageContext, message, modal, notification} from "./utils/appMessageContext"
+export {
+    default as AppMessageContext,
+    message,
+    modal,
+    notification,
+} from "./composed/feedback/appMessageContext"
 
 // ============================================================================
 // LLM ICONS - SVG icons for LLM providers
@@ -133,7 +138,7 @@ export {
     XAI,
     // Types
     type IconProps,
-} from "./LLMIcons"
+} from "./icons/llm-icons"
 
 // ============================================================================
 // SELECT LLM PROVIDER - Provider selection component
@@ -150,7 +155,7 @@ export {
     PROVIDER_ICON_MAP,
     getProviderIcon,
     getProviderDisplayName,
-} from "./SelectLLMProvider"
+} from "./patterns/select-llm-provider"
 
 // ============================================================================
 // EDITOR - Rich text and code editor built on Lexical
@@ -203,7 +208,7 @@ export {
     type EditorProviderProps,
     type InitialContentPayload,
     type CustomRenderFn,
-} from "./Editor"
+} from "./editor/editor"
 
 // ============================================================================
 // SHARED EDITOR - Editor wrapper with debounce and styling
@@ -214,7 +219,7 @@ export {
     useDebounceInput,
     type SharedEditorProps,
     type BaseContainerProps,
-} from "./SharedEditor"
+} from "./editor/shared-editor"
 
 // ============================================================================
 // CHAT MESSAGE - Chat message editing components
@@ -234,20 +239,20 @@ export {
     // Component Types
     type ChatMessageEditorProps,
     type ChatMessageListProps,
-} from "./ChatMessage"
+} from "./editor/chat-message"
 
 // ============================================================================
 // HOOKS - Shared React hooks
 // ============================================================================
 
-export {useSelectionState, type UseSelectionStateResult} from "./hooks"
-export {useDefaultStoreAtomValue} from "./hooks"
+export {useSelectionState, type UseSelectionStateResult} from "./foundation/hooks"
+export {useDefaultStoreAtomValue} from "./foundation/hooks"
 
 // ============================================================================
 // COPY TOOLTIP - Tooltip with click-to-copy functionality
 // ============================================================================
 
-export {CopyTooltip, type CopyTooltipProps} from "./components/composed/copy-tooltip"
+export {CopyTooltip, type CopyTooltipProps} from "./composed/feedback/copy-tooltip"
 
 // ============================================================================
 // CELL RENDERERS - Smart cell content rendering for tables
@@ -278,4 +283,4 @@ export {
     DEFAULT_ROLE_COLOR_CLASS,
     // Types
     type NormalizedChatMessage,
-} from "./CellRenderers"
+} from "./data/cell-renderers"

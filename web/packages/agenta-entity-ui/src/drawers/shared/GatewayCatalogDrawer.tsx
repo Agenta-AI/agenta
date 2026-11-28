@@ -13,8 +13,10 @@ import React, {useCallback, useEffect, useMemo, useRef, useState, type ReactNode
 
 import {useT} from "@agenta/i18n"
 import gatewayCatalogCatalog from "@agenta/i18n/catalogs/entityUi.gatewayCatalog"
-import {DropdownButton, ScrollSentinel, ScrollToTopButton, Tag} from "@agenta/ui"
+import {DropdownButton} from "@agenta/ui/components"
+import {Tag} from "@agenta/ui/components/presentational"
 import {Divider, EmptyState, InputAffix} from "@agenta/ui/composed"
+import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui/layout"
 import {Button, Sheet, SheetContent, SheetHeader, SheetTitle, Spinner} from "@agenta/ui/ui"
 import {
     ArrowLeft,

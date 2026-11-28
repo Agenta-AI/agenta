@@ -8,7 +8,7 @@ import {
     SheetDescription,
     SheetHeader,
     SheetTitle,
-} from "../../src/components/ui/sheet"
+} from "../../src/primitives/sheet"
 
 /**
  * The close button centres on a one-line header. On a header with more lines under the title (a

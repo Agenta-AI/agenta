@@ -2,7 +2,7 @@
 import {act, cleanup, fireEvent, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {RichChatInput} from "../../src/RichChatInput"
+import {RichChatInput} from "../../src/editor/rich-chat-input"
 
 afterEach(cleanup)
 

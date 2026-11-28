@@ -1,0 +1,324 @@
+import {useCallback, useEffect, useMemo, useState} from "react"
+
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
+import {ArrowCounterClockwise, File as FileIcon, FolderOpen} from "@phosphor-icons/react"
+import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
+
+import {CheckboxTree, type CheckboxTreeNode} from "../../../../composed/controls/checkbox-tree"
+import {InputAffix} from "../../../../composed/controls/input-affix"
+import {cn} from "../../../../foundation/utils/cn"
+import {Button} from "../../../../primitives/button"
+import {getColumnWidthsAtom} from "../../atoms/columnWidths"
+import {useColumnVisibilityControls, type ColumnVisibilityState} from "../../InfiniteVirtualTable"
+import type {
+    ColumnTreeNode,
+    ColumnVisibilityNodeMeta,
+    ColumnVisibilityNodeMetaResolver,
+} from "../../types"
+
+export interface ColumnVisibilityPopoverContentProps<RowType extends object> {
+    onClose: () => void
+    controls?: ColumnVisibilityState<RowType>
+    scopeId?: string | null
+    resolveNodeMeta?: ColumnVisibilityNodeMetaResolver
+    onExport?: () => void
+    isExporting?: boolean
+    /** Additional content to render before the visibility controls */
+    additionalContent?: React.ReactNode
+}
+
+type VisibilityTreeNode = CheckboxTreeNode & {searchLabel: string; children?: VisibilityTreeNode[]}
+
+/** The box antd's `.anticon` gave these icons: 1em wide, inline-block, 0.125em below the baseline. */
+const ANTD_ICON_BOX = {
+    size: "1em",
+    style: {display: "inline-block", verticalAlign: "-0.125em"},
+} as const
+
+const ColumnVisibilityPopoverContent = <RowType extends object>({
+    onClose,
+    controls,
+    scopeId = null,
+    resolveNodeMeta,
+    onExport,
+    isExporting,
+    additionalContent,
+}: ColumnVisibilityPopoverContentProps<RowType>) => {
+    const t = useT(uiTableCatalog, commonCatalog)
+    const fallbackControls = useColumnVisibilityControls<RowType>()
+    const visibilityControls = controls ?? fallbackControls
+    const {columnTree, leafKeys, toggleColumn, toggleTree, reset, setHiddenKeys} =
+        visibilityControls
+
+    const columnWidthsAtom = useMemo(() => getColumnWidthsAtom(scopeId), [scopeId])
+    const setColumnWidths = useSetAtomWithSchedule(columnWidthsAtom, {
+        priority: LOW_PRIORITY,
+    })
+
+    const [search, setSearch] = useState("")
+    const allTreeKeys = useMemo(() => {
+        const keys: string[] = []
+        const walk = (nodes: typeof columnTree) => {
+            nodes.forEach((node) => {
+                keys.push(String(node.key))
+                if (node.children?.length) {
+                    walk(node.children)
+                }
+            })
+        }
+        walk(columnTree)
+        return keys
+    }, [columnTree])
+    const [expandedKeys, setExpandedKeys] = useState<string[]>(allTreeKeys)
+
+    useEffect(() => {
+        setExpandedKeys(allTreeKeys)
+    }, [allTreeKeys])
+
+    const allNodes = useMemo(() => {
+        const nodes: ColumnTreeNode[] = []
+        const walk = (items: typeof columnTree) => {
+            items.forEach((node) => {
+                nodes.push(node)
+                if (node.children?.length) {
+                    walk(node.children)
+                }
+            })
+        }
+        walk(columnTree)
+        return nodes
+    }, [columnTree])
+
+    const [resolvedNodeMetaMap, setResolvedNodeMetaMap] = useState(
+        () => new Map<string, ColumnVisibilityNodeMeta>(),
+    )
+
+    useEffect(() => {
+        if (!resolveNodeMeta) {
+            setResolvedNodeMetaMap(new Map())
+            return
+        }
+        let active = true
+        setResolvedNodeMetaMap(new Map())
+
+        allNodes.forEach((node) => {
+            const key = String(node.key)
+            Promise.resolve(resolveNodeMeta(node)).then((meta) => {
+                if (!active || !meta) return
+                setResolvedNodeMetaMap((prev) => {
+                    const existing = prev.get(key)
+                    if (existing === meta) return prev
+                    const next = new Map(prev)
+                    next.set(key, meta)
+                    return next
+                })
+            })
+        })
+
+        return () => {
+            active = false
+        }
+    }, [allNodes, resolveNodeMeta])
+
+    const defaultNodeMeta = useCallback(
+        (node: ColumnTreeNode, hasChildren: boolean): ColumnVisibilityNodeMeta => {
+            const key = String(node.key)
+            const label = node.titleNode ?? node.label ?? key
+            return {
+                title:
+                    typeof label === "string" ? (
+                        <span className={cn("truncate", hasChildren && "font-semibold")}>
+                            {label}
+                        </span>
+                    ) : (
+                        label
+                    ),
+                searchValues: [typeof label === "string" ? label : undefined, key],
+                icon: hasChildren ? (
+                    <FolderOpen {...ANTD_ICON_BOX} />
+                ) : (
+                    <FileIcon {...ANTD_ICON_BOX} />
+                ),
+            }
+        },
+        [],
+    )
+
+    const treeData = useMemo<VisibilityTreeNode[]>(() => {
+        const mapNodes = (nodes: typeof columnTree): VisibilityTreeNode[] =>
+            nodes.map((node) => {
+                const hasChildren = Boolean(node.children?.length)
+                const key = String(node.key)
+                const customMeta = resolvedNodeMetaMap.get(key)
+                const defaultMeta = defaultNodeMeta(node, hasChildren)
+                const meta = customMeta ?? defaultMeta
+                const title = meta.title ?? defaultMeta.title
+                const icon =
+                    meta.icon ??
+                    defaultMeta.icon ??
+                    (hasChildren ? (
+                        <FolderOpen {...ANTD_ICON_BOX} />
+                    ) : (
+                        <FileIcon {...ANTD_ICON_BOX} />
+                    ))
+                const searchValues = meta.searchValues ??
+                    defaultMeta.searchValues ?? [
+                        node.label ?? undefined,
+                        typeof node.key === "string" ? node.key : key,
+                    ]
+                const searchLabel = searchValues
+                    .filter((segment): segment is string => Boolean(segment))
+                    .join(" ")
+
+                const children = hasChildren ? mapNodes(node.children) : undefined
+
+                return {
+                    key,
+                    title,
+                    icon,
+                    children,
+                    selectable: false,
+                    searchLabel,
+                    checked: node.checked,
+                    indeterminate: node.indeterminate,
+                } as VisibilityTreeNode
+            })
+
+        return mapNodes(columnTree)
+    }, [columnTree, defaultNodeMeta, resolvedNodeMetaMap])
+
+    const filterTreeData = useCallback(
+        (nodes: VisibilityTreeNode[], query: string): VisibilityTreeNode[] =>
+            nodes
+                .map((node) => {
+                    const children = Array.isArray(node.children)
+                        ? filterTreeData(node.children as VisibilityTreeNode[], query)
+                        : undefined
+                    const matches = node.searchLabel.toLowerCase().includes(query)
+                    if (matches || (children && children.length)) {
+                        return {...node, children}
+                    }
+                    return null
+                })
+                .filter(Boolean) as VisibilityTreeNode[],
+        [],
+    )
+
+    const filteredTreeData = useMemo(() => {
+        const query = search.trim().toLowerCase()
+        if (!query) return treeData
+        return filterTreeData(treeData, query)
+    }, [filterTreeData, search, treeData])
+
+    const checkedKeys = useMemo(() => {
+        const keys: string[] = []
+        const gather = (nodes: typeof columnTree) => {
+            nodes.forEach((node) => {
+                if (node.checked) keys.push(String(node.key))
+                if (node.children?.length) gather(node.children)
+            })
+        }
+        gather(columnTree)
+        return keys
+    }, [columnTree])
+
+    const halfCheckedKeys = useMemo(() => {
+        const keys: string[] = []
+        const gather = (nodes: typeof columnTree) => {
+            nodes.forEach((node) => {
+                if (node.indeterminate) keys.push(String(node.key))
+                if (node.children?.length) gather(node.children)
+            })
+        }
+        gather(columnTree)
+        return keys
+    }, [columnTree])
+
+    const handleExpandAll = useCallback(() => {
+        setExpandedKeys(allTreeKeys)
+    }, [allTreeKeys])
+
+    const handleCollapseAll = useCallback(() => {
+        setExpandedKeys([])
+    }, [])
+
+    const handleShowAll = useCallback(() => {
+        setHiddenKeys([])
+    }, [setHiddenKeys])
+
+    const handleHideAll = useCallback(() => {
+        setHiddenKeys(leafKeys)
+    }, [leafKeys, setHiddenKeys])
+
+    const handleResetLayout = useCallback(() => {
+        reset()
+        setColumnWidths(() => ({}))
+        setSearch("")
+        setExpandedKeys(allTreeKeys)
+    }, [allTreeKeys, reset, setColumnWidths])
+
+    return (
+        <div className="flex flex-col gap-3 min-w-[360px] max-w-[420px]">
+            {additionalContent}
+
+            <InputAffix
+                allowClear
+                placeholder={t("ui.table.searchColumns")}
+                value={search}
+                onValueChange={setSearch}
+            />
+
+            <div className="flex flex-col gap-1">
+                <span className="text-meta font-medium text-muted-foreground">
+                    {t("ui.table.visibility")}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                    <Button variant="outline" size="sm" onClick={handleExpandAll}>
+                        {t("ui.table.expandAll")}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleCollapseAll}>
+                        {t("ui.table.collapseAll")}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleShowAll}>
+                        {t("ui.table.showAll")}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleHideAll}>
+                        {t("ui.table.hideAll")}
+                    </Button>
+                </div>
+            </div>
+            <div className="rounded-md border border-solid border-border-muted bg-background">
+                <div className="max-h-80 overflow-auto px-1 py-2">
+                    <CheckboxTree
+                        height={300}
+                        checkedKeys={checkedKeys}
+                        halfCheckedKeys={halfCheckedKeys}
+                        expandedKeys={expandedKeys}
+                        onExpand={setExpandedKeys}
+                        treeData={filteredTreeData}
+                        onCheck={(key, _node, hasNestedChildren) => {
+                            if (hasNestedChildren) toggleTree(key)
+                            else toggleColumn(key)
+                        }}
+                    />
+                </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-1">
+                <Button size="sm" variant="ghost" onClick={handleResetLayout}>
+                    {<ArrowCounterClockwise size={14} />}
+                    {t("ui.table.resetLayout")}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={onClose}>
+                    {t("common.close")}
+                </Button>
+            </div>
+        </div>
+    )
+}
+
+export default ColumnVisibilityPopoverContent
+
+export type {ColumnVisibilityNodeMeta, ColumnVisibilityNodeMetaResolver}

@@ -2,7 +2,7 @@
 import {renderHook} from "@testing-library/react"
 import {describe, expect, it} from "vitest"
 
-import {useHasOpened} from "../../src/hooks/useHasOpened"
+import {useHasOpened} from "../../src/foundation/hooks/useHasOpened"
 
 describe("useHasOpened", () => {
     it("stays false until the first open, then stays true", () => {

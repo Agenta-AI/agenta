@@ -12,13 +12,13 @@ import {useCallback, useMemo, type ReactNode} from "react"
 
 import {createT} from "@agenta/i18n"
 import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
-import {HeightCollapse} from "@agenta/ui"
 import type {
     FieldActionsSlotProps,
     FieldContentSlotProps,
     FieldHeaderSlotProps,
 } from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
+import {HeightCollapse} from "@agenta/ui/layout"
 import {
     Button,
     DropdownMenu,

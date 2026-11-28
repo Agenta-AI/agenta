@@ -35,7 +35,7 @@ import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {message} from "@agenta/ui"
+import {message} from "@agenta/ui/app-message"
 import {
     AlertDialog,
     AlertDialogCancel,

@@ -12,7 +12,7 @@ import {
 import {useT} from "@agenta/i18n"
 import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
 import {classifyAgentIntent} from "@agenta/shared/analytics"
-import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {HeightCollapse} from "@agenta/ui/layout"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"

@@ -39,7 +39,7 @@ import {
     MarkdownToolbar,
     SET_MARKDOWN_VIEW,
     useLexicalComposerContext,
-} from "@agenta/ui"
+} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
 import {Badge} from "@agenta/ui/ui"

@@ -18,10 +18,10 @@ import React, {useCallback, useEffect, useMemo, useRef, useState, type CSSProper
 
 import {useT} from "@agenta/i18n"
 import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
-import {cn} from "@agenta/ui"
 import {EntityListItem} from "@agenta/ui/components/selection"
 import {SearchInput} from "@agenta/ui/composed"
 import {EmptyState} from "@agenta/ui/composed"
+import {cn} from "@agenta/ui/styles"
 import {
     Button,
     Checkbox,

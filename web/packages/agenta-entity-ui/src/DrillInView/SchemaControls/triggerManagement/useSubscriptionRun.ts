@@ -5,7 +5,7 @@ import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
 import {createT} from "@agenta/i18n"
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {message} from "@agenta/ui"
+import {message} from "@agenta/ui/app-message"
 import {useSetAtom} from "jotai"
 
 import {

@@ -1,0 +1,245 @@
+/**
+ * LoadMoreButton Component
+ *
+ * A button for manually triggering pagination/infinite scroll.
+ * Use instead of auto-scroll when explicit user control is preferred.
+ *
+ * @example
+ * ```tsx
+ * import {LoadMoreButton} from '@agenta/ui'
+ *
+ * <LoadMoreButton
+ *   onClick={fetchNextPage}
+ *   isLoading={isFetchingNextPage}
+ *   hasMore={hasNextPage}
+ *   loadedCount={items.length}
+ *   totalCount={totalCount}
+ *   showCount
+ * />
+ * ```
+ */
+
+import React from "react"
+
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
+import {CaretDownIcon} from "@phosphor-icons/react"
+
+import type {EntityListCounts} from "../../data/infinite-virtual-table/paginated"
+import {cn} from "../../foundation/utils/cn"
+import {Button, type ButtonProps} from "../../primitives/button"
+import {Spinner} from "../../primitives/spinner"
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export interface LoadMoreButtonProps {
+    /**
+     * Optional: EntityListCounts object from paginated store.
+     * When provided, overrides loadedCount, totalCount, and hasMore props.
+     */
+    counts?: EntityListCounts
+    /**
+     * Callback when button is clicked
+     */
+    onClick: () => void
+
+    /**
+     * Whether data is currently loading
+     */
+    isLoading?: boolean
+
+    /**
+     * Whether there are more items to load
+     */
+    hasMore?: boolean
+
+    /**
+     * Custom button text
+     * @default "Load more"
+     */
+    label?: string
+
+    /**
+     * Custom loading text
+     * @default "Loading..."
+     */
+    loadingLabel?: string
+
+    /**
+     * Total count of items (for display)
+     */
+    totalCount?: number | null
+
+    /**
+     * Current loaded count (for display)
+     */
+    loadedCount?: number
+
+    /**
+     * Show count indicator (e.g., "10 of 50")
+     * @default false
+     */
+    showCount?: boolean
+
+    /**
+     * Button size
+     * @default "middle"
+     */
+    size?: ButtonProps["size"]
+
+    /**
+     * Additional CSS class
+     */
+    className?: string
+
+    /**
+     * Full width button
+     * @default true
+     */
+    block?: boolean
+}
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
+/**
+ * Button for loading more items in a paginated list
+ */
+export function LoadMoreButton({
+    counts,
+    onClick,
+    isLoading = false,
+    hasMore: hasMoreProp = true,
+    label: labelProp,
+    loadingLabel: loadingLabelProp,
+    totalCount: totalCountProp,
+    loadedCount: loadedCountProp,
+    showCount = false,
+    size = "default",
+    className = "",
+    block = true,
+}: LoadMoreButtonProps) {
+    const t = useT(listControlsCatalog, commonCatalog)
+    const label = labelProp ?? t("common.loadMore")
+    const loadingLabel = loadingLabelProp ?? t("ui.listControls.loadingDots")
+    // Use counts object if provided, otherwise fall back to individual props
+    const hasMore = counts?.hasMore ?? hasMoreProp
+    const totalCount = counts?.totalCount ?? totalCountProp
+    const loadedCount = counts?.loadedCount ?? loadedCountProp
+
+    // Don't render if no more items
+    if (!hasMore && !isLoading) {
+        return null
+    }
+
+    // Build count string - use displayLabel from counts if available
+    const countString = counts?.displayLabel
+        ? ` (${counts.displayLabel})`
+        : showCount && loadedCount !== undefined && totalCount
+          ? ` ${t("ui.listControls.loadedOfTotal", {loaded: loadedCount, total: totalCount})}`
+          : showCount && loadedCount !== undefined
+            ? ` ${t("ui.listControls.loadedCount", {loaded: loadedCount})}`
+            : ""
+
+    return (
+        <div className={cn("py-2", className)}>
+            <Button
+                variant="outline"
+                size={size}
+                className={cn(block && "w-full")}
+                onClick={onClick}
+                disabled={isLoading || !hasMore}
+            >
+                {isLoading ? <Spinner size="small" /> : <CaretDownIcon className="w-4 h-4" />}
+                {isLoading ? loadingLabel : `${label}${countString}`}
+            </Button>
+        </div>
+    )
+}
+
+// ============================================================================
+// INLINE VARIANT
+// ============================================================================
+
+export interface LoadMoreInlineProps {
+    onClick: () => void
+    isLoading?: boolean
+    hasMore?: boolean
+    label?: string
+    className?: string
+}
+
+/**
+ * Inline "load more" link for compact layouts
+ */
+export function LoadMoreInline({
+    onClick,
+    isLoading = false,
+    hasMore = true,
+    label: labelProp,
+    className = "",
+}: LoadMoreInlineProps) {
+    const t = useT(listControlsCatalog, commonCatalog)
+    const label = labelProp ?? t("common.loadMore")
+    if (!hasMore && !isLoading) {
+        return null
+    }
+
+    return (
+        <div className={cn("py-2 text-center", className)}>
+            {isLoading ? (
+                <span className="text-muted-foreground flex items-center justify-center gap-2">
+                    <Spinner size="small" />
+                    {t("ui.listControls.loadingDots")}
+                </span>
+            ) : (
+                <button type="button" onClick={onClick} className="text-link hover:underline">
+                    {label}
+                </button>
+            )}
+        </div>
+    )
+}
+
+// ============================================================================
+// END OF LIST INDICATOR
+// ============================================================================
+
+export interface EndOfListProps {
+    /**
+     * Message to show when all items are loaded
+     * @default "All items loaded"
+     */
+    message?: string
+
+    /**
+     * Total count of items (optional)
+     */
+    totalCount?: number | null
+
+    /**
+     * Additional CSS class
+     */
+    className?: string
+}
+
+/**
+ * Indicator shown when all items have been loaded
+ */
+export function EndOfList({message: messageProp, totalCount, className = ""}: EndOfListProps) {
+    const t = useT(listControlsCatalog)
+    const message = messageProp ?? t("ui.listControls.allItemsLoaded")
+    const displayMessage = totalCount
+        ? `${message} ${t("ui.listControls.totalInParens", {total: totalCount})}`
+        : message
+
+    return (
+        <div className={cn("py-3 text-center text-muted-foreground", className)}>
+            {displayMessage}
+        </div>
+    )
+}

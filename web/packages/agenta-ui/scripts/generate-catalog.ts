@@ -31,7 +31,7 @@ const ASSETS = pathResolve(
     createRequire(import.meta.url).resolve("@phosphor-icons/core"),
     "../../assets/regular",
 )
-const OUT = pathResolve(PKG, "src/agent-icon/catalog.generated.ts")
+const OUT = pathResolve(PKG, "src/icons/agent-icon/catalog.generated.ts")
 
 /** Everything between the outer `<svg …>` and `</svg>` — the shapes, without the wrapper. */
 const innerMarkup = (svg: string): string =>

@@ -1,4 +1,4 @@
-// Counts off-system styling in web/mobile/src and web/packages/*/src; no count may rise (the rules are in src/design/rules.json).
+// Counts off-system styling in web/mobile/src and web/packages/*/src; no count may rise (the rules are in src/foundation/design/rules.json).
 // Usage: tsx scripts/design-ratchet.ts [--check | --write]
 import {existsSync, readFileSync, readdirSync, statSync, writeFileSync} from "fs"
 import {dirname, join, relative, resolve} from "path"
@@ -97,7 +97,7 @@ for (const [name, c] of Object.entries(now)) {
 }
 if (over.length) {
     console.error(
-        `design-ratchet: counts rose above the baseline (see src/design/rules.json):\n  ${over.join("\n  ")}`,
+        `design-ratchet: counts rose above the baseline (see src/foundation/design/rules.json):\n  ${over.join("\n  ")}`,
     )
     process.exit(1)
 }

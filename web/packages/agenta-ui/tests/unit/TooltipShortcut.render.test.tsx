@@ -2,14 +2,14 @@
 import {cleanup, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {Kbd} from "../../src/components/ui/kbd"
-import {ShortcutKeys} from "../../src/shortcuts/ShortcutKeys"
+import {Kbd} from "../../src/primitives/kbd"
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
-} from "../../src/components/ui/tooltip"
+} from "../../src/primitives/tooltip"
+import {ShortcutKeys} from "../../src/shell/shortcuts/ShortcutKeys"
 
 // jsdom has no ResizeObserver; Radix measures the arrow with one.
 class StubResizeObserver {

@@ -78,7 +78,7 @@ one-line purpose each, is `web/packages/README.md`. The core ones:
 | Package | Purpose | Key exports |
 | --- | --- | --- |
 | `@agenta/shared` | Utilities, types, schemas, hooks; host QueryClient API | `./api`, `./state`, `./utils`, `getHostQueryClient` |
-| `@agenta/ui` | Shared UI kit | shadcn primitives (`./ui`), `InfiniteVirtualTable`, `cn`, presentational components |
+| `@agenta/ui` | Shared UI kit | shadcn primitives (`./ui`), `./composed`, `./layout`, `InfiniteVirtualTable` (`./table`), `cn` (`./styles`), presentational components |
 | `@agenta/sdk` | Fern client wrapper | per-resource clients in `./resources` |
 | `@agenta/entities` | Entity state and API calls | molecules (`workflowMolecule`, `testcaseMolecule`, ...), the loadable bridge |
 | `@agenta/entity-ui` | Entity-specific UI | `EntityPicker`, modals, drawers, drill-in, the drive |
@@ -106,12 +106,18 @@ import {MESSAGE_CONTENT_SCHEMA, CHAT_MESSAGE_SCHEMA} from "@agenta/shared/schema
 import type {SimpleChatMessage, MessageContent, ToolCall} from "@agenta/shared/types"
 ```
 
-`@agenta/ui`:
+`@agenta/ui` (never the root `@agenta/ui`: it re-exports the whole kit, the table and the
+editors included). `src/` has nine folders, bottom layer first: `foundation`, `primitives`,
+`composed`, `icons`, `layout`, `shell`, `editor`, `data`, `patterns`. A folder imports only
+from the folders before it. `web/packages/agenta-ui/src/README.md` has the map.
 
 ```typescript
-import {...} from "@agenta/ui/ui"                 // shadcn primitives (Button, Dialog, Sheet, ...)
-import {...} from "@agenta/ui/composed"           // built from the primitives (SimpleTooltip, LoadingButton, Segmented, SplitPane, ...)
-import {...} from "@agenta/ui"                    // presentational components, cn
+import {...} from "@agenta/ui/ui"                 // shadcn primitives (Button, Dialog, Sheet, ...) — src/primitives
+import {...} from "@agenta/ui/composed"           // built from the primitives (SimpleTooltip, LoadingButton, Segmented, SplitPane, ...) — src/composed
+import {...} from "@agenta/ui/layout"             // PageLayout, PageTitle, HeightCollapse, page width, panel layouts, config sections — src/layout
+import {...} from "@agenta/ui/icons"              // GitHubMark, LogoMarks — src/icons
+import {...} from "@agenta/ui/components/presentational" // presentational components — src/patterns/presentational
+import {...} from "@agenta/ui/styles"             // cn
 import {...} from "@agenta/ui/table"              // InfiniteVirtualTable, paginated stores
 import {...} from "@agenta/ui/editor"             // Editor, JSON parsing utilities
 import {...} from "@agenta/ui/shared-editor"      // SharedEditor, useDebounceInput
@@ -176,13 +182,14 @@ import {cn} from "@agenta/ui/styles"
 <div className="hover:bg-accent">Hoverable area</div>
 ```
 
-Section layout primitives from `@agenta/ui`:
+Section layout primitives from `@agenta/ui/layout` and presentational components from
+`@agenta/ui/components/presentational`:
 
 ```typescript
+import {SectionCard, SectionLabel, SectionHeaderRow, ConfigBlock} from "@agenta/ui/layout"
 import {
-  SectionCard, SectionLabel, SectionHeaderRow, ConfigBlock, VersionBadge,
-  RevisionLabel, StatusTag, PanelHeader, SourceIndicator,
-} from "@agenta/ui"
+  VersionBadge, RevisionLabel, StatusTag, PanelHeader, SourceIndicator,
+} from "@agenta/ui/components/presentational"
 
 <SectionCard>
   <SectionHeaderRow left={<SectionLabel>Configuration</SectionLabel>} right={<Button>Edit</Button>} />
@@ -197,7 +204,8 @@ Need a primitive (button, dialog, ...)? → @agenta/ui/ui
 Need a kit composition (SimpleTooltip, LoadingButton, Segmented, RightPane, ...)? → @agenta/ui/composed
 Need a modal?                          → Dialog from @agenta/ui/ui
 Class-name utils?                      → cn from @agenta/ui/styles (theme colors are literal classes)
-Section layout primitives?             → SectionCard, SectionLabel, ConfigBlock from @agenta/ui
+Section layout primitives?             → SectionCard, SectionLabel, ConfigBlock from @agenta/ui/layout
+Page frame (PageLayout, HeightCollapse)? → @agenta/ui/layout
 Entity state management (molecules)?   → *Molecule from @agenta/entities/{entity}
 Entity selection UI?                   → EntityPicker from @agenta/entity-ui/selection
 Loadable bridge?                       → loadableBridge from @agenta/entities/loadable

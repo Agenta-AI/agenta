@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {formatListDateTime} from "../../src/list-table/formatListDateTime"
+import {formatListDateTime} from "../../src/data/list-table/formatListDateTime"
 
 describe("list date and time", () => {
     it("shows the date and the time like the classic app", () => {

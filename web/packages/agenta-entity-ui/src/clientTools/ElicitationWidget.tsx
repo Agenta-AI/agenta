@@ -29,7 +29,7 @@ import {
     parseElicitationPayload,
     parseSecretRefusal,
 } from "@agenta/shared/utils"
-import {HeightCollapse} from "@agenta/ui"
+import {HeightCollapse} from "@agenta/ui/layout"
 import {CaretRight, CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
 
 /** Settled/parked single-line chip — one chrome for every terminal state (design: settled chip). */

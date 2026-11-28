@@ -1,7 +1,7 @@
 import {createT} from "@agenta/i18n"
 import connectFormCatalog from "@agenta/i18n/catalogs/entityUi.connectForm"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
-import {message} from "@agenta/ui"
+import {message} from "@agenta/ui/app-message"
 
 import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
 

@@ -5,7 +5,7 @@
  */
 import {useT} from "@agenta/i18n"
 import catalogAppCardCatalog from "@agenta/i18n/catalogs/entityUi.catalogAppCard"
-import {EntityCard} from "@agenta/ui"
+import {EntityCard} from "@agenta/ui/components"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Lightning, Plugs} from "@phosphor-icons/react"
 import Image from "next/image"

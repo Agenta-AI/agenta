@@ -20,7 +20,7 @@ import {
     truncate,
     wrapLabel,
     xLabelEvery,
-} from "../../src/components/presentational/charts/scale"
+} from "../../src/patterns/presentational/charts/scale"
 
 describe("chart scale math", () => {
     it("Nice max rounds the largest value up to a readable tick", () => {

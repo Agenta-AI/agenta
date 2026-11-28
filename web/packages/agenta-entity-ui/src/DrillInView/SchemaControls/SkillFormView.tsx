@@ -20,7 +20,7 @@ import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {message} from "@agenta/ui/app-message"
 import {AutosizeTextarea, SimpleTooltip} from "@agenta/ui/composed"
-import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {HeightCollapse} from "@agenta/ui/layout"
 import {BottomSheet, useIsPhone} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {

@@ -14,7 +14,7 @@ import {
     tintFor,
     tintForColor,
     toRgb,
-} from "../../src/agent-icon/colors"
+} from "../../src/icons/agent-icon/colors"
 
 /** Perceived lightness, good enough to assert "this got lighter". */
 const luma = (hex: string) => {

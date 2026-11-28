@@ -1,187 +1,106 @@
 # @agenta/ui Source Structure
 
-This package provides shared UI components, hooks, and utilities for building data-intensive interfaces.
+This package holds the shared UI kit: the theme, the shadcn primitives, the parts built on
+them, and the larger blocks (tables, editors, app chrome) that the app and the `@agenta/*`
+packages share.
 
 ## Folder Structure
 
+`src/` has nine folders. They are listed from the bottom layer up. A folder imports only
+from the folders above it in this list.
+
 ```
 src/
-├── components/              # Reusable UI components
-│   ├── selection/           # Selection UI (search, lists, pagination)
-│   ├── presentational/      # Pure display components (badges, labels, etc.)
-│   └── README.md
-├── ChatMessage/             # Chat message editing components
-│   ├── components/          # Editor, list, attachments
-│   └── README.md
-├── Editor/                  # Rich text/code editor (Lexical-based)
-│   ├── plugins/             # Editor plugins (code, markdown, tokens)
-│   ├── form/                # Form view for structured data
-│   └── README.md
-├── SharedEditor/            # Editor wrapper with debounce
-├── InfiniteVirtualTable/    # High-performance virtualized table
-│   ├── columns/             # Column creation utilities
-│   ├── components/          # Table UI components
-│   ├── hooks/               # Table hooks
-│   ├── paginated/           # Paginated entity store
-│   └── README.md
-├── LLMIcons/                # LLM provider SVG icons
-│   └── README.md
-├── SelectLLMProvider/       # LLM provider selection component
-│   └── README.md
-├── utils/                   # Generic utilities
-│   ├── copyToClipboard.ts   # Clipboard utility
-│   ├── styles.ts            # Styling utilities (cn, colors, layouts)
-│   ├── appMessageContext.tsx # Ant Design message/modal/notification
-│   └── README.md
-└── index.ts                 # Main exports
+├── foundation/      # theme, cn, hooks, CSS
+│   ├── design/      # theme.config.ts, rules.json, generated theme CSS
+│   ├── theme/       # theme mode
+│   ├── styles/      # global CSS files (surfaces, focus, touch, editor themes)
+│   ├── hooks/       # shared React hooks
+│   └── utils/       # cn, copyToClipboard, layout sizes
+├── primitives/      # shadcn registry components (@agenta/ui/ui)
+├── composed/        # kit parts built on the primitives (@agenta/ui/composed)
+│   ├── controls/    # InputNumber, Segmented, Cascader, pickers, LoadingButton, ...
+│   ├── layout/      # RightPane, SplitPane, PageToolbar, Divider, IconTile, ...
+│   └── feedback/    # EmptyState, SkeletonRows, tooltips, notification, app-message
+├── icons/           # marks and logos (@agenta/ui/icons, llm-icons, agent-icon)
+├── layout/          # page frame and scroll (@agenta/ui/layout)
+│   ├── panel/       # SplitPanelLayout, FilterRailLayout, PanelSection, ...
+│   ├── section/     # SectionCard, ConfigAccordionSection, ...
+│   └── page-title/  # the tab title
+├── shell/           # app chrome that hosts screens: view-stack, phone, shortcuts, create-menu
+├── editor/          # Lexical editors and chat input
+│   ├── editor/            # @agenta/ui/editor
+│   ├── shared-editor/     # @agenta/ui/shared-editor
+│   ├── rich-chat-input/   # @agenta/ui/rich-chat-input
+│   ├── chat-message/      # @agenta/ui/chat-message
+│   ├── quote-selection/   # @agenta/ui/quote-selection
+│   └── MarkdownPreview.tsx
+├── data/            # tables, lists, cells, filters, drill-in
+│   ├── infinite-virtual-table/  # @agenta/ui/table
+│   ├── list-table/              # @agenta/ui/list-table
+│   ├── cell-renderers/          # @agenta/ui/cell-renderers
+│   ├── filter-menu/, drill-in/, type-chip/
+├── patterns/        # domain-neutral blocks (@agenta/ui/components)
+│   ├── presentational/          # @agenta/ui/components/presentational
+│   ├── selection/               # @agenta/ui/components/selection
+│   ├── select-llm-provider/     # @agenta/ui/select-llm-provider
+│   └── EntityCard.tsx, DropdownButton.tsx
+└── index.ts         # root barrel (kept for old callers; import a subpath instead)
 ```
+
+Folder names are kebab-case. A module keeps its own inner structure.
+
+A few older imports break the layer order: the table, the cell renderers and the editors
+read some `patterns/presentational` parts, the chat message list reads `data/drill-in`, and
+`@agenta/ui/utils` re-exports `groupColumns` from the table. Do not add new ones.
 
 ## Design Principles
 
-1. **Single Responsibility** - Each folder has a clear purpose
-2. **Colocation** - Related code lives together (e.g., paginated is inside InfiniteVirtualTable)
-3. **Minimal Root** - Only generic utilities at the root level
-4. **Documentation** - Each major folder has its own README
+1. **Layers** - A folder imports only from the folders above it in the list.
+2. **Colocation** - Related code lives together (e.g., `paginated/` is inside
+   `data/infinite-virtual-table/`).
+3. **Subpaths** - Each public module has a subpath in `package.json` `exports`. Group subpaths
+   (`@agenta/ui/icons`, `@agenta/ui/layout`) hold the small modules of one folder.
+4. **Documentation** - Each major module has its own README.
 
-## Main Modules
+## Module READMEs
 
-### Components (`components/`)
-
-Reusable UI components organized by domain. See [components/README.md](./components/README.md) for details.
-
-#### Selection Components (`components/selection/`)
-
-Building blocks for list selection UIs:
-
-- **SearchInput**: Search input with clear button
-- **ListItem**: Generic list item with click/navigate variants
-- **VirtualList**: Virtualized list using @tanstack/react-virtual
-- **LoadMoreButton**: Pagination button with count display
-- **LoadAllButton**: Load all pages with progress indicator
-- **Breadcrumb**: Navigation breadcrumb with back button
-
-#### Presentational Components (`components/presentational/`)
-
-Pure display components for entity information:
-
-- **VersionBadge**: Version number in "vX" format
-- **RevisionLabel**: Revision details (version, date, message, author)
-- **EntityPathLabel**: Hierarchical paths ("App / Variant / v1")
-- **EntityNameWithVersion**: Entity name with version badge
-- **SectionCard/ConfigBlock**: Section layout primitives
-- **MetadataHeader**: Label/value metadata display
-- **EditableText**: Inline editable text
-- **ExecutionMetricsDisplay**: Display latency, tokens, and cost metrics
-- **MappingStatusTag**: Mapping status indicator (auto, manual, missing, etc.)
-
-### ChatMessage
-
-Chat message editing components for OpenAI/Anthropic message format.
-See [ChatMessage/README.md](./ChatMessage/README.md) for details.
-
-### Editor
-
-Rich text and code editor built on Lexical with JSON/YAML highlighting, markdown, and form view.
-See [Editor/README.md](./Editor/README.md) for details.
-
-### SharedEditor
-
-Editor wrapper with debounce support and styling.
-See [SharedEditor/README.md](./SharedEditor/README.md) for details.
-
-### InfiniteVirtualTable
-
-High-performance virtualized table with infinite scroll, column management, and row selection.
-See [InfiniteVirtualTable/README.md](./InfiniteVirtualTable/README.md) for details.
-
-### LLMIcons
-
-SVG icons for LLM providers (OpenAI, Anthropic, etc.).
-See [LLMIcons/README.md](./LLMIcons/README.md) for details.
-
-### SelectLLMProvider
-
-LLM provider selection component with cascading menu and icons.
-See [SelectLLMProvider/README.md](./SelectLLMProvider/README.md) for details.
-
-### Utilities (`utils/`)
-
-Generic utilities:
-
-- **copyToClipboard**: Clipboard operations
-- **cn**: Class name combiner (clsx + tailwind-merge)
-- **AppMessageContext**: Ant Design message/modal/notification static exports
-
-See [utils/README.md](./utils/README.md) for details.
+- [patterns/README.md](./patterns/README.md): selection and presentational components
+- [editor/chat-message/README.md](./editor/chat-message/README.md)
+- [editor/editor/README.md](./editor/editor/README.md)
+- [editor/shared-editor/README.md](./editor/shared-editor/README.md)
+- [data/infinite-virtual-table/README.md](./data/infinite-virtual-table/README.md)
+- [icons/llm-icons/README.md](./icons/llm-icons/README.md)
+- [patterns/select-llm-provider/README.md](./patterns/select-llm-provider/README.md)
+- [foundation/utils/README.md](./foundation/utils/README.md)
 
 ## Importing
 
+Import from a subpath, never from the root `@agenta/ui`. The root re-exports the whole kit,
+the table and the Lexical editors included.
+
 ```typescript
-// Import from main entry
-import {
-    // Table
-    InfiniteVirtualTable,
-    useTableManager,
-    createPaginatedEntityStore,
-
-    // Selection components
-    SearchInput,
-    ListItem,
-    VirtualList,
-    LoadMoreButton,
-    Breadcrumb,
-
-    // Presentational components
-    VersionBadge,
-    RevisionLabel,
-    EntityPathLabel,
-    EntityNameWithVersion,
-    SectionCard,
-    MetadataHeader,
-    EditableText,
-    ExecutionMetricsDisplay,
-    MappingStatusTag,
-
-    // Editor
-    Editor,
-    SharedEditor,
-    DiffView,
-
-    // Chat
-    ChatMessageEditor,
-    ChatMessageList,
-
-    // LLM
-    LLMIconMap,
-    SelectLLMProviderBase,
-
-    // Utilities
-    copyToClipboard,
-    cn,
-    message,
-    modal,
-    notification,
-} from "@agenta/ui"
+import {Button, Dialog} from "@agenta/ui/ui" // primitives
+import {EmptyState, Segmented} from "@agenta/ui/composed" // built on the primitives
+import {HeightCollapse, PageLayout, pageContentWidthClass} from "@agenta/ui/layout"
+import {GitHubMark} from "@agenta/ui/icons"
+import {VersionBadge, SectionCard} from "@agenta/ui/components/presentational"
+import {InfiniteVirtualTable} from "@agenta/ui/table"
+import {Editor, MarkdownPreview} from "@agenta/ui/editor"
+import {cn} from "@agenta/ui/styles"
+import {copyToClipboard} from "@agenta/ui/utils"
+import {message, modal} from "@agenta/ui/app-message"
 ```
 
 ## Adding New Features
 
-### Table-related features
-
-Add to `InfiniteVirtualTable/` in the appropriate subfolder:
-
-- New hooks → `hooks/`
-- New components → `components/`
-- New store factories → `helpers/` or `paginated/`
-
-### Presentational components
-
-Add to `components/presentational/` with its own subfolder if needed.
-
-### Generic utilities
-
-Add to `utils/` and export from `index.ts`.
-
-### New major modules
-
-Create a new folder at the `src/` level with its own README and export from `index.ts`.
+- Table features: add to `data/infinite-virtual-table/` in the right subfolder (`hooks/`,
+  `components/`, `helpers/` or `paginated/`).
+- A shadcn registry component: add to `primitives/` (`components.json` points there).
+- A part built on the primitives: add to `composed/controls/`, `composed/layout/` or
+  `composed/feedback/`, and export it from `composed/index.ts`.
+- A presentational component: add to `patterns/presentational/` with its own subfolder if
+  needed.
+- A generic utility: add to `foundation/utils/`.
+- A new module: put it in the folder for its layer, give it a README, and add a subpath only
+  if no group subpath fits.

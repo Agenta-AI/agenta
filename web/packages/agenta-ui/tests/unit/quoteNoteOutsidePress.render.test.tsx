@@ -2,7 +2,7 @@
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {pressClosedNote, QuoteNote} from "../../src/QuoteSelection/QuoteNote"
+import {pressClosedNote, QuoteNote} from "../../src/editor/quote-selection/QuoteNote"
 
 afterEach(cleanup)
 

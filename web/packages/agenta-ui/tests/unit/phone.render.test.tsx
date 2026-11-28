@@ -10,7 +10,7 @@ import {
     PhonePrimaryAction,
     PhoneScreenHeader,
     useIsPhone,
-} from "../../src/phone"
+} from "../../src/shell/phone"
 import {
     defineView,
     PhoneViewChrome,
@@ -20,7 +20,7 @@ import {
     ViewStackHost,
     type ViewDef,
     type ViewProps,
-} from "../../src/view-stack"
+} from "../../src/shell/view-stack"
 
 afterEach(cleanup)
 

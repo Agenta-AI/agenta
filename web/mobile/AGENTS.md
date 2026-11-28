@@ -39,7 +39,7 @@ web/mobile/src/
 ## Design
 
 **Before any UI change, read `web/DESIGN.md`**: the glossary, the principles, the layout and the patterns.
-The rules and the values are in `web/packages/agenta-ui/src/design/`: `rules.json`, grouped by topic (read
+The rules and the values are in `web/packages/agenta-ui/src/foundation/design/`: `rules.json`, grouped by topic (read
 the groups your change touches), and `theme.config.ts`. `/m/design-system` shows a Do and an Avoid example for
 each rule.
 

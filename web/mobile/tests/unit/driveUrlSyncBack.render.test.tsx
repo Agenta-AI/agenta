@@ -24,7 +24,7 @@ vi.mock("@agenta/entity-ui/drive", async () => {
 const {driveQuickLookAtomFamily} = await import("@agenta/entity-ui/drive")
 // The source module: its test reset is not part of the package entry.
 const {resetSystemBackForTests, useSystemBack} =
-    await import("../../../packages/agenta-ui/src/view-stack/systemBack")
+    await import("../../../packages/agenta-ui/src/shell/view-stack/systemBack")
 const {useDriveUrlSync} = await import("../../src/features/chat/useDriveUrlSync")
 
 const PAGE = "/w/ws/p/pr/agents/a1/sessions/s1"

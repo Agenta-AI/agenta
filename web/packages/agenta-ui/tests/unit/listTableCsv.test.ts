@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vitest"
 
-import {listTableToCsv} from "../../src/list-table/csv"
-import type {ListTableCsvColumn} from "../../src/list-table/types"
+import {listTableToCsv} from "../../src/data/list-table/csv"
+import type {ListTableCsvColumn} from "../../src/data/list-table/types"
 
 interface Row {
     name: string

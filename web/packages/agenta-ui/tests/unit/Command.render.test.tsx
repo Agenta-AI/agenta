@@ -10,7 +10,7 @@ import {
     CommandItem,
     CommandList,
     CommandShortcut,
-} from "../../src/components/ui/command"
+} from "../../src/primitives/command"
 
 // jsdom has no ResizeObserver; cmdk sizes its list with one.
 class StubResizeObserver {

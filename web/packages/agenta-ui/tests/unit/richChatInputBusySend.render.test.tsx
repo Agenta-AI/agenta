@@ -4,7 +4,7 @@ import {createRef} from "react"
 import {act, cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {RichChatInput, type RichChatInputHandle} from "../../src/RichChatInput"
+import {RichChatInput, type RichChatInputHandle} from "../../src/editor/rich-chat-input"
 
 afterEach(cleanup)
 

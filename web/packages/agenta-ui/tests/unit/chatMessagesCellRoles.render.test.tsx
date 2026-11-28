@@ -2,7 +2,7 @@
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import ChatMessagesCellContent from "../../src/CellRenderers/ChatMessagesCellContent"
+import ChatMessagesCellContent from "../../src/data/cell-renderers/ChatMessagesCellContent"
 
 afterEach(cleanup)
 

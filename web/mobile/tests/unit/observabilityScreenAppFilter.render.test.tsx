@@ -60,7 +60,7 @@ vi.mock("@agenta/observability-ui", () => ({
         </div>
     ),
 }))
-vi.mock("@agenta/ui", () => ({
+vi.mock("@agenta/ui/layout", () => ({
     PageLayout: ({
         children,
         headerTabsProps,

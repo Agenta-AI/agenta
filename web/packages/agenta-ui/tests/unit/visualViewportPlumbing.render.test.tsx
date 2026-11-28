@@ -9,8 +9,8 @@
  * the editor's own clear. All three are covered here.
  */
 import {createElement} from "react"
-
 import {act} from "react"
+
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -19,7 +19,7 @@ import {
     VIEWPORT_HEIGHT_VAR,
     dismissSoftKeyboardAfterSend,
     useVisualViewportHeight,
-} from "../../src/hooks/useVisualViewport"
+} from "../../src/foundation/hooks/useVisualViewport"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 /** A stand-in for `window.visualViewport` whose numbers the test drives. */

@@ -14,8 +14,8 @@ import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDrawer"
 import {humanizeActionKey} from "@agenta/shared/utils"
-import {HeightCollapse} from "@agenta/ui"
 import {IconTile, ItemViewTitle, SearchInput, SkeletonRows} from "@agenta/ui/composed"
+import {HeightCollapse} from "@agenta/ui/layout"
 import {useIsPhone} from "@agenta/ui/phone"
 import {
     Badge,

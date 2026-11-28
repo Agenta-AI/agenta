@@ -9,7 +9,7 @@ import {
     PreviewCommentLayer,
     type PreviewPick,
     type PreviewPinRect,
-} from "../../src/QuoteSelection/PreviewCommentLayer"
+} from "../../src/editor/quote-selection/PreviewCommentLayer"
 import {
     addQuote,
     clearQuoteReveal,
@@ -19,7 +19,7 @@ import {
     registerQuoteSubmit,
     revealQuote,
     useQuoteReveal,
-} from "../../src/QuoteSelection/store"
+} from "../../src/editor/quote-selection/store"
 
 const sessionId = "preview-comment-session"
 const target = {path: "deck.pptx", displayPath: "agent-files/deck.pptx", fileName: "deck.pptx"}

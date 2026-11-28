@@ -2,7 +2,7 @@
 import {createEditor, $getRoot, $createParagraphNode, $createTextNode} from "lexical"
 import {describe, expect, it} from "vitest"
 
-import {INTERIM_STYLE, beginDictation} from "../../src/RichChatInput/plugins/dictation"
+import {INTERIM_STYLE, beginDictation} from "../../src/editor/rich-chat-input/plugins/dictation"
 
 /**
  * Dictation writes through two live text nodes rather than rewriting the document, so the cases
