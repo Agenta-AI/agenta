@@ -490,6 +490,7 @@ export function runTiles({
             assertions: values > 0 ? {passed: truths, total: values} : null,
         })
     }
+    const runErrors = tile("errors", totalOf, whole, {kind: "total"})
     tiles.push(
         tile("cost", meanOf, formatCost, average),
         tile("duration", meanOf, formatDuration, average),
@@ -502,7 +503,10 @@ export function runTiles({
                   detail: {kind: "errorsSplit", runs: notRun, evaluator: failures.evaluatorFailed},
                   assertions: null,
               }
-            : tile("errors", totalOf, whole, {kind: "total"}),
+            : // Tracing writes no errors metric for a run without errors: the rows still count 0.
+              failures && failures.total > 0 && runErrors.amount === null
+              ? {...runErrors, value: "0", amount: 0}
+              : runErrors,
     )
     return tiles
 }
@@ -650,7 +654,7 @@ export function buildCompareSummaryRows(
 
 /** One metric of a compare row: the stats of each run in column order, and the change. */
 export interface CompareRowMetric {
-    /** The same in every run (`compareMetricKey`). */
+    /** The same in every run (`compareMetricKey`), with the kind added when it differs by run. */
     id: string
     label: string
     kind: MetricKind
@@ -701,10 +705,12 @@ export function buildCompareEvaluatorRows(
                 order.push(entry)
             }
             for (const metric of row.metrics) {
-                let known = entry.metrics.get(metric.id)
+                // A metric whose type changed between evaluator versions is a line per type.
+                const metricKey = `${metric.id}:${metric.kind}`
+                let known = entry.metrics.get(metricKey)
                 if (!known) {
                     known = {metric, stats: rowsByRun.map(() => null)}
-                    entry.metrics.set(metric.id, known)
+                    entry.metrics.set(metricKey, known)
                 }
                 if (!known.metric.stats && metric.stats) known.metric = metric
                 known.stats[runIndex] ??= metric.stats
@@ -716,7 +722,7 @@ export function buildCompareEvaluatorRows(
         key,
         name,
         metrics: [...metrics.values()]
-            .map(({metric, stats}): CompareRowMetric => {
+            .map(({metric, stats}, _, all): CompareRowMetric => {
                 const present = stats.filter((value): value is MetricStats => value !== null)
                 const unitScale =
                     metric.kind === "numeric" && present.length > 0 && present.every(isUnitScale)
@@ -730,8 +736,11 @@ export function buildCompareEvaluatorRows(
                                 metric.kind === "binary" ? "rate" : unitScale ? "unit" : "number",
                             )
                           : {kind: "missing" as const}
+                const typeChanged = all.some(
+                    (other) => other.metric.id === metric.id && other.metric.kind !== metric.kind,
+                )
                 return {
-                    id: metric.id,
+                    id: typeChanged ? `${metric.id}:${metric.kind}` : metric.id,
                     label: metric.label,
                     kind: metric.kind,
                     unitScale,

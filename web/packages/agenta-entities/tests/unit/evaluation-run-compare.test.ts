@@ -276,6 +276,30 @@ describe("compare summary rows", () => {
         expect(passed?.tiles[1]).toBeNull()
         expect(passed?.change).toEqual({kind: "missing"})
     })
+
+    it("counts a run whose test case rows show no failure and no errors metric as 0 errors", () => {
+        // Tracing writes no errors metric for a run without errors, so only the rows count it.
+        const errorTiles = (evaluatorFailed: number) =>
+            runTiles({
+                status: "success",
+                online: false,
+                invocation: [invocation("duration", 300)],
+                binaryStats: [],
+                passed: {status: "unavailable"},
+                metricsPending: false,
+                failures: {total: 10, notRun: 0, evaluatorFailed, byStep: {}},
+            })
+        const clean = errorTiles(0)
+        const errors = (tiles: RunTile[]) => tiles.find((tile) => tile.id === "errors")
+        expect(errors(clean)).toMatchObject({value: "0", amount: 0})
+
+        const rowOf = (newest: number, before: number) =>
+            buildCompareSummaryRows([clean, errorTiles(1)], {newest, before}).find(
+                (row) => row.id === "errors",
+            )
+        expect(rowOf(1, 0)?.change).toEqual({kind: "difference", delta: 1})
+        expect(rowOf(0, 1)?.change).toEqual({kind: "difference", delta: -1})
+    })
 })
 
 describe("compare evaluator rows", () => {
@@ -340,6 +364,35 @@ describe("compare evaluator rows", () => {
         const tone = rows[1].metrics[0]
         expect(tone.stats[0]).toBeNull()
         expect(tone.change).toBeNull()
+    })
+
+    it("keeps a metric whose type changed between runs as one line per type, with no change", () => {
+        const boolean = [
+            row("ev-1", [{id: "ev-1:score", label: "score", stats: binaryStats(3, 1)}]),
+        ]
+        const numeric = [
+            row("ev-1", [
+                {
+                    id: "ev-1:score",
+                    label: "score",
+                    stats: stats({type: "numeric/continuous", mean: 0.9, min: 0, max: 1}),
+                },
+            ]),
+        ]
+        for (const runs of [
+            [boolean, numeric],
+            [numeric, boolean],
+        ]) {
+            const metrics = buildCompareEvaluatorRows(runs, {newest: 1, before: 0})[0].metrics
+            expect(metrics.map((metric) => [metric.id, metric.kind])).toEqual([
+                ["ev-1:score:binary", "binary"],
+                ["ev-1:score:numeric", "numeric"],
+            ])
+            for (const metric of metrics) {
+                expect(metric.stats.filter(Boolean)).toHaveLength(1)
+                expect(metric.change).toEqual({kind: "missing"})
+            }
+        }
     })
 
     it("reads a score off the 0 to 1 scale in any run with 3 significant digits", () => {

@@ -622,7 +622,8 @@ describe("compared overview", () => {
             "300 msper case, average",
             "−265 ms",
         ])
-        expect(summaryCells("errors").at(-1)).toBe("—")
+        // No run reports an errors metric, but the per-test-case rows count 0 errors in each.
+        expect(summaryCells("errors")).toEqual(["0total", "0total", "0total", "no change"])
         expect(host.textContent).toContain(
             "The change column compares the newest evaluation with the one before it.",
         )
