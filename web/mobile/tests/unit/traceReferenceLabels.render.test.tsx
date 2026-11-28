@@ -44,6 +44,8 @@ vi.mock("@agenta/entities/workflow", async () => {
     const revisions: Record<string, object> = {
         "rev-1": {name: "default", slug: "default", version: 3, workflow_id: "app-1"},
     }
+    // The variant's own name, by revision id (the chips never name a variant from the revision).
+    const variantNames: Record<string, string> = {"rev-1": "default"}
     return {
         workflowDetailQueryAtomFamily: (id: string | null) =>
             atom(() =>
@@ -55,6 +57,7 @@ vi.mock("@agenta/entities/workflow", async () => {
             selectors: {
                 data: (id: string) => atom(revisions[id] ?? null),
                 query: () => atom({isPending: false, isError: false}),
+                variantLabel: (id: string) => atom(variantNames[id] ?? null),
             },
         },
     }
