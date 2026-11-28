@@ -318,6 +318,8 @@ export interface ActivityTimelineProps {
     failure?: ActivityFailure
     /** Who answered, on the header's row before the line ("Builder · Worked for 10 s"). */
     leading?: ReactNode
+    /** After a settled line, as " · TEXT" ("Worked for 57 s · 3 tool calls"). */
+    trailing?: ReactNode
 }
 
 export interface ActivityFailure {
@@ -346,6 +348,7 @@ export const ActivityTimeline = ({
     renderClientTool,
     failure,
     leading,
+    trailing,
 }: ActivityTimelineProps) => {
     // Any turn can cold start: a parked environment outlives an idle gap by minutes at most.
     const stage = useTurnStage(streaming && sessionId ? sessionId : "")
@@ -507,6 +510,12 @@ export const ActivityTimeline = ({
                     <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-foreground">
                         {title}
                     </span>
+                    {!live && trailing ? (
+                        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-muted-foreground">
+                            <span>·</span>
+                            {trailing}
+                        </span>
+                    ) : null}
                     {!live && files.length ? (
                         <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-muted-foreground">
                             <span>·</span>

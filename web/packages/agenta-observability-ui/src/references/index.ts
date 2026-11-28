@@ -14,3 +14,4 @@ export {
     type ReferenceKind,
 } from "./ReferenceChip"
 export {createReferenceLabels, type ReferenceHrefs} from "./referenceLabels"
+export {ReferenceChipList, type ReferenceChipListProps} from "./ReferenceChipList"

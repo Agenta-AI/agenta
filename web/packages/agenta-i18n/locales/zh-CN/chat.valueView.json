@@ -14,6 +14,7 @@
     "fields_other": "{{count}} 个字段",
     "showAllItems": "显示全部 {{count}} 项",
     "calledTools_other": "调用了 {{count}} 个工具",
+    "toolCalls_other": "{{count}} 次工具调用",
     "toolResult": "工具结果",
     "resultOf": "{{name}} 的结果",
     "attachments_other": "{{count}} 个附件",
@@ -33,5 +34,8 @@
     "openTrace": "打开追踪",
     "errorLabel": "错误",
     "passedLabel": "通过",
-    "assertionsValue": "{{passed}} / {{total}}"
+    "assertionsValue": "{{passed}} / {{total}}",
+    "valueTrue": "真",
+    "valueFalse": "假",
+    "turnLabel": "第 {{n}} 轮"
 }

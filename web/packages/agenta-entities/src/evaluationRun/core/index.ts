@@ -128,6 +128,7 @@ export {
     type EvaluatorResultState,
     type EvaluatorResultSummary,
 } from "./evaluatorResult"
+export {isHumanOrigin, splitByOrigin} from "./stepOrigin"
 export {findScenarioTraceResult} from "./scenarioTrace"
 export {
     buildQuerySlug,

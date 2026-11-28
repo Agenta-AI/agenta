@@ -5,6 +5,8 @@
  * the "parsed from text" note, folding, the full view with Formatted and Raw, the evaluator
  * result row and the drawer header count.
  */
+import {useState} from "react"
+
 import {
     assertionSummary,
     summarizeEvaluatorResult,
@@ -12,14 +14,18 @@ import {
     type EvaluatorResultState,
 } from "@agenta/entities/evaluationRun"
 import {cleanup, fireEvent, render, screen, waitFor} from "@testing-library/react"
+import type {ToolUIPart} from "ai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import type {ActivityStep} from "../../src/model/activitySteps"
 import {
     AssertionSummary,
     EvaluatorResultList,
     EvaluatorResultRow,
+    FieldFold,
     ValueField,
     ValueFullView,
+    type TurnActivity,
 } from "../../src/value-view"
 
 vi.mock("@agenta/entities/gatewayTool", () => ({
@@ -256,9 +262,9 @@ describe("ValueField shapes", () => {
         expect(screen.getByText("Lea Brandt")).toBeTruthy()
     })
 
-    it("removes a single wrapper key", () => {
+    it("keeps a single wrapper key: the trace view unwraps it itself", () => {
         render(<ValueField value={{output: {tier: "gold", seats: 5}}} />)
-        expect(screen.queryByText("output")).toBeNull()
+        expect(screen.getByText("output")).toBeTruthy()
         expect(screen.getByText("tier")).toBeTruthy()
     })
 
@@ -518,5 +524,235 @@ describe("AssertionSummary", () => {
             />,
         )
         expect(container.textContent).toBe("relevance0.8faithfulness0.9")
+    })
+})
+
+/** A settled tool step as the trace gives it. */
+const traceStep = (name: string, key = name): ActivityStep => ({
+    kind: "tool",
+    key,
+    files: [],
+    part: {
+        type: `tool-${name}`,
+        toolCallId: key,
+        state: "output-available",
+        input: {},
+        output: "ok",
+    } as ToolUIPart,
+})
+
+const call = (id: string, name: string) => ({
+    id,
+    type: "function",
+    function: {name, arguments: "{}"},
+})
+
+describe("ValueField turnActivity", () => {
+    const exchange = [
+        {role: "user", content: "Can I return the trekking poles?"},
+        {role: "assistant", content: null, tool_calls: [call("c1", "lookup_order")]},
+        {role: "tool", tool_call_id: "c1", content: '{"status": "delivered"}'},
+        {role: "assistant", content: "Yes, until 18 December."},
+    ]
+
+    it("draws the trace's steps in place of the stored calls, with the Worked for time", () => {
+        const activity: TurnActivity[] = [
+            {
+                steps: [
+                    {kind: "thought", key: "think", text: "Checking", streaming: false},
+                    traceStep("price_table"),
+                    traceStep("check_policy"),
+                ],
+                durationMs: 57_000,
+            },
+        ]
+        const {container} = render(<ValueField value={exchange} turnActivity={activity} />)
+        expect(container.textContent).toContain("Price table")
+        expect(container.textContent).toContain("Check policy")
+        expect(container.textContent).not.toContain("Lookup order")
+        expect(container.textContent).toContain("57")
+        // The line counts the turn's tool calls: "Worked for 57s · 2 tool calls".
+        expect(container.textContent).toContain("2 tool calls")
+        // One exchange: no turn label.
+        expect(container.textContent).not.toContain("Turn 1")
+    })
+
+    it("draws today's output with no turnActivity", () => {
+        const {container} = render(<ValueField value={exchange} />)
+        expect(container.textContent).toContain("Lookup order")
+        expect(container.textContent).toContain("1 tool call")
+        expect(container.textContent).not.toContain("1 tool calls")
+    })
+
+    it("gives two exchanges with two assistant messages each one block each, labeled Turn N", () => {
+        const second = [
+            {role: "user", content: "And the tent?"},
+            {role: "assistant", content: null, tool_calls: [call("c2", "lookup_tent")]},
+            {role: "tool", tool_call_id: "c2", content: "{}"},
+            {role: "assistant", content: "The tent too."},
+        ]
+        const activity: TurnActivity[] = [
+            {steps: [traceStep("alpha_tool")]},
+            {steps: [traceStep("beta_tool")]},
+        ]
+        const {container} = render(
+            <ValueField value={[...exchange, ...second]} turnActivity={activity} />,
+        )
+        const text = container.textContent ?? ""
+        expect(text).toContain("Turn 1")
+        expect(text).toContain("Turn 2")
+        expect(text).not.toContain("Lookup order")
+        expect(text).not.toContain("Lookup tent")
+        // Each block sits before its turn's last assistant message.
+        expect(text.indexOf("Alpha tool")).toBeLessThan(text.indexOf("Yes, until 18 December."))
+        expect(text.indexOf("Beta tool")).toBeGreaterThan(text.indexOf("And the tent?"))
+        expect(text.indexOf("Beta tool")).toBeLessThan(text.indexOf("The tent too."))
+    })
+
+    it("gives an output with only the final reply the last entry", () => {
+        const activity: TurnActivity[] = [
+            {steps: [traceStep("older_turn")]},
+            {steps: [traceStep("last_turn")]},
+        ]
+        const {container} = render(
+            <ValueField
+                value={[{role: "assistant", content: "The answer."}]}
+                turnActivity={activity}
+            />,
+        )
+        expect(container.textContent).toContain("Last turn")
+        expect(container.textContent).not.toContain("Older turn")
+    })
+
+    it("keeps a system prompt in the first exchange, so one exchange has no turn label", () => {
+        const activity: TurnActivity[] = [
+            {steps: [traceStep("older_turn")]},
+            {steps: [traceStep("last_turn")]},
+        ]
+        const {container} = render(
+            <ValueField
+                value={[{role: "system", content: "You help with returns."}, ...exchange]}
+                turnActivity={activity}
+            />,
+        )
+        const text = container.textContent ?? ""
+        expect(text).toContain("Last turn")
+        expect(text).not.toContain("Older turn")
+        expect(text).not.toContain("Turn 1")
+        expect(text).not.toContain("Turn 2")
+        expect(text.indexOf("Last turn")).toBeLessThan(text.indexOf("Yes, until 18 December."))
+    })
+
+    it("keeps the stored calls of a turn with no entry", () => {
+        const second = [
+            {role: "user", content: "And the tent?"},
+            {role: "assistant", content: null, tool_calls: [call("c2", "lookup_tent")]},
+            {role: "tool", tool_call_id: "c2", content: "{}"},
+            {role: "assistant", content: "The tent too."},
+        ]
+        const {container} = render(
+            <ValueField
+                value={[...exchange, ...second]}
+                turnActivity={[{steps: [traceStep("beta_tool")]}]}
+            />,
+        )
+        expect(container.textContent).toContain("Lookup order")
+        expect(container.textContent).toContain("Beta tool")
+        expect(container.textContent).not.toContain("Lookup tent")
+    })
+})
+
+describe("FieldFold collapseSignal", () => {
+    const Editor = () => {
+        const [text, setText] = useState("")
+        return (
+            <textarea aria-label="value" value={text} onChange={(e) => setText(e.target.value)} />
+        )
+    }
+
+    it("closes an open fold when the signal changes and keeps the child's text", () => {
+        const text = lines(40)
+        const {rerender} = render(
+            <FieldFold text={text} collapseSignal={0}>
+                <Editor />
+            </FieldFold>,
+        )
+        fireEvent.change(screen.getByLabelText("value"), {target: {value: "typed"}})
+        fireEvent.click(screen.getByRole("button", {name: "Show all 40 lines"}))
+        expect(screen.getByRole("button", {name: "Show less"})).toBeTruthy()
+
+        rerender(
+            <FieldFold text={text} collapseSignal={1}>
+                <Editor />
+            </FieldFold>,
+        )
+        expect(screen.getByRole("button", {name: "Show all 40 lines"})).toBeTruthy()
+        expect((screen.getByLabelText("value") as HTMLTextAreaElement).value).toBe("typed")
+    })
+})
+
+describe("EvaluatorResultRow for every view", () => {
+    it("draws a human row with its badge, its byline and True, never a pass count", () => {
+        const {container} = render(
+            <EvaluatorResultRow
+                name="Tone review"
+                badge={<span>Human</span>}
+                byline="By Dana, 2m ago"
+                binaryWords="trueFalse"
+                summary={summary([
+                    {name: "polite", value: true, kind: "binary"},
+                    {name: "clear", value: false, kind: "binary"},
+                    {name: "brief", value: true, kind: "binary"},
+                    {name: "on_topic", value: true, kind: "binary"},
+                ])}
+            />,
+        )
+        const text = container.textContent ?? ""
+        expect(text).toContain("Human")
+        expect(text).toContain("By Dana, 2m ago")
+        expect(text).toContain("politeTrue")
+        expect(text).toContain("clearFalse")
+        expect(text).toContain("+2 more")
+        expect(text).not.toContain("passed")
+        expect(text).not.toContain("Pass")
+        // A false value keeps its red.
+        expect(screen.getByText("False").className).toContain("destructive")
+    })
+
+    it("shows the first line of the reason under a closed row, and the reason in full open", async () => {
+        const {container} = render(
+            <EvaluatorResultRow
+                name="Return policy check"
+                summary={summary([
+                    {name: "success", value: true, kind: "binary"},
+                    {
+                        name: "reason",
+                        value: "The agent checked the date.\nThen it read the policy.",
+                        kind: "text",
+                    },
+                ])}
+            />,
+        )
+        expect(screen.getByText("The agent checked the date.")).toBeTruthy()
+        expect(container.textContent).not.toContain("Then it read the policy.")
+        fireEvent.click(screen.getByRole("button", {name: /Return policy check/}))
+        await waitFor(() => expect(container.textContent).toContain("Then it read the policy."))
+    })
+
+    it("parses a reason written as JSON text on expand, with no preview", () => {
+        const {container} = render(
+            <EvaluatorResultRow
+                name="Extraction check"
+                summary={summary([
+                    {name: "success", value: false, kind: "binary"},
+                    {name: "reason", value: '{"missing": ["price"]}', kind: "text"},
+                ])}
+            />,
+        )
+        expect(container.textContent).not.toContain("missing")
+        fireEvent.click(screen.getByRole("button", {name: /Extraction check/}))
+        expect(screen.getByText("parsed from text")).toBeTruthy()
+        expect(screen.getByText("missing")).toBeTruthy()
+        expect(screen.getByText("price")).toBeTruthy()
     })
 })

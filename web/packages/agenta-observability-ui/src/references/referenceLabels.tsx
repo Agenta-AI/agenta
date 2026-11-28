@@ -17,7 +17,11 @@ export interface ReferenceHrefs {
     app: (base: string, args: {appId: string}) => string
     variant: (base: string, args: {appId: string; revisionId: string}) => string
     environment: (base: string, args: {appId: string; slug: string}) => string
-    testset: (base: string, args: {testsetId: string; revisionId: string | null}) => string
+    /** With `testcaseId`, the link opens that test case (the host adds its query parameter). */
+    testset: (
+        base: string,
+        args: {testsetId: string; revisionId: string | null; testcaseId: string | null},
+    ) => string
 }
 
 type Props = ReferenceLabelProps & Record<string, unknown>
@@ -50,29 +54,59 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         )
     }
 
+    /** An application revision, read by id: its data (version, workflow id) and load state. */
+    const useRevision = (revisionId: string | null) => {
+        const data = useAtomValue(
+            useMemo(() => workflowMolecule.selectors.data(revisionId ?? ""), [revisionId]),
+        )
+        const query = useAtomValue(
+            useMemo(() => workflowMolecule.selectors.query(revisionId ?? ""), [revisionId]),
+        )
+        return {data: revisionId ? data : null, isPending: Boolean(revisionId) && query.isPending}
+    }
+
+    /**
+     * An application. With `revisionId` the chip also names the variant and its version, as
+     * "lead_scorer / with_site_text" v8. `href` replaces the link the routes build.
+     */
     const ApplicationReferenceLabel = (props: Props) => {
         const t = useT(referencesCatalog)
         const appId = str(props.applicationId)
+        const revisionId = str(props.revisionId)
         const query = useWorkflow(appId)
-        const href = useHref("app", appId ? {appId} : null)
+        const revision = useRevision(revisionId)
+        // The variant's own name (never the revision's fields, web/AGENTS.md "Entity display names").
+        const variantName = useAtomValue(
+            useMemo(() => workflowMolecule.selectors.variantLabel(revisionId ?? ""), [revisionId]),
+        )
+        const routeHref = useHref("app", appId ? {appId} : null)
+        const href = str(props.href) ?? routeHref
         const fallback = str(props.label)
         if (!appId)
             return fallback ? <ReferenceChip kind="app" label={fallback} /> : <Placeholder />
-        if (query.isPending) return <ReferenceChipSkeleton />
+        if (query.isPending || revision.isPending) return <ReferenceChipSkeleton />
         const app = query.data
         // Only a lookup that worked and found nothing means deleted; a failed lookup keeps the slug.
         const deleted = !query.isError && !app
+        const appName = app?.name ?? app?.slug ?? fallback ?? appId
         return (
             <ReferenceChip
                 kind="app"
                 label={
                     deleted
                         ? t("observabilityUi.references.deleted")
-                        : (app?.name ?? app?.slug ?? fallback ?? appId)
+                        : variantName
+                          ? `${appName} / ${variantName}`
+                          : appName
                 }
                 href={href}
                 openExternally={props.openExternally === true}
-                identifiers={{slug: app?.slug ?? fallback, id: appId}}
+                identifiers={{
+                    slug: app?.slug ?? fallback,
+                    id: appId,
+                    version: revision.data?.version ?? null,
+                    revisionId,
+                }}
                 deleted={deleted}
             />
         )
@@ -81,19 +115,14 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
     const VariantReferenceLabel = (props: Props) => {
         const t = useT(referencesCatalog)
         const revisionId = str(props.revisionId)
-        const data = useAtomValue(
-            useMemo(() => workflowMolecule.selectors.data(revisionId ?? ""), [revisionId]),
-        )
-        const query = useAtomValue(
-            useMemo(() => workflowMolecule.selectors.query(revisionId ?? ""), [revisionId]),
-        )
+        const {data, isPending} = useRevision(revisionId)
         const fallback = str(props.fallbackLabel) ?? str(props.label)
         const appId = data?.workflow_id ?? null
         const href = useHref("variant", appId && revisionId ? {appId, revisionId} : null)
         if (!revisionId) {
             return fallback ? <ReferenceChip kind="variant" label={fallback} /> : <Placeholder />
         }
-        if (query.isPending) return <ReferenceChipSkeleton />
+        if (isPending) return <ReferenceChipSkeleton />
         const resolved = Boolean(data?.name || data?.slug || data?.version != null)
         const deleted = !resolved && !fallback
         return (
@@ -120,7 +149,8 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
     const EnvironmentReferenceLabel = (props: Props) => {
         const slug = str(props.environmentSlug) ?? str(props.label)
         const appId = str(props.applicationId)
-        const href = useHref("environment", appId && slug ? {appId, slug} : null)
+        const routeHref = useHref("environment", appId && slug ? {appId, slug} : null)
+        const href = str(props.href) ?? routeHref
         if (!slug) return <Placeholder />
         return (
             <ReferenceChip
@@ -172,7 +202,8 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
             useMemo(() => latestRevisionForTestsetAtomFamily(testsetId ?? ""), [testsetId]),
         )
         const revisionId = str(props.revisionId) ?? latest?.id ?? null
-        const href = useHref("testset", testsetId ? {testsetId, revisionId} : null)
+        const routeHref = useHref("testset", testsetId ? {testsetId, revisionId, testcaseId} : null)
+        const href = str(props.href) ?? routeHref
         if (!testsetId) return <Placeholder />
         if (query.isPending) return <ReferenceChipSkeleton />
         const testset = query.data

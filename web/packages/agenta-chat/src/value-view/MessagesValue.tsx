@@ -17,30 +17,51 @@ import {useValueViewOptions} from "./ValueViewProvider"
 
 /** Over this many messages, the middle ones fold into "N more messages". */
 export const MESSAGES_FOLD_OVER = 6
-/** A long turn is clamped at this height, with "Show more". */
-const TURN_MAX_PX = 200
+/** A long message is clamped at this height, with "Show more". */
+const MESSAGE_MAX_PX = 200
+
+/** The trace's work for one user exchange: its tool steps and the "Worked for" time. */
+export interface TurnActivity {
+    steps: ActivityStep[]
+    durationMs?: number
+}
 
 export interface MessagesValueProps {
     /** One message object, or a list of them. */
     messages: unknown[]
-    /** Keys the open state of each long turn; unique per field on the screen. */
+    /** Keys the open state of each long message; unique per field on the screen. */
     stateKey: string
     /** Show every message, with no fold (the full view). */
     unfolded?: boolean
+    /** One entry per user exchange, in order; matched to the exchanges from the end. */
+    turnActivity?: readonly TurnActivity[]
 }
 
-interface Turn {
+interface MessageItem {
     index: number
     message: ValueMessage
     /** Tool messages that answer this message's calls, by call id. */
     results: Map<string, ValueMessage>
 }
 
+/** The activity block of a turn whose steps come from the trace. */
+interface ItemActivity {
+    key: string
+    activity: TurnActivity
+    /** "Turn N" before the line, when the chat has more than one turn. */
+    leading?: string
+}
+
+/** One drawn entry: a message (with the trace's activity before it), or a lone activity block. */
+type Entry =
+    | {kind: "message"; item: MessageItem; activity?: ItemActivity; storedTools: boolean}
+    | {kind: "activity"; activity: ItemActivity}
+
 /** Stored tool calls as the settled steps `ActivityTimeline` draws. */
-const toolSteps = (turn: Turn): ActivityStep[] =>
-    turn.message.toolCalls.map((call, position) => {
-        const id = call.id ?? `${turn.index}-${position}`
-        const result = call.id ? turn.results.get(call.id) : undefined
+const toolSteps = (item: MessageItem): ActivityStep[] =>
+    item.message.toolCalls.map((call, position) => {
+        const id = call.id ?? `${item.index}-${position}`
+        const result = call.id ? item.results.get(call.id) : undefined
         return {
             kind: "tool",
             key: id,
@@ -55,24 +76,88 @@ const toolSteps = (turn: Turn): ActivityStep[] =>
         }
     })
 
-/** Pair each tool result with the call it answers; a result with no call stays a turn. */
-function buildTurns(messages: unknown[]): Turn[] {
+/** Pair each tool result with the call it answers; a result with no call stays an item. */
+function buildMessageItems(messages: unknown[]): MessageItem[] {
     const read = messages.map(readValueMessage)
-    const calls = new Map<string, Turn>()
-    const turns: Turn[] = []
+    const calls = new Map<string, MessageItem>()
+    const items: MessageItem[] = []
     read.forEach((message, index) => {
         const caller = message.toolCallId ? calls.get(message.toolCallId) : undefined
         if (message.role === "tool" && caller && message.toolCallId) {
             caller.results.set(message.toolCallId, message)
             return
         }
-        const turn: Turn = {index, message, results: new Map()}
-        for (const call of message.toolCalls) if (call.id) calls.set(call.id, turn)
-        turns.push(turn)
+        const item: MessageItem = {index, message, results: new Map()}
+        for (const call of message.toolCalls) if (call.id) calls.set(call.id, item)
+        items.push(item)
     })
+    return items
+}
+
+/**
+ * One turn per user exchange: a user message and every message up to the next one. Messages
+ * before the first user message (a system prompt) join the first turn, as spans before the first
+ * turn do in `groupTraceTurns`. A chat with no user message is one turn.
+ */
+const splitTurns = (items: MessageItem[]): MessageItem[][] => {
+    const turns: MessageItem[][] = []
+    let hasUser = false
+    for (const item of items) {
+        const isUser = item.message.role === "user"
+        if (turns.length === 0 || (isUser && hasUser)) turns.push([])
+        hasUser ||= isUser
+        turns[turns.length - 1].push(item)
+    }
     return turns
 }
 
+/**
+ * The drawn entries. A turn matched with a `turnActivity` entry (from the end) draws one activity
+ * block before its last assistant message, in place of its stored tool calls.
+ */
+function buildEntries(
+    items: MessageItem[],
+    turnActivity: readonly TurnActivity[] | undefined,
+    stateKey: string,
+    turnLabel: (n: number) => string,
+): Entry[] {
+    if (!turnActivity?.length) {
+        return items.map((item) => ({kind: "message", item, storedTools: true}))
+    }
+    const turns = splitTurns(items)
+    return turns.flatMap((turn, position) => {
+        const activity = turnActivity[turnActivity.length - turns.length + position]
+        if (!activity) {
+            return turn.map((item): Entry => ({kind: "message", item, storedTools: true}))
+        }
+        const block: ItemActivity = {
+            key: `${stateKey}:turn:${position}`,
+            activity,
+            leading: turns.length > 1 ? turnLabel(position + 1) : undefined,
+        }
+        // The trace's steps replace the stored calls, so a message that held only calls goes.
+        const kept = turn.filter(
+            (item) =>
+                item.message.role !== "tool" &&
+                (item.message.toolCalls.length === 0 ||
+                    Boolean(item.message.text) ||
+                    item.message.attachments.length > 0),
+        )
+        let target = -1
+        kept.forEach((item, index) => {
+            if (item.message.role === "assistant") target = index
+        })
+        const entries = kept.map(
+            (item, index): Entry => ({
+                kind: "message",
+                item,
+                activity: index === target ? block : undefined,
+                storedTools: false,
+            }),
+        )
+        return target === -1 ? [...entries, {kind: "activity", activity: block}] : entries
+    })
+}
 const Attachments = ({message}: {message: ValueMessage}) =>
     message.attachments.length === 0 ? null : (
         <AttachmentGrid>
@@ -96,25 +181,29 @@ const Attachments = ({message}: {message: ValueMessage}) =>
         </AttachmentGrid>
     )
 
-const TurnView = ({
-    turn,
+const MessageItemView = ({
+    item,
     stateKey,
+    activity,
+    storedTools,
     unfolded,
 }: {
-    turn: Turn
+    item: MessageItem
     stateKey: string
-    /** The full view: long turns are not clamped. */
+    activity?: ItemActivity
+    storedTools: boolean
+    /** The full view: long messages are not clamped. */
     unfolded: boolean
 }) => {
     const t = useT(valueViewCatalog)
     const {markdownClassName, markdownIcons} = useValueViewOptions()
-    const {message} = turn
-    const key = `${stateKey}:${turn.index}`
+    const {message} = item
+    const key = `${stateKey}:${item.index}`
     const clamp = (body: ReactNode): ReactNode =>
         unfolded ? (
             body
         ) : (
-            <CollapsibleMessageBody stateKey={key} collapsedMaxPx={TURN_MAX_PX}>
+            <CollapsibleMessageBody stateKey={key} collapsedMaxPx={MESSAGE_MAX_PX}>
                 {body}
             </CollapsibleMessageBody>
         )
@@ -151,17 +240,21 @@ const TurnView = ({
             {message.role !== "assistant" ? (
                 <span className="text-meta text-muted-foreground">{message.role}</span>
             ) : null}
-            {message.toolCalls.length > 0 ? (
+            {activity ? <TraceActivity activity={activity} /> : null}
+            {storedTools && message.toolCalls.length > 0 ? (
                 <ActivityTimeline
                     messageId={key}
-                    steps={toolSteps(turn)}
+                    steps={toolSteps(item)}
                     streaming={false}
                     answerStarted
+                    trailing={t("chat.valueView.toolCalls", {count: message.toolCalls.length})}
                 />
             ) : null}
-            {[...turn.results.values()].map((result, index) => (
-                <Attachments key={index} message={result} />
-            ))}
+            {storedTools
+                ? [...item.results.values()].map((result, index) => (
+                      <Attachments key={index} message={result} />
+                  ))
+                : null}
             {message.text ? (
                 message.role === "system" ? (
                     <div className="rounded-lg bg-muted px-3 py-2 text-body text-muted-foreground">
@@ -176,24 +269,83 @@ const TurnView = ({
     )
 }
 
-/**
- * A chat as the playground draws it: the user turn as a bubble, the agent reply as markdown,
- * tool calls folded under the activity line with their results, attachments as tiles. Long
- * turns clamp at 200 px; over six messages, the middle ones fold into "N more messages".
- */
-export const MessagesValue = ({messages, stateKey, unfolded = false}: MessagesValueProps) => {
+/** A turn's tool steps from the trace, with its "Worked for" time and its tool call count. */
+const TraceActivity = ({activity: {key, activity, leading}}: {activity: ItemActivity}) => {
     const t = useT(valueViewCatalog)
-    const turns = useMemo(() => buildTurns(messages), [messages])
+    // Server and client tools both count; a thought is not a call.
+    const calls = activity.steps.filter((step) => step.kind !== "thought").length
+    return (
+        <ActivityTimeline
+            messageId={key}
+            steps={activity.steps}
+            streaming={false}
+            answerStarted
+            sessionTurnDurationMs={activity.durationMs}
+            leading={leading}
+            trailing={calls ? t("chat.valueView.toolCalls", {count: calls}) : undefined}
+        />
+    )
+}
+
+const EntryView = ({
+    entry,
+    stateKey,
+    unfolded,
+}: {
+    entry: Entry
+    stateKey: string
+    unfolded: boolean
+}) =>
+    entry.kind === "activity" ? (
+        <TraceActivity activity={entry.activity} />
+    ) : (
+        <MessageItemView
+            item={entry.item}
+            stateKey={stateKey}
+            activity={entry.activity}
+            storedTools={entry.storedTools}
+            unfolded={unfolded}
+        />
+    )
+
+const entryKey = (entry: Entry) =>
+    entry.kind === "activity" ? entry.activity.key : String(entry.item.index)
+
+/**
+ * A chat as the playground draws it: the user message as a bubble, the agent reply as markdown,
+ * tool calls folded under the activity line with their results, attachments as tiles. Long
+ * messages clamp at 200 px; over six messages, the middle ones fold into "N more messages".
+ * With `turnActivity`, each matched turn draws the trace's steps in place of its stored calls.
+ */
+export const MessagesValue = ({
+    messages,
+    stateKey,
+    unfolded = false,
+    turnActivity,
+}: MessagesValueProps) => {
+    const t = useT(valueViewCatalog)
+    const entries = useMemo(
+        () =>
+            buildEntries(buildMessageItems(messages), turnActivity, stateKey, (n) =>
+                t("chat.valueView.turnLabel", {n}),
+            ),
+        [messages, turnActivity, stateKey, t],
+    )
     const [showAll, setShowAll] = useState(false)
-    const folded = !unfolded && !showAll && turns.length > MESSAGES_FOLD_OVER
-    const head = folded ? turns.slice(0, 2) : turns
-    const tail = folded ? turns.slice(-2) : []
-    const hidden = turns.length - head.length - tail.length
+    const folded = !unfolded && !showAll && entries.length > MESSAGES_FOLD_OVER
+    const head = folded ? entries.slice(0, 2) : entries
+    const tail = folded ? entries.slice(-2) : []
+    const hidden = entries.length - head.length - tail.length
 
     return (
         <div className="flex min-w-0 flex-col gap-3">
-            {head.map((turn) => (
-                <TurnView key={turn.index} turn={turn} stateKey={stateKey} unfolded={unfolded} />
+            {head.map((entry) => (
+                <EntryView
+                    key={entryKey(entry)}
+                    entry={entry}
+                    stateKey={stateKey}
+                    unfolded={unfolded}
+                />
             ))}
             {folded ? (
                 <div className="flex items-center gap-2">
@@ -209,8 +361,13 @@ export const MessagesValue = ({messages, stateKey, unfolded = false}: MessagesVa
                     <span aria-hidden className="h-px flex-1 bg-border-muted" />
                 </div>
             ) : null}
-            {tail.map((turn) => (
-                <TurnView key={turn.index} turn={turn} stateKey={stateKey} unfolded={unfolded} />
+            {tail.map((entry) => (
+                <EntryView
+                    key={entryKey(entry)}
+                    entry={entry}
+                    stateKey={stateKey}
+                    unfolded={unfolded}
+                />
             ))}
         </div>
     )

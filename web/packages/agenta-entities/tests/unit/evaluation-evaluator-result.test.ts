@@ -37,7 +37,7 @@ describe("summarizeEvaluatorResult", () => {
             ],
         })
         expect(summary.failed).toBe(false)
-        expect(summary.binary).toEqual({passed: 1, total: 1})
+        expect(summary.assertions).toEqual({passed: 1, total: 1})
     })
 
     it("counts 7 binary metrics with 2 false as 5 of 7 passed with the failed names", () => {
@@ -84,7 +84,7 @@ describe("summarizeEvaluatorResult", () => {
             more: 4,
         })
         expect(summary.failed).toBe(false)
-        expect(summary.binary.total).toBe(0)
+        expect(summary.assertions.total).toBe(0)
     })
 
     it("keeps text metrics, a string and an object, off the row and on expand", () => {

@@ -19,7 +19,8 @@
  * ```
  */
 
-import {InitialsAvatar} from "@agenta/ui"
+import {timeAgo} from "@agenta/shared/utils"
+import {BylineText, InitialsAvatar} from "@agenta/ui"
 
 import {useUserDisplayName, useIsCurrentUser} from "./atoms"
 
@@ -71,6 +72,13 @@ export interface UserAuthorLabelProps {
     fallback?: string | null
 
     /**
+     * The time of the last change (`updated_at`, else `created_at`). With it the label reads
+     * "By NAME, TIME", or "By you, TIME" for the current user, whatever `prefix` and
+     * `showPrefix` say.
+     */
+    at?: string | null
+
+    /**
      * Additional CSS class
      */
     className?: string
@@ -91,6 +99,7 @@ export function UserAuthorLabel({
     showYouLabel = false,
     showAvatar = false,
     fallback = null,
+    at,
     className,
 }: UserAuthorLabelProps) {
     const resolvedName = useUserDisplayName(userId ?? undefined)
@@ -98,6 +107,21 @@ export function UserAuthorLabel({
 
     const displayName =
         (resolvedName && resolvedName !== "-" ? resolvedName : undefined) || name || null
+    // The same test BylineText makes, so a date it cannot draw falls back to the plain label.
+    const withTime = Boolean(at && timeAgo(Date.parse(at)))
+
+    if (withTime && (displayName || isCurrentUser)) {
+        return (
+            <span
+                className={`inline-flex items-center gap-1.5 text-ellipsis overflow-hidden ${className ?? ""}`}
+            >
+                {showAvatar && displayName && (
+                    <InitialsAvatar name={displayName} className="w-4 h-4 text-caption" />
+                )}
+                <BylineText name={displayName ?? ""} at={at as string} isYou={isCurrentUser} />
+            </span>
+        )
+    }
 
     if (!displayName) {
         if (fallback) {

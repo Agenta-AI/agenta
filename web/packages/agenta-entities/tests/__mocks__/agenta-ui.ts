@@ -7,6 +7,7 @@
  */
 
 export const InitialsAvatar = () => null
+export const BylineText = () => null
 
 // Add additional no-op exports here if other @agenta/ui symbols are imported
 // by entity source files in the future.

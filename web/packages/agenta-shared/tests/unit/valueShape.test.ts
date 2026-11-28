@@ -1,6 +1,12 @@
 import {describe, expect, it} from "vitest"
 
-import {detectValueShape, formatShapeNumber, readValueMessage} from "../../src/utils/valueShape"
+import {parseStructuredJson} from "../../src/utils/jsonParsing"
+import {
+    detectValueShape,
+    formatShapeNumber,
+    readValueMessage,
+    unwrapWrapperKey,
+} from "../../src/utils/valueShape"
 
 const lines = (count: number) =>
     Array.from({length: count}, (_, index) => `line ${index + 1}`).join("\n")
@@ -142,5 +148,35 @@ describe("readValueMessage", () => {
         })
         expect(message.text).toBe("Hello")
         expect(message.attachments).toHaveLength(1)
+    })
+})
+
+describe("contract changes of the foundation review", () => {
+    it("names a list messages only when every item is a message", () => {
+        const mixed = [
+            {role: "user", content: "Hi"},
+            {id: 7, label: "not a message"},
+        ]
+        expect(detectValueShape(mixed).shape).toBe("array-objects")
+        expect(detectValueShape({messages: mixed}).shape).toBe("object-nested")
+        expect(
+            detectValueShape({choices: [{message: {role: "assistant", content: "Hi"}}, {}]}).shape,
+        ).toBe("messages")
+        expect(detectValueShape({choices: [{message: {id: 1}}]}).shape).not.toBe("messages")
+    })
+
+    it("does not try JSON5 above 100 KB, while strict JSON still parses", () => {
+        const pad = "x".repeat(110_000)
+        expect(parseStructuredJson(`{a: 1, pad: '${pad}'}`)).toBeNull()
+        expect(parseStructuredJson(`{a: 1, pad: '${pad.slice(0, 1_000)}'}`)).not.toBeNull()
+        expect(parseStructuredJson(JSON.stringify({a: 1, pad}))).toEqual({a: 1, pad})
+    })
+
+    it("unwraps a single wrapper key only when it holds a non-empty object", () => {
+        expect(unwrapWrapperKey({output: {tier: "gold"}})).toEqual({tier: "gold"})
+        expect(unwrapWrapperKey({output: "text"})).toEqual({output: "text"})
+        expect(unwrapWrapperKey({output: {}})).toEqual({output: {}})
+        expect(unwrapWrapperKey({a: {b: 1}, c: 2})).toEqual({a: {b: 1}, c: 2})
+        expect(unwrapWrapperKey([{a: 1}])).toEqual([{a: 1}])
     })
 })

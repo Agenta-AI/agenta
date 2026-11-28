@@ -164,6 +164,9 @@ export {
     type EvaluatorResultMetricInput,
     type EvaluatorResultState,
     type EvaluatorResultSummary,
+    // Human evaluators show apart: the one origin test
+    isHumanOrigin,
+    splitByOrigin,
     findScenarioTraceResult,
     buildQuerySlug,
     formatQueryFiltering,

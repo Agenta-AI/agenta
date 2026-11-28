@@ -30,6 +30,9 @@
     "calledTools_one": "Llamó a {{count}} herramienta",
     "calledTools_many": "Llamó a {{count}} herramientas",
     "calledTools_other": "Llamó a {{count}} herramientas",
+    "toolCalls_one": "{{count}} llamada a herramienta",
+    "toolCalls_many": "{{count}} llamadas a herramientas",
+    "toolCalls_other": "{{count}} llamadas a herramientas",
     "toolResult": "Resultado de herramienta",
     "resultOf": "resultado de {{name}}",
     "attachments_one": "{{count}} adjunto",
@@ -51,5 +54,8 @@
     "openTrace": "Abrir traza",
     "errorLabel": "error",
     "passedLabel": "Aprobados",
-    "assertionsValue": "{{passed}} de {{total}}"
+    "assertionsValue": "{{passed}} de {{total}}",
+    "valueTrue": "Verdadero",
+    "valueFalse": "Falso",
+    "turnLabel": "Turno {{n}}"
 }

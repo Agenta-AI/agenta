@@ -34,5 +34,7 @@
     "durationValue": "Durée : {{duration}}",
     "tokenCount_one": "{{tokens}} jeton",
     "tokenCount_many": "{{tokens}} jetons",
-    "tokenCount_other": "{{tokens}} jetons"
+    "tokenCount_other": "{{tokens}} jetons",
+    "byNameAt": "Par {{name}}, {{time}}",
+    "byYouAt": "Par vous, {{time}}"
 }

@@ -30,6 +30,9 @@
     "calledTools_one": "Chamou {{count}} ferramenta",
     "calledTools_many": "Chamou {{count}} ferramentas",
     "calledTools_other": "Chamou {{count}} ferramentas",
+    "toolCalls_one": "{{count}} chamada de ferramenta",
+    "toolCalls_many": "{{count}} chamadas de ferramentas",
+    "toolCalls_other": "{{count}} chamadas de ferramentas",
     "toolResult": "Resultado da ferramenta",
     "resultOf": "resultado de {{name}}",
     "attachments_one": "{{count}} anexo",
@@ -51,5 +54,8 @@
     "openTrace": "Abrir trace",
     "errorLabel": "erro",
     "passedLabel": "Aprovados",
-    "assertionsValue": "{{passed}} de {{total}}"
+    "assertionsValue": "{{passed}} de {{total}}",
+    "valueTrue": "Verdadeiro",
+    "valueFalse": "Falso",
+    "turnLabel": "Turno {{n}}"
 }

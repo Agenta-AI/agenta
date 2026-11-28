@@ -64,3 +64,6 @@ export type {
     TraceRequest,
     TracesApiResponse,
 } from "./types"
+
+// The turn rule: one turn per user exchange
+export {groupTraceTurns, type TraceTurn} from "./traceTurns"

@@ -32,5 +32,7 @@
     "falseValue": "false",
     "durationValue": "Duration: {{duration}}",
     "tokenCount_one": "{{tokens}} token",
-    "tokenCount_other": "{{tokens}} tokens"
+    "tokenCount_other": "{{tokens}} tokens",
+    "byNameAt": "By {{name}}, {{time}}",
+    "byYouAt": "By you, {{time}}"
 }

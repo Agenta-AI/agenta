@@ -194,3 +194,35 @@ describe("ValueCell metrics", () => {
         expect(text(render(<ValueCell value={undefined} state="pending" />))).toBe("Running")
     })
 })
+
+describe("ValueCell binaryWords", () => {
+    it("draws a human binary value as True or False in both densities, still green or red", () => {
+        const comfortable = render(
+            <ValueCell value={true} metricKind="binary" binaryWords="trueFalse" />,
+        )
+        expect(text(comfortable)).toBe("True")
+        comfortable.unmount()
+        const falseCell = render(
+            <ValueCell value={false} metricKind="binary" binaryWords="trueFalse" />,
+        )
+        expect(text(falseCell)).toBe("False")
+        falseCell.unmount()
+
+        const compact = render(
+            <ValueCell
+                value={false}
+                metricKind="binary"
+                binaryWords="trueFalse"
+                density="compact"
+            />,
+        )
+        const icon = compact.container.querySelector("[role=img]")
+        expect(icon?.getAttribute("aria-label")).toBe("False")
+        expect(icon?.className).toContain("text-destructive")
+        compact.unmount()
+    })
+
+    it("keeps Pass and Fail by default", () => {
+        expect(text(render(<ValueCell value={true} metricKind="binary" />))).toBe("Pass")
+    })
+})

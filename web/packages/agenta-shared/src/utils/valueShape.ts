@@ -8,7 +8,7 @@
 
 import type {MessageContent} from "../types/chatMessage"
 
-import {getAttachments, isChatMessageObject, isChatMessagesArray} from "./chatMessage"
+import {getAttachments, isChatMessageObject} from "./chatMessage"
 import {isUrl} from "./dataUri"
 import {parseStructuredJson} from "./jsonParsing"
 
@@ -135,13 +135,17 @@ const mayHoldJson = (text: string) => {
     return first === "{" || first === "[" || first === "`" || first === '"'
 }
 
+/** Every item is a chat message: one other item makes the list a list, so nothing is hidden. */
+const allMessages = (items: unknown[]): boolean =>
+    items.length > 0 && items.every(isChatMessageObject)
+
 /** The messages of `{choices: [{message}, ...]}`. */
 const choiceMessages = (choices: unknown): unknown[] | null => {
     if (!Array.isArray(choices)) return null
     const messages = choices
         .map((choice) => (isRecord(choice) ? (choice.message ?? choice.delta) : undefined))
         .filter((message) => message !== undefined)
-    return messages.length > 0 && isChatMessagesArray(messages) ? messages : null
+    return allMessages(messages) ? messages : null
 }
 
 /** Messages under the only key of an object: `{messages: [...]}`, `{choices: [{message}]}`. */
@@ -156,7 +160,11 @@ const wrappedMessages = (
         return messages ? {key, value: messages} : null
     }
     const inner = value[key]
-    if ((MESSAGE_KEYS as readonly string[]).includes(key) && isChatMessagesArray(inner)) {
+    if (
+        (MESSAGE_KEYS as readonly string[]).includes(key) &&
+        Array.isArray(inner) &&
+        allMessages(inner)
+    ) {
         return {key, value: inner}
     }
     return null
@@ -179,7 +187,7 @@ const detectText = (text: string): DetectedValue => {
 const detectStructured = (value: object): DetectedValue => {
     if (Array.isArray(value)) {
         if (value.length === 0) return {shape: "empty", value}
-        if (isChatMessagesArray(value)) return {shape: "messages", value}
+        if (allMessages(value)) return {shape: "messages", value}
         if (value.every(isScalar)) return {shape: "array-scalars", value}
         if (value.every(isRecord)) return {shape: "array-objects", value}
         return {shape: "object-nested", value}
@@ -303,4 +311,17 @@ export function readValueMessage(message: unknown): ValueMessage {
             ? getAttachments(content.map(attachmentPart).filter(Boolean) as MessageContent)
             : [],
     }
+}
+
+/**
+ * The value inside a single wrapper key (`{"output": {...}}` gives the inner object), else the
+ * value itself. Only an object with one key whose value is a non-empty object is unwrapped. The
+ * trace view calls it on a span's inputs and outputs; a field never unwraps on its own.
+ */
+export const unwrapWrapperKey = (value: unknown): unknown => {
+    if (!isRecord(value)) return value
+    const keys = Object.keys(value)
+    if (keys.length !== 1) return value
+    const inner = value[keys[0]]
+    return isRecord(inner) && Object.keys(inner).length > 0 ? inner : value
 }

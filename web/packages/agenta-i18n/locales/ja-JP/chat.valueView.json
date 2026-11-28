@@ -14,6 +14,7 @@
     "fields_other": "{{count}} 個のフィールド",
     "showAllItems": "{{count}} 件すべて表示",
     "calledTools_other": "{{count}} 個のツールを呼び出し",
+    "toolCalls_other": "{{count}} 回のツール呼び出し",
     "toolResult": "ツールの結果",
     "resultOf": "{{name}} の結果",
     "attachments_other": "{{count}} 件の添付",
@@ -33,5 +34,8 @@
     "openTrace": "トレースを開く",
     "errorLabel": "エラー",
     "passedLabel": "合格",
-    "assertionsValue": "{{passed}} / {{total}}"
+    "assertionsValue": "{{passed}} / {{total}}",
+    "valueTrue": "真",
+    "valueFalse": "偽",
+    "turnLabel": "ターン {{n}}"
 }

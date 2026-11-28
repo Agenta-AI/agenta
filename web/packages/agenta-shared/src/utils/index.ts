@@ -128,6 +128,7 @@ export {
     readValueMessage,
     TEXT_LONG_CHARS,
     TEXT_LONG_LINES,
+    unwrapWrapperKey,
 } from "./valueShape"
 export type {DetectedValue, ValueMessage, ValueShape} from "./valueShape"
 
