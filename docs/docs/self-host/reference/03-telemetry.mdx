@@ -44,9 +44,11 @@ When an admin registers the instance for a free key, agenta.ai (not the instance
 
 | Event | Distinct id | What it carries |
 |---|---|---|
-| `instance_registered` | The instance id | `email` (the email you registered with), `agenta_version`, `plan` (`self_hosted_registered`), the answers to the registration questions (role, team size, where you heard of Agenta), and `$groups` with the instance |
+| `instance_registered` | The instance id | `email` (the email you registered with), `agenta_version`, `plan` (`self_hosted_registered`), the answers to the registration questions (role, team size, where you heard of Agenta), `country` (the country Cloudflare detects from the request, as a two-letter code such as `FR`; no IP address or city), and `$groups` with the instance |
 | `$groupidentify` | The instance id | Sets `registered_email` on the `instance` group |
 | `$set` | `<instance id>:<user id>` of the admin who registered | Sets `email` on that user |
+
+The three events set `$geoip_disable` to `true`, so PostHog does not look up a location.
 
 ## Settings
 

@@ -142,7 +142,11 @@ API accepts a free key only on that instance. Last, it sends to the
 self-hosted PostHog project (the same public project token as the API fallback key) the
 `instance_registered` event and a `$groupidentify` for the group type `instance` under the instance
 id, both with `instance_kind` (`production`, `development`, `ci` or `test`; Agenta's own test
-stacks send `test`, so filter them out), and a `$set` of the email on the person `<instance_id>:<user_id>`. It does this whatever the
+stacks send `test`, so filter them out), and a `$set` of the email on the person `<instance_id>:<user_id>`. The
+`instance_registered` event also carries `country`, the two-letter code from `request.cf.country`
+(left out when it is missing, `XX` or `T1`). All three events set `$geoip_disable`, because
+PostHog would otherwise place them at the worker. The worker never sends the IP address, the
+region or the city. It does this whatever the
 instance's own telemetry switch is. A failed contact update or PostHog call is logged and does
 not fail the registration, because the key email
 already went out. It stores nothing itself and answers `202 {}`. It runs before the negotiation `try/catch`, so a failure answers JSON and never falls

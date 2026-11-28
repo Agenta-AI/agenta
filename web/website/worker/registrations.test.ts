@@ -140,6 +140,12 @@ function post(body: unknown): Request {
   });
 }
 
+// Workers set `request.cf`; a test request has to be given one.
+function fromCountry(request: Request, country: unknown): Request {
+  Object.defineProperty(request, "cf", { value: { country, city: "Paris" } });
+  return request;
+}
+
 function fromBase64url(text: string): Uint8Array {
   return new Uint8Array(Buffer.from(text, "base64url"));
 }
@@ -661,7 +667,7 @@ describe("PostHog", () => {
     const { sender } = fakeSender();
 
     const response = await handleRegistration(
-      post(FULL),
+      fromCountry(post(FULL), "FR"),
       withLimits({ LICENSE_SIGNING_KEY: privatePem }),
       sender,
     );
@@ -685,7 +691,9 @@ describe("PostHog", () => {
           role: "Engineer (AI, SWE, ML)",
           team_size: "11-50",
           heard_from: "GitHub",
+          country: "FR",
           $groups: { instance: VALID.instance_id },
+          $geoip_disable: true,
         },
       },
       {
@@ -695,6 +703,7 @@ describe("PostHog", () => {
         properties: {
           $group_type: "instance",
           $group_key: VALID.instance_id,
+          $geoip_disable: true,
           $group_set: {
             registered_email: "ada@example.com",
             instance_kind: "production",
@@ -705,9 +714,55 @@ describe("PostHog", () => {
         event: "$set",
         distinct_id: `${VALID.instance_id}:${USER_ID}`,
         timestamp,
-        properties: { $set: { email: "ada@example.com" } },
+        properties: {
+          $set: { email: "ada@example.com" },
+          $geoip_disable: true,
+        },
       },
     ]);
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["unknown", "XX"],
+    ["Tor", "T1"],
+  ])(
+    "sends no country when Cloudflare's country is %s",
+    async (_name, country) => {
+      const calls = stubPostHog();
+      const { sender } = fakeSender();
+      const request =
+        country === undefined ? post(VALID) : fromCountry(post(VALID), country);
+
+      await handleRegistration(
+        request,
+        withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+        sender,
+      );
+
+      const [registered] = JSON.parse(calls[0].init.body as string).batch;
+      expect(registered.properties).not.toHaveProperty("country");
+      expect(registered.properties.$geoip_disable).toBe(true);
+    },
+  );
+
+  it("sends the country and nothing else about the caller's location", async () => {
+    const calls = stubPostHog();
+    const { sender } = fakeSender();
+    const request = fromCountry(post(VALID), "DE");
+    request.headers.set("CF-Connecting-IP", "203.0.113.7");
+
+    await handleRegistration(
+      request,
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+    );
+
+    const text = calls[0].init.body as string;
+    expect(JSON.parse(text).batch[0].properties.country).toBe("DE");
+    expect(text).not.toContain("203.0.113.7");
+    expect(text).not.toContain("Paris");
+    expect(text).not.toContain("$ip");
   });
 
   it("sends no person update without a user id", async () => {
