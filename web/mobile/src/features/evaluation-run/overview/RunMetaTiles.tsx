@@ -4,7 +4,7 @@ import type {RunTile, RunTileDetail} from "@agenta/entities/evaluationRun"
 import {formatNumber, useT} from "@agenta/i18n"
 import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
 import {COARSE_POINTER_QUERY, useWindowMatch} from "@agenta/ui/hooks"
-import {Popover, PopoverContent, PopoverTrigger, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, Popover, PopoverContent, PopoverTrigger, SimpleTooltip} from "@agenta/ui/ui"
 
 /** The run's totals as tiles: test cases, passed, cost, duration, tokens, errors. */
 export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online: boolean}) => {
@@ -127,12 +127,13 @@ const NotRunLine = ({
     touch ? (
         <Popover>
             <PopoverTrigger asChild>
-                <button
+                <Button
                     type="button"
-                    className={`${NOT_RUN_LINE} border-0 bg-transparent p-0 text-left font-[inherit]`}
+                    variant="ghost"
+                    className={`${NOT_RUN_LINE} block h-auto rounded-none border-0 p-0 text-left font-normal hover:bg-transparent hover:text-destructive`}
                 >
                     {label}
-                </button>
+                </Button>
             </PopoverTrigger>
             <PopoverContent
                 side="bottom"

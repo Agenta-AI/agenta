@@ -203,6 +203,8 @@ describe("run overview tiles", () => {
         )
         const line = host.querySelector<HTMLButtonElement>('[data-testid="tile-testCases"] button')!
         expect(line.textContent).toBe("1 did not run")
+        // The kit Button, not a raw <button> (design ratchet CONS-03).
+        expect(line.dataset.variant).toBe("ghost")
         act(() => line.click())
         expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
             "1 of 2 test cases did not run, because the application returned an error.",
