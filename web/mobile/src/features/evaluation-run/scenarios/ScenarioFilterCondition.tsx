@@ -88,6 +88,7 @@ export const ScenarioFilterCondition = ({
                 <SelectTrigger
                     size="sm"
                     aria-label={`Column of condition ${position}`}
+                    title={field ? `${field.groupLabel} · ${field.label}` : undefined}
                     className="w-50 min-w-0"
                 >
                     <SelectValue placeholder="Column" />
