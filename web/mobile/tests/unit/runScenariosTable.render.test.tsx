@@ -25,18 +25,20 @@ vi.mock("@agenta/shared/api", async (original) => ({
 const router = vi.hoisted(() => ({
     query: {} as Record<string, string>,
     replace: vi.fn(),
+    push: vi.fn(),
 }))
 vi.mock("next/router", () => ({
     useRouter: () => ({
         query: router.query,
         pathname: "/w/[workspace_id]/p/[project_id]/evaluations/results/[evaluation_id]",
         replace: router.replace,
+        push: router.push,
     }),
 }))
 
-import {ScenariosTab} from "@/features/evaluation-run/scenarios/ScenariosTab"
-
 import {answerRequest, newServerState, type ScenarioServerState} from "./runScenariosFixtures"
+
+import {ScenariosTab} from "@/features/evaluation-run/scenarios/ScenariosTab"
 
 const RUN: RunHeader = {
     name: "Capitals check",
@@ -192,6 +194,7 @@ beforeEach(() => {
     store.set(sessionAtom, true)
     Object.values(http).forEach((fn) => fn.mockReset())
     router.replace.mockReset()
+    router.push.mockReset()
     vi.stubGlobal(
         "IntersectionObserver",
         class {
@@ -620,5 +623,40 @@ describe("scenarios table", () => {
             [...row.querySelectorAll("button")].some((node) => node.textContent === "Annotate"),
         )
         expect(annotate).toEqual([true, true])
+    })
+
+    /** The run's default queue: `queueId`, or none (archived, or never made). */
+    const serveDefaultQueue = (queueId: string | null) =>
+        http.get.mockImplementation(async (url: string) => {
+            if (!url.endsWith("/queues/default")) throw new Error(`unexpected request ${url}`)
+            const queue = {id: queueId, run_id: "run", flags: {is_default: true}}
+            return {data: queueId ? {count: 1, queue} : {count: 0}}
+        })
+    const annotateOf = (row: HTMLElement) =>
+        [...row.querySelectorAll("button")].find((node) => node.textContent === "Annotate")
+
+    it("Annotate on a human run opens the run's queue at that scenario", async () => {
+        serveDefaultQueue("queue-1")
+        await mount({ids: ["sc-1", "sc-2"]}, {...RUN, kind: "human"})
+        await click(annotateOf(rows()[1]))
+        expect(router.push).toHaveBeenCalledWith(
+            "/w/ws/p/pr/annotations/queue-1?view=annotate&scenarioId=sc-2",
+        )
+        expect(router.replace).not.toHaveBeenCalled()
+    })
+
+    it("Annotate on a human run with no queue opens the drawer on that scenario", async () => {
+        serveDefaultQueue(null)
+        const runId = await mount({ids: ["sc-1", "sc-2"]}, {...RUN, kind: "human"})
+        await click(annotateOf(rows()[1]))
+        expect(router.push).not.toHaveBeenCalled()
+        expect(router.replace).toHaveBeenCalledWith(
+            {
+                pathname: "/w/[workspace_id]/p/[project_id]/evaluations/results/[evaluation_id]",
+                query: {...router.query, focusScenarioId: "sc-2", focusRunId: runId},
+            },
+            undefined,
+            {shallow: true},
+        )
     })
 })

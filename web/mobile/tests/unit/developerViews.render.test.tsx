@@ -7,12 +7,12 @@ import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {TEST_DEVELOPER_VIEWS} from "./developerViewFixtures"
+
 import {developerNavItems} from "@/features/developer/developerNavItems"
 import {DEVELOPER_VIEWS_ENV} from "@/features/developer/developerViewAccess"
 import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
 import PlaygroundPage from "@/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/playground"
-
-import {TEST_DEVELOPER_VIEWS} from "./developerViewFixtures"
 
 vi.mock("@/features/developer/developerViews", async () => ({
     DEVELOPER_VIEWS: (await import("./developerViewFixtures")).TEST_DEVELOPER_VIEWS,
@@ -136,6 +136,19 @@ describe("developer views", () => {
                 `${PROJECT}/lab-one`,
             )
             render(<DeveloperViewGate viewId="nope">{view}</DeveloperViewGate>)
+            expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+        })
+
+        it("with two view ids, renders the view when either one is on", () => {
+            const ids = ["lab-one", "lab-two"] as const
+            vi.stubEnv(DEVELOPER_VIEWS_ENV, "lab-two")
+            render(<DeveloperViewGate viewId={ids}>{view}</DeveloperViewGate>)
+            expect(host.querySelector("[data-testid=view]")).not.toBeNull()
+            vi.stubEnv(DEVELOPER_VIEWS_ENV, "lab-gate")
+            store = createStore()
+            store.set(activeUserIdAtom, "u1")
+            render(<DeveloperViewGate viewId={ids}>{view}</DeveloperViewGate>)
+            expect(host.querySelector("[data-testid=view]")).toBeNull()
             expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
         })
     })

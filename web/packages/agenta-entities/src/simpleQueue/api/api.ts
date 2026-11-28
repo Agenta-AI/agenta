@@ -9,6 +9,7 @@
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
+import {evaluationQueueResponseSchema} from "../../evaluationQueue/core/schema"
 import {safeParseWithLogging} from "../../shared"
 import {
     simpleQueueResponseSchema,
@@ -149,6 +150,33 @@ export async function fetchSimpleQueue({
         "[fetchSimpleQueue]",
     )
     return validated?.queue ?? null
+}
+
+/**
+ * The id of a run's active default queue, or null when it has none (none was made, or it was
+ * archived). The simple queue of a run is its default queue, so the id opens `/annotations/<id>`.
+ *
+ * Endpoint: `GET /evaluations/runs/{run_id}/queues/default`
+ */
+export async function fetchRunDefaultQueue(
+    projectId: string,
+    runId: string,
+): Promise<string | null> {
+    if (!projectId || !runId) return null
+
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/evaluations/runs/${runId}/queues/default`,
+        {
+            params: {project_id: projectId},
+        },
+    )
+
+    const validated = safeParseWithLogging(
+        evaluationQueueResponseSchema,
+        response.data,
+        "[fetchRunDefaultQueue]",
+    )
+    return validated?.queue?.id ?? null
 }
 
 // ============================================================================

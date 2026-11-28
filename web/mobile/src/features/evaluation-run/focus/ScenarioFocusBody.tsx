@@ -14,7 +14,7 @@ import type {useScenarioTrace} from "./useScenarioTrace"
 /**
  * What the test case holds, read only: its inputs as one table, then the app output by its
  * shape. In the drawer this is the "Inputs and output" tab, with the tool calls of the app call
- * and the expected value; the Annotate tab shows it without them.
+ * and the expected value.
  */
 export const ScenarioFocusBody = ({
     row,
@@ -29,7 +29,7 @@ export const ScenarioFocusBody = ({
     onRetry: () => void
     /** A human run's scenario whose app nobody ran yet: no output, and nothing is running. */
     awaitingRun?: boolean
-    trace?: ReturnType<typeof useScenarioTrace>
+    trace: ReturnType<typeof useScenarioTrace>
     /** The test case column an evaluator compares the output with. */
     expectedKey?: string | null
 }) => {

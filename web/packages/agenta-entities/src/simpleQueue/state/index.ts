@@ -20,6 +20,7 @@ export {
     simpleQueuesListDataAtom,
     // Single entity
     simpleQueueQueryAtomFamily,
+    runDefaultQueueIdQueryAtomFamily,
     simpleQueueDraftAtomFamily,
     simpleQueueEntityAtomFamily,
     simpleQueueIsDirtyAtomFamily,

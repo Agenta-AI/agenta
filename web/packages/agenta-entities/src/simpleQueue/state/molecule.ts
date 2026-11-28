@@ -40,6 +40,7 @@ import {
     editSimpleQueue,
     type EditSimpleQueuePayload,
     fetchSimpleQueue,
+    fetchRunDefaultQueue,
     querySimpleQueues,
     querySimpleQueueScenarios,
     addSimpleQueueTraces,
@@ -175,6 +176,33 @@ export const simpleQueueQueryAtomFamily = atomFamily((queueId: string) =>
         retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
         staleTime: 30_000,
     })),
+)
+
+/**
+ * The id of a run's active default queue (null when it has none). A failed read counts as no
+ * queue: the caller then stays on the run page.
+ */
+export const runDefaultQueueIdQueryAtomFamily = atomFamily((runId: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(projectIdAtom)
+        return {
+            queryKey: ["simpleQueue", "runDefault", projectId, runId],
+            queryFn: async (): Promise<string | null> => {
+                if (!projectId) return null
+                try {
+                    return await fetchRunDefaultQueue(projectId, runId)
+                } catch (error) {
+                    console.error(
+                        "[runDefaultQueueId] Could not read the run's default queue",
+                        error,
+                    )
+                    return null
+                }
+            },
+            enabled: Boolean(projectId && runId),
+            staleTime: 30_000,
+        }
+    }),
 )
 
 // ============================================================================

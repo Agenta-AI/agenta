@@ -1,9 +1,9 @@
 import {activeUserIdAtom, betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {atom, useAtomValue} from "jotai"
 
-import {getEnv} from "@/lib/env"
-
 import {DEVELOPER_VIEWS, type DeveloperView} from "./developerViews"
+
+import {getEnv} from "@/lib/env"
 
 /** Runtime env var: a comma-separated list of developer view ids this deployment forces on. */
 export const DEVELOPER_VIEWS_ENV = "NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS"
@@ -36,9 +36,13 @@ export const enabledDeveloperViewsAtom = atom((get): readonly DeveloperView[] | 
 export const useEnabledDeveloperViews = (): readonly DeveloperView[] =>
     useAtomValue(enabledDeveloperViewsAtom) ?? NO_VIEWS
 
-/** Whether this user may open the view, or `null` until the signed-in user is known. */
-export const useDeveloperViewEnabled = (viewId: string): boolean | null => {
+/**
+ * Whether this user may open the view (any of the views, for a list), or `null` until the
+ * signed-in user is known.
+ */
+export const useDeveloperViewEnabled = (viewId: string | readonly string[]): boolean | null => {
     const enabled = useAtomValue(enabledDeveloperViewsAtom)
     if (!enabled) return null
-    return enabled.some((view) => view.id === viewId)
+    const ids: readonly string[] = typeof viewId === "string" ? [viewId] : viewId
+    return enabled.some((view) => ids.includes(view.id))
 }

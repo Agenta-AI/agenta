@@ -54,8 +54,7 @@ export const ScenarioFocusOutput = ({
     error: string | null
     running: boolean
     awaitingRun: boolean
-    /** Absent in the Annotate tab, which reads no trace. */
-    trace?: ScenarioTrace
+    trace: ScenarioTrace
     /** The compared column and its value in this test case. */
     expected?: {key: string; value: unknown} | null
 }) => {
@@ -96,14 +95,14 @@ export const ScenarioFocusOutput = ({
         />
     ) : (
         <div className="flex min-w-0 flex-col gap-3">
-            {trace?.failed ? <ToolCallsError onRetry={trace.retry} /> : null}
+            {trace.failed ? <ToolCallsError onRetry={trace.retry} /> : null}
             {comparison && expected ? (
                 <ValueCompareRows comparison={comparison} expectedKey={expected.key} />
             ) : (
                 <ValueField
                     value={value}
                     label={t("evaluations.scenarioFocus.output")}
-                    turnActivity={trace?.turns}
+                    turnActivity={trace.turns}
                 />
             )}
         </div>

@@ -36,7 +36,7 @@ type FormScope = {queueId: string; runId?: never} | {runId: string; queueId?: ne
 /**
  * The form for one scenario: one open section per evaluator (its name, its description, a line
  * between sections, the field count when folded), its metrics as fields. With `showSubmit` (the
- * annotate sheets, the run's Annotate tab) it carries its own submit button; the queue's Annotate
+ * annotate sheets) it carries its own submit button; the queue's Annotate
  * tab draws its own under the form. `readOnly` shows the values without the button.
  * `sectionActions` draws the host's controls at the end of each evaluator header. The queue adds
  * `fieldKeys` (keys and focus on each field), a `notice` under the header, and `emptyAction`

@@ -5,20 +5,21 @@ import {
     runMetricCatalogAtomFamily,
     type RunHeader,
 } from "@agenta/entities/evaluationRun"
-import {EMPTY_SCENARIO_FILTER, type RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
+import {EMPTY_SCENARIO_FILTER} from "@agenta/entities/evaluationRun/etl"
+import {runDefaultQueueIdQueryAtomFamily} from "@agenta/entities/simpleQueue"
 import {useT} from "@agenta/i18n"
 import scenariosCatalog from "@agenta/i18n/catalogs/evaluations.scenarios"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableGroup} from "@agenta/ui/list-table"
 import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {alignComparedRow} from "../compare/scenarios/alignComparedRow"
 import {CompareRowRun} from "../compare/scenarios/CompareRowRun"
 import {useComparedScenarios} from "../compare/scenarios/useComparedScenarios"
 import {rowNounKey} from "../focus/scenarioNoun"
+import {useFocusScenarioParam} from "../focus/useFocusScenarioParam"
 import {useRunReviews} from "../focus/useRunReviews"
 
 import {ScenarioAnnotateButton} from "./ScenarioAnnotateButton"
@@ -58,18 +59,6 @@ import {useScenarioGroupLabels} from "./useScenarioGroupLabels"
 import {useScenarioView} from "./useScenarioView"
 import {useTableBodyHeight} from "./useTableBodyHeight"
 
-// The annotate sheet brings the annotation controllers: it loads when a row asks for it.
-const RunAnnotateSheet = dynamic<{
-    runId: string
-    row: ScenarioRow
-    groups: RunColumnGroup[]
-    labels: Record<string, string>
-    onRetry: () => void
-    onClose: () => void
-}>(() => import("../focus/RunAnnotateSheet").then((module) => module.RunAnnotateSheet), {
-    ssr: false,
-})
-
 /** Tailwind's `lg`. Below it each scenario is a card. */
 const TABLE_QUERY = "(min-width: 1024px)"
 const NO_COMPARE: readonly string[] = []
@@ -107,7 +96,8 @@ export const ScenariosTab = ({
     const router = useRouter()
     const isHumanRun = header.kind === "human"
     const noun = rowNounKey(header.kind)
-    const [annotatingId, setAnnotatingId] = useState<string | null>(null)
+    const [, focusScenario] = useFocusScenarioParam(runId)
+    const queueId = useAtomValue(runDefaultQueueIdQueryAtomFamily(isHumanRun ? runId : "")).data
     const [sort, setSort] = useState<ScenarioSort | null>(null)
     const scenarios = useRunScenarios(runId)
     const catalog = useAtomValue(runMetricCatalogAtomFamily(runId))
@@ -142,7 +132,7 @@ export const ScenariosTab = ({
     // A polling tick gives new rows but almost never new columns: keep the same model then, so
     // the table keeps its column list and does not draw every header and cell again.
     const modelText = JSON.stringify(freshModel)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     const model = useMemo(() => freshModel, [modelText])
     const {density, hide, show} = view
     // Not on the whole view: a width drag must not rebuild the column list.
@@ -316,9 +306,22 @@ export const ScenariosTab = ({
             })),
         [updateView],
     )
-    const onAnnotate = useCallback((row: ScenarioRow) => setAnnotatingId(row.scenario.id), [])
+    // Annotate opens the run's queue at the scenario; a run with no queue opens the drawer.
+    const annotate = useCallback(
+        (scenarioId: string) => {
+            const {workspace_id: workspaceId, project_id: projectId} = router.query
+            if (queueId && typeof workspaceId === "string" && typeof projectId === "string") {
+                void router.push(
+                    `/w/${workspaceId}/p/${projectId}/annotations/${queueId}?view=annotate&scenarioId=${encodeURIComponent(scenarioId)}`,
+                )
+                return
+            }
+            focusScenario(scenarioId)
+        },
+        [router, queueId, focusScenario],
+    )
+    const onAnnotate = useCallback((row: ScenarioRow) => annotate(row.scenario.id), [annotate])
 
-    const annotating = rows.find((row) => row.scenario.id === annotatingId) ?? null
     // A bounded body keeps the header in place while the rows scroll.
     const {boxRef, height: bodyHeight} = useTableBodyHeight(
         entries.length * (ROW_HEIGHT[view.rowHeight] + 1),
@@ -482,23 +485,13 @@ export const ScenariosTab = ({
                             )}
                             {isHumanRun && entry.slot === 0 ? (
                                 <ScenarioAnnotateButton
-                                    onClick={() => setAnnotatingId(entry.base.scenario.id)}
+                                    onClick={() => annotate(entry.base.scenario.id)}
                                 />
                             ) : null}
                         </>
                     )}
                 />
             )}
-            {annotating ? (
-                <RunAnnotateSheet
-                    runId={runId}
-                    row={annotating}
-                    groups={columnGroups}
-                    labels={labels}
-                    onRetry={scenarios.retryValues}
-                    onClose={() => setAnnotatingId(null)}
-                />
-            ) : null}
             {scenarios.refreshFailed ? (
                 <ScenariosRefreshError onRetry={scenarios.retryRefresh} />
             ) : null}

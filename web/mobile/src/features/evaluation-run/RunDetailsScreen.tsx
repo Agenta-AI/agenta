@@ -1,10 +1,6 @@
 import {runHeaderAtomFamily} from "@agenta/entities/evaluationRun"
 import {useAtomValue} from "jotai"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
-
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useDeveloperPageFrame, useDetailHeaderTop} from "../developer/developerPageFrame"
 import {AppShell} from "../nav/AppShell"
@@ -14,6 +10,10 @@ import {pageColumn} from "../page-layout/pageFrame"
 import {RunDetailsBody} from "./RunDetailsBody"
 import {RunDetailsHeader} from "./RunDetailsHeader"
 import {useRunDetailsView} from "./useRunDetailsView"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 /**
  * One evaluation run: its title with the run menu, a Stop or Resume action for a live run, the
@@ -34,7 +34,7 @@ export const RunDetailsScreen = ({
     useBindProjectContext(projectId)
     const header = useAtomValue(runHeaderAtomFamily(runId))
     // The scenario table keeps the developer width; the other tabs sit in the list column (LAYOUT-02).
-    const {view} = useRunDetailsView(header)
+    const {view} = useRunDetailsView()
     const column = view === "scenarios" ? "" : pageColumn("lg")
 
     return (

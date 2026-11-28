@@ -502,9 +502,9 @@ describe("starting a human evaluation", () => {
         ])
     })
 
-    it("Human success opens the run on the Annotate view", async () => {
+    it("Human success opens the run page with no tab, so the run opens its queue", async () => {
         await startWith(filled("human"))
-        expect(nav.push).toHaveBeenCalledWith("/w/ws/p/pr/evaluations/results/human-run?view=focus")
+        expect(nav.push).toHaveBeenCalledWith("/w/ws/p/pr/evaluations/results/human-run")
         expect(toast.message.success).not.toHaveBeenCalled()
     })
 

@@ -61,11 +61,7 @@ vi.mock("@agenta/auth-ui", () => ({
 }))
 
 import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
-import {
-    defaultRunDetailsView,
-    runDetailsTabs,
-    useRunDetailsView,
-} from "@/features/evaluation-run/useRunDetailsView"
+import {useRunDetailsView} from "@/features/evaluation-run/useRunDetailsView"
 import EvaluationRunPage from "@/pages/w/[workspace_id]/p/[project_id]/evaluations/results/[evaluation_id]"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -125,6 +121,21 @@ function serveRun(spec: RunSpec | null) {
     return id
 }
 
+/** The run's default queue: `queueId`, or none (the response of a run with no active queue). */
+function serveDefaultQueue(runId: string, queueId: string | null) {
+    http.get.mockImplementation(async (url: string) => {
+        if (url.endsWith(`/evaluations/runs/${runId}/queues/default`)) {
+            const queue = {id: queueId, run_id: runId, flags: {is_default: true}}
+            return {data: queueId ? {count: 1, queue} : {count: 0}}
+        }
+        return {data: {}}
+    })
+}
+
+const tabNames = () => [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent)
+const activeTab = () =>
+    host.querySelector('[role="tab"][aria-selected="true"]')?.textContent ?? null
+
 /** The package batches run and metric requests for about 80 ms before it sends them. */
 const flush = () =>
     act(async () => {
@@ -170,25 +181,60 @@ afterEach(() => {
 })
 
 describe("run details tabs", () => {
-    it("A human run that is still running opens on the Annotate tab", () => {
-        expect(defaultRunDetailsView({kind: "human", status: "running"})).toBe("focus")
-        expect(runDetailsTabs({kind: "human"}).map((tab) => tab.label)).toEqual([
-            "Overview",
-            "Scenarios",
-            "Configuration",
-            "Annotate",
-        ])
+    it("A finished human run opens on Overview with three tabs and no Annotate", async () => {
+        const id = serveRun({human: true})
+        serveDefaultQueue(id, "queue-1")
+        await mount()
+        expect(tabNames()).toEqual(["Overview", "Scenarios", "Configuration"])
+        expect(activeTab()).toBe("Overview")
+        expect(router.replace).not.toHaveBeenCalled()
     })
 
-    it("A finished human run opens on the Overview tab", () => {
-        expect(defaultRunDetailsView({kind: "human", status: "COMPLETED"})).toBe("overview")
+    it("An old link with view=focus opens Overview", async () => {
+        const id = serveRun({human: true})
+        router.query = {...router.query, view: "focus"}
+        serveDefaultQueue(id, "queue-1")
+        await mount()
+        expect(activeTab()).toBe("Overview")
+        expect(router.replace).not.toHaveBeenCalled()
+    })
+
+    it("A running human run replaces the address with its queue", async () => {
+        const id = serveRun({human: true, status: "running"})
+        serveDefaultQueue(id, "queue-1")
+        await mount()
+        // The queue is read once the run has loaded.
+        await flush()
+        expect(router.replace).toHaveBeenCalledWith("/w/ws/p/pr/annotations/queue-1?view=annotate")
+        expect(host.querySelector('[role="tab"]')).toBeNull()
+    })
+
+    it("A running human run asked for a tab opens that tab", async () => {
+        const id = serveRun({human: true, status: "running"})
+        router.query = {...router.query, view: "overview"}
+        serveDefaultQueue(id, "queue-1")
+        await mount()
+        expect(activeTab()).toBe("Overview")
+        const read = http.get.mock.calls.map((call) => String(call[0]))
+        expect(read.filter((url) => url.endsWith("/queues/default"))).toEqual([])
+        expect(router.replace).not.toHaveBeenCalled()
+    })
+
+    it("A running human run with no queue stays on the run page", async () => {
+        const id = serveRun({human: true, status: "running"})
+        serveDefaultQueue(id, null)
+        await mount()
+        // The queue is read once the run has loaded.
+        await flush()
+        expect(tabNames()).toEqual(["Overview", "Scenarios", "Configuration"])
+        expect(activeTab()).toBe("Overview")
+        expect(router.replace).not.toHaveBeenCalled()
     })
 
     it("An auto run has no Annotate tab", async () => {
         serveRun({})
         await mount()
-        const tabs = [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent)
-        expect(tabs).toEqual(["Overview", "Scenarios", "Configuration"])
+        expect(tabNames()).toEqual(["Overview", "Scenarios", "Configuration"])
         expect(host.textContent).toContain("Capitals check")
     })
 
@@ -196,7 +242,7 @@ describe("run details tabs", () => {
         router.query = {workspace_id: "ws", project_id: "pr", evaluation_id: "run-x"}
         let setView: (next: string) => void = () => undefined
         const Probe = () => {
-            setView = useRunDetailsView(null).setView
+            setView = useRunDetailsView().setView
             return null
         }
         await act(async () => root.render(createElement(Probe)))
