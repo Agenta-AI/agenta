@@ -233,7 +233,7 @@ describe("overview states, radar and charts over time", () => {
                 error: null,
             }),
         )
-        expect(host.querySelector("h2")?.textContent).toBe("Over time")
+        expect(host.querySelector("#run-over-time")?.textContent).toBe("Over time")
         expect(host.querySelector('[data-testid="evaluator-ev-step"]')).not.toBeNull()
         expect(charts.line).toHaveLength(1)
         const line = charts.line[0] as {points: unknown[]; yDomain?: number[]}
@@ -413,7 +413,8 @@ describe("overview states, radar and charts over time", () => {
                 error: null,
             }),
         )
-        expect(host.querySelector("svg")).toBeNull()
+        // The "Metrics" card is the only chart card.
+        expect(host.querySelector("section[aria-labelledby='run-metrics-chart']")).not.toBeNull()
         expect(host.textContent).not.toContain("Run summary")
         expect(host.textContent).not.toContain("Over time")
         expect(charts.line).toHaveLength(0)

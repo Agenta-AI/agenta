@@ -9,6 +9,7 @@ import {
     useChartFrameState,
 } from "./ChartParts"
 import {
+    CHAR_WIDTH,
     bandLayout,
     barPath,
     finiteOrNull,
@@ -29,6 +30,15 @@ const MARGIN_RIGHT = 8
 const MARGIN_BOTTOM = 24
 /** A bar for a zero value is still this tall, so it reads as "zero", not "missing". */
 const MIN_BAR = 2
+/** Room above the plot for a value label. */
+const VALUE_LABEL_ROOM = 14
+const VALUE_LABEL_FONT_SIZE = 10
+/** `CHAR_WIDTH` is for the axis font; a value label is a little smaller. */
+const VALUE_LABEL_CHAR_WIDTH = (CHAR_WIDTH * VALUE_LABEL_FONT_SIZE) / CHART_FONT_SIZE
+/** Vertical x labels are cut after this many characters. */
+const VERTICAL_LABEL_MAX = 52
+/** Average width of one character of a vertical label, to size the room under the plot. */
+const VERTICAL_CHAR_WIDTH = 6
 
 /** Vertical bars, one group per category and one bar per series. Renders nothing without data. */
 export function BarChart({
@@ -38,6 +48,9 @@ export function BarChart({
     data,
     yMax,
     formatValue = formatChartValue,
+    valueLabel,
+    verticalLabels = false,
+    barColor,
     className,
 }: BarChartProps) {
     const frame = useChartFrameState(data.length)
@@ -56,24 +69,39 @@ export function BarChart({
 
     const left = yAxisWidth(yTicks, formatValue)
     const plotWidth = Math.max(0, frame.width - left - MARGIN_RIGHT)
+    const longest = Math.max(...data.map((d) => d.category.length))
+    // Vertical labels add their own room under the plot, so the plot keeps its height.
+    const labelChars = Math.min(longest, VERTICAL_LABEL_MAX)
+    const extraBottom = verticalLabels
+        ? Math.max(0, Math.ceil(labelChars * VERTICAL_CHAR_WIDTH) + 8 - MARGIN_BOTTOM)
+        : 0
+    const top = MARGIN_TOP + (valueLabel ? VALUE_LABEL_ROOM : 0)
     const plotBottom = height - MARGIN_BOTTOM
-    const y = linearScale([low, high], [plotBottom, MARGIN_TOP])
+    const y = linearScale([low, high], [plotBottom, top])
     const baseline = y(0)
     const bands = bandLayout(plotWidth, data.length, series.length)
-    const labels = xLabelEvery(bands.groupWidth, Math.max(...data.map((d) => d.category.length)))
+    /** The width a value label may take: its bar's share of the group. */
+    const barRoom = bands.groupWidth / Math.max(1, series.length)
+    const labels = verticalLabels
+        ? {every: 1, maxChars: VERTICAL_LABEL_MAX}
+        : xLabelEvery(bands.groupWidth, longest)
 
+    const textOf = (value: number, datum: BarChartDatum, key: string) =>
+        valueLabel ? valueLabel(value, datum.category, key) : formatValue(value)
+    const colorOf = (datum: BarChartDatum, key: string, index: number) =>
+        barColor?.(datum.category, key) ?? seriesColor(series[index], index)
     const valuesAt = (datum: BarChartDatum) =>
         seriesValues(series, (key) => {
             const value = valueOf(datum, key)
-            return value === null ? null : formatValue(value)
-        })
+            return value === null ? null : textOf(value, datum, key)
+        }).map((row, index) => ({...row, color: colorOf(datum, row.key, index)}))
     const activeDatum = frame.active === null ? null : data[frame.active]
 
     return (
         <ChartFrame
             {...frame}
             title={title}
-            height={height}
+            height={height + extraBottom}
             series={series}
             className={className}
             indexAt={(x) => {
@@ -85,7 +113,7 @@ export function BarChart({
                     ? null
                     : {
                           x: left + bands.bandStart(frame.active) + bands.bandWidth / 2,
-                          y: MARGIN_TOP,
+                          y: top,
                           label: activeDatum.category,
                           rows: tooltipRows(valuesAt(activeDatum)),
                       }
@@ -102,9 +130,9 @@ export function BarChart({
             {frame.active !== null ? (
                 <rect
                     x={left + frame.active * bands.groupWidth}
-                    y={MARGIN_TOP}
+                    y={top}
                     width={bands.groupWidth}
-                    height={plotBottom - MARGIN_TOP}
+                    height={plotBottom - top}
                     fill="var(--ag-chart-track)"
                     opacity={0.5}
                 />
@@ -121,21 +149,44 @@ export function BarChart({
                                 : value < 0
                                   ? baseline + MIN_BAR
                                   : baseline - MIN_BAR
+                        const barX = left + bands.barStart(index, seriesIndex)
+                        const label = valueLabel?.(value, datum.category, s.key)
                         return (
-                            <path
-                                key={s.key}
-                                data-series={s.key}
-                                d={barPath(
-                                    left + bands.barStart(index, seriesIndex),
-                                    bands.barWidth,
-                                    stubbed,
-                                    baseline,
-                                )}
-                                fill={seriesColor(s, seriesIndex)}
-                            />
+                            <g key={s.key}>
+                                <path
+                                    data-series={s.key}
+                                    d={barPath(barX, bands.barWidth, stubbed, baseline)}
+                                    fill={colorOf(datum, s.key, seriesIndex)}
+                                />
+                                {label && label.length * VALUE_LABEL_CHAR_WIDTH <= barRoom ? (
+                                    <text
+                                        data-value-label={s.key}
+                                        x={barX + bands.barWidth / 2}
+                                        y={Math.min(stubbed, baseline) - 4}
+                                        textAnchor="middle"
+                                        fontSize={VALUE_LABEL_FONT_SIZE}
+                                        fill={CHART_AXIS_TEXT}
+                                        className="tabular-nums"
+                                    >
+                                        {label}
+                                    </text>
+                                ) : null}
+                            </g>
                         )
                     })}
-                    {index % labels.every === 0 ? (
+                    {verticalLabels ? (
+                        <text
+                            transform={`rotate(-90 ${left + bands.bandStart(index) + bands.bandWidth / 2} ${plotBottom + 6})`}
+                            x={left + bands.bandStart(index) + bands.bandWidth / 2}
+                            y={plotBottom + 6}
+                            dy="0.32em"
+                            textAnchor="end"
+                            fontSize={CHART_FONT_SIZE}
+                            fill={CHART_AXIS_TEXT}
+                        >
+                            {truncate(datum.category, labels.maxChars)}
+                        </text>
+                    ) : index % labels.every === 0 ? (
                         <text
                             x={left + bands.bandStart(index) + bands.bandWidth / 2}
                             y={plotBottom + 16}

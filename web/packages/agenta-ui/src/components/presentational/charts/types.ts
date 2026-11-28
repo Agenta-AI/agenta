@@ -29,6 +29,15 @@ export interface BarChartProps extends ChartBaseProps {
     data: readonly BarChartDatum[]
     /** Fixed upper bound, for example 100 for percentages. Default: a nice max of the data. */
     yMax?: number
+    /**
+     * A label above each bar, for example "63%". Also the value in the tooltip and the hidden
+     * table. Default: no label above the bars.
+     */
+    valueLabel?: (value: number, category: string, seriesKey: string) => string
+    /** X labels turned 90 degrees, so every category name shows. Default: horizontal labels. */
+    verticalLabels?: boolean
+    /** The color of one bar. Default (or `undefined`): the color of its series. */
+    barColor?: (category: string, seriesKey: string) => string | undefined
 }
 
 export interface RadarAxis {

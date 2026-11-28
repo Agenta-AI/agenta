@@ -1,4 +1,4 @@
-import {useEffect} from "react"
+import {useEffect, useMemo} from "react"
 
 import {isAggregatableMetric, metricKind, type EvaluatorRow} from "@agenta/entities/evaluationRun"
 import {useT} from "@agenta/i18n"
@@ -11,13 +11,14 @@ import {EvaluatorTableSkeleton} from "../states/EvaluatorTableSkeleton"
 import {OverviewEmpty} from "../states/OverviewEmpty"
 
 import {EvaluatorTable} from "./EvaluatorTable"
+import {MetricsChart} from "./MetricsChart"
 import {TemporalMetricCard} from "./TemporalMetricCard"
 import type {OverviewMetric} from "./useRunOverview"
 
 const GRID = "grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3"
 
 /**
- * The evaluator results: one table row per evaluator step, and for an online run its charts over
+ * The evaluator results: the "Metrics" chart, one table row per evaluator step, and for an online run its charts over
  * time under "Over time". Also the loading, empty and error states of the metrics.
  */
 export const EvaluatorResultsSection = ({
@@ -52,6 +53,8 @@ export const EvaluatorResultsSection = ({
     const evaluatorMetrics = metrics.filter(
         (metric) => metric.kind === "evaluator" && metricKind(metric.stats) !== "text",
     )
+
+    const chartRuns = useMemo(() => [{key: runId, name: runName, rows}], [runId, runName, rows])
 
     useEffect(() => {
         if (error) console.error("[RunOverview] metrics failed to load", error)
@@ -126,6 +129,7 @@ export const EvaluatorResultsSection = ({
                     }
                 />
             ) : null}
+            <MetricsChart runs={chartRuns} />
             <EvaluatorTable rows={rows} noResultByStep={noResultByStep} />
             {overTime.length > 0 ? (
                 <section aria-labelledby="run-over-time" className="flex flex-col gap-3">

@@ -152,6 +152,12 @@ export {
     type RunTileDetail,
     type RunTileId,
     type RunTilesInput,
+    // Overview: the "Metrics" chart and its picker
+    buildMetricsChart,
+    defaultChartSelection,
+    type ChartMetric,
+    type MetricsChartModel,
+    type MetricsChartRun,
     findScenarioTraceResult,
     buildQuerySlug,
     formatQueryFiltering,
