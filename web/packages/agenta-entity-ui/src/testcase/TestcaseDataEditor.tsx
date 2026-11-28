@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {createT, useT} from "@agenta/i18n"
 import testcaseCatalog from "@agenta/i18n/catalogs/entityUi.testcase"
+import {isPlainObject} from "@agenta/shared/utils"
 import {copyToClipboard} from "@agenta/ui"
 import {
     DrillInContent,
@@ -20,8 +21,10 @@ import {
     codeErrorText,
     codeParseError,
     parseCodeString,
+    textMatchesValue,
     type CodeParseError,
     toCodeString,
+    withShownEnd,
     type RootDrawerViewMode,
 } from "./codeFormat"
 import type {TestcaseDataEditorColumn, TestcaseDataEditorProps} from "./TestcaseDataEditor.types"
@@ -96,35 +99,29 @@ function FullPayloadCodeEditor({
     const [parseError, setParseError] = useState<CodeParseError | null>(null)
     const [jsonText, setJsonText] = useState(displayValue)
     const typedText = useRef(displayValue)
-    // Resync only on an outside change, so the user's own edit is never rewritten. The root is
-    // always an object, so typed text that is not one compares as an empty object.
+    // Resync only on an outside change, so the user's own edit is never rewritten.
     useEffect(() => {
-        const typed = parseCodeString<unknown>(typedText.current, format, undefined)
-        if (
-            typed !== undefined &&
-            deepEqual(normalizeTestcaseData(typed as Record<string, unknown>), editableValue)
-        )
-            return
+        if (textMatchesValue(typedText.current, format, editableValue)) return
         typedText.current = displayValue
         setJsonText(displayValue)
         setParseError(null)
     }, [displayValue, editableValue, format])
 
     const handleChange = useCallback(
-        (next: string) => {
+        (sent: string) => {
             if (!editable || !onChange) return
+            const next = withShownEnd(sent, displayValue)
             typedText.current = next
             if (format === "json") setJsonText(next)
             const error = codeParseError(next, format)
-            setParseError(error)
-            if (error) return
-            const parsed = parseCodeString<unknown>(next, format, editableValue)
-            if (parsed === editableValue) return
-            const parsedRecord = normalizeTestcaseData(parsed as Record<string, unknown>)
-            if (deepEqual(parsedRecord, editableValue)) return
-            onChange(mergeTestcaseCodeEditorValue(value, parsedRecord, columns))
+            const parsed = error ? null : parseCodeString<unknown>(next, format, null)
+            // A test case is an object: a list, a text or an empty text never replaces it.
+            const record = isPlainObject(parsed) ? parsed : null
+            setParseError(error ?? (record ? null : {line: null, problem: "notObject"}))
+            if (!record || deepEqual(record, editableValue)) return
+            onChange(mergeTestcaseCodeEditorValue(value, record, columns))
         },
-        [columns, editable, editableValue, format, onChange, value],
+        [columns, displayValue, editable, editableValue, format, onChange, value],
     )
 
     const errorNote = parseError ? (

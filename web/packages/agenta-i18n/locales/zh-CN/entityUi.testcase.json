@@ -32,5 +32,6 @@
     "codeProblemMissingQuote": "缺少引号",
     "codeProblemExtraComma": "多了一个逗号",
     "codeProblemEndsEarly": "文本提前结束",
-    "codeProblemOther": "文本有错误"
+    "codeProblemOther": "文本有错误",
+    "codeProblemNotObject": "测试用例必须是一个对象"
 }

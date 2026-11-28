@@ -32,5 +32,6 @@
     "codeProblemMissingQuote": "faltan unas comillas",
     "codeProblemExtraComma": "sobra una coma",
     "codeProblemEndsEarly": "el texto termina demasiado pronto",
-    "codeProblemOther": "el texto tiene un error"
+    "codeProblemOther": "el texto tiene un error",
+    "codeProblemNotObject": "el caso de prueba debe ser un objeto"
 }

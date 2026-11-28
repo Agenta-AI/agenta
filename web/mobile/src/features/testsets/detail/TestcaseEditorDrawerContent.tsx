@@ -5,16 +5,16 @@ import {testcaseMolecule} from "@agenta/entities/testcase"
 import {TestcaseDataEditor, type RootDrawerViewMode} from "@agenta/entity-ui/testcase"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {chatProseClassName, markdownIcons} from "@/features/chat/AssistantMarkdown"
-
-import {TestcaseFieldForm, type FieldColumnActions} from "./fields/TestcaseFieldForm"
+import type {FieldColumnActions} from "./fields/FieldMenu"
+import {TestcaseFieldForm} from "./fields/TestcaseFieldForm"
 import {replaceDataUpdate, splitInternalFields} from "./testcaseDataUpdate"
+
+import {chatProseClassName, markdownIcons} from "@/features/chat/AssistantMarkdown"
 
 /**
  * The body of the testcase drawer: the testcase data as a form (`TestcaseFieldForm`), JSON or
- * YAML. An edit goes to
- * the unsaved row in the editor state, and the commit saves it with the other changes.
- * A row that is not saved yet carries a note that says so.
+ * YAML. An edit goes to the unsaved row in the editor state, and the commit saves it with the
+ * other changes. A row that is not saved yet carries a note that says so.
  *
  * The editor gets no column list. With one, it shows only those columns (the grid reads them
  * from the first 20 rows), turns null into "" and drops fields added or removed in JSON or YAML.

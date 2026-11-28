@@ -6,6 +6,7 @@ import {
     parseCodeString,
     textMatchesValue,
     toCodeString,
+    withShownEnd,
 } from "../../src/testcase/codeFormat"
 
 const metadata = [
@@ -81,13 +82,13 @@ describe("codeParseError", () => {
 
 describe("codeErrorText", () => {
     it("says the decided sentence with the line", () => {
-        expect(codeErrorText({message: "", line: 5, problem: "missingComma"}, "json")).toBe(
+        expect(codeErrorText({line: 5, problem: "missingComma"}, "json")).toBe(
             "Not valid JSON: a comma is missing in line 5. The field keeps its last valid value until you fix it.",
         )
     })
 
     it("leaves the line out when the parser gives none", () => {
-        expect(codeErrorText({message: "", line: null, problem: "other"}, "yaml")).toBe(
+        expect(codeErrorText({line: null, problem: "other"}, "yaml")).toBe(
             "Not valid YAML: the text has an error. The field keeps its last valid value until you fix it.",
         )
     })
@@ -139,5 +140,50 @@ describe("toCodeString and parseCodeString", () => {
         // An empty YAML document is null, so a cleared field is not dropped from the row.
         expect(parseCodeString("", "yaml", "fallback")).toBeNull()
         expect(codeParseError("", "yaml")).toBeNull()
+    })
+})
+
+/** Values whose text form is easy to get wrong: types, spaces, line breaks, YAML look-alikes. */
+const SAMPLES: unknown[] = [
+    {padded: "  two spaces  ", numeric: "12", truthy: "true", nulled: "null", empty: ""},
+    {zero: 0, ratio: 3.25, negative: -7, flag: false, nothing: null},
+    {lines: "line one\r\nline two\n\n", tab: "\t", unicode: "héllo 🌍"},
+    {date: "2024-01-01", yes: "yes", on: "on", tilde: "~", exp: "1e3", hex: "0x10", octal: "012"},
+    {hash: "#x", colon: "k: v", lead: " a", trail: "a ", long: "x ".repeat(80)},
+    {nested: {a: {b: [1, {c: null}], d: "x\n"}}, list: [null, true, 2, "x"], none: [], blank: {}},
+    {last_keeps_breaks: "a\n\nb\n\n"},
+    ["a\n\n"],
+    "  text  ",
+    12,
+    null,
+]
+
+describe("text round trip", () => {
+    it.each(SAMPLES.map((value) => [JSON.stringify(value), value]))(
+        "JSON and YAML text of %s reads back the same value",
+        (_name, value) => {
+            for (const format of ["json", "yaml"] as const) {
+                const text = toCodeString(value, format)
+                expect(parseCodeString(text, format, Symbol("failed"))).toStrictEqual(value)
+                // As the code editor sends it back: without the end of the text.
+                const sent = withShownEnd(text.trimEnd(), text)
+                expect(parseCodeString(sent, format, Symbol("failed"))).toStrictEqual(value)
+            }
+        },
+    )
+})
+
+describe("withShownEnd", () => {
+    it("puts back the end of the text the editor was given", () => {
+        expect(withShownEnd("x: |+\n  a", "x: |+\n  a\n\n")).toBe("x: |+\n  a\n\n")
+        expect(withShownEnd('{"a": 2}  ', '{"a": 1}')).toBe('{"a": 2}')
+    })
+})
+
+describe("codeErrorText for a test case that is not an object", () => {
+    it("says the test case must be an object", () => {
+        expect(codeErrorText({line: null, problem: "notObject"}, "json")).toBe(
+            "Not valid JSON: the test case must be an object. The field keeps its last valid value until you fix it.",
+        )
     })
 })

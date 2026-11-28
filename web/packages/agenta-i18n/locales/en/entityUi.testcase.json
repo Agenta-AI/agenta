@@ -32,5 +32,6 @@
     "codeProblemMissingQuote": "a quote is missing",
     "codeProblemExtraComma": "there is an extra comma",
     "codeProblemEndsEarly": "the text ends too early",
-    "codeProblemOther": "the text has an error"
+    "codeProblemOther": "the text has an error",
+    "codeProblemNotObject": "the test case must be an object"
 }

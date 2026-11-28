@@ -18,8 +18,6 @@ import {
     type FieldEditorPick,
 } from "./pickFieldEditor"
 
-export type {FieldColumnActions} from "./FieldMenu"
-
 const countOf = (value: unknown) =>
     Array.isArray(value) ? value.length : isPlainObject(value) ? Object.keys(value).length : 0
 

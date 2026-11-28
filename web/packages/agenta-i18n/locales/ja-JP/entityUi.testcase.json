@@ -32,5 +32,6 @@
     "codeProblemMissingQuote": "引用符がありません",
     "codeProblemExtraComma": "余分なカンマがあります",
     "codeProblemEndsEarly": "テキストが途中で終わっています",
-    "codeProblemOther": "テキストにエラーがあります"
+    "codeProblemOther": "テキストにエラーがあります",
+    "codeProblemNotObject": "テストケースはオブジェクトである必要があります"
 }

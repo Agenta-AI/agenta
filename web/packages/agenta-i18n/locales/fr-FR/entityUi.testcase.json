@@ -32,5 +32,6 @@
     "codeProblemMissingQuote": "il manque un guillemet",
     "codeProblemExtraComma": "il y a une virgule en trop",
     "codeProblemEndsEarly": "le texte se termine trop tôt",
-    "codeProblemOther": "le texte contient une erreur"
+    "codeProblemOther": "le texte contient une erreur",
+    "codeProblemNotObject": "le cas de test doit être un objet"
 }

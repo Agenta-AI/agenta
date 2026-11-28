@@ -15,9 +15,9 @@ import type {FieldEditorKind, FieldEditorPick} from "./pickFieldEditor"
 import {NumberInput, TrueFalseSwitch} from "./ScalarFields"
 import {TextAreaField} from "./TextAreaField"
 
-/** A scalar as the text its input shows; null and a missing value show nothing. */
 const NOT_JSON = Symbol("not JSON")
 
+/** A scalar as the text its input shows; null and a missing value show nothing. */
 const fieldText = (value: unknown) =>
     value === null || value === undefined
         ? ""
@@ -143,9 +143,11 @@ export const FieldEditor = ({
             )
         case "code": {
             const format = view === "yaml" ? "yaml" : "json"
-            // JSON written as text is stored as the typed JSON, as it is.
+            // JSON written as text is stored as the typed JSON, as it is. Each format has its
+            // own draft: the JSON text is not the YAML editor's text.
             return (
                 <CodeField
+                    key={format}
                     id={name}
                     value={parsed}
                     format={format}

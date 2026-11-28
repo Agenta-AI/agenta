@@ -32,5 +32,6 @@
     "codeProblemMissingQuote": "ein Anführungszeichen fehlt",
     "codeProblemExtraComma": "ein Komma ist zu viel",
     "codeProblemEndsEarly": "der Text endet zu früh",
-    "codeProblemOther": "der Text hat einen Fehler"
+    "codeProblemOther": "der Text hat einen Fehler",
+    "codeProblemNotObject": "der Testfall muss ein Objekt sein"
 }

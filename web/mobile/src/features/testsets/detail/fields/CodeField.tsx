@@ -5,6 +5,7 @@ import {
     parseCodeString,
     textMatchesValue,
     toCodeString,
+    withShownEnd,
     type CodeFormat,
     type CodeParseError,
 } from "@agenta/entity-ui/testcase"
@@ -40,7 +41,8 @@ export function useCodeDraft(
     }, [display, format, value])
 
     const onTextChange = useCallback(
-        (next: string) => {
+        (sent: string) => {
+            const next = withShownEnd(sent, display)
             // The editor repeats the text it was given: not an edit.
             if (!onChange || next === typed.current) return
             typed.current = next
@@ -49,7 +51,7 @@ export function useCodeDraft(
             setError(problem)
             if (!problem) onChange(parseCodeString<unknown>(next, format, value), next)
         },
-        [format, onChange, value],
+        [display, format, onChange, value],
     )
     return {text, error, onTextChange}
 }

@@ -7,15 +7,13 @@
 import {act, type ReactNode} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
+import type {PendingColumnOps} from "@agenta/entities/testset"
 import {getDefaultStore} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import type {FieldColumnActions} from "@/features/testsets/detail/fields/TestcaseFieldForm"
-import {
-    TestcaseEditorDrawer,
-    type DrawerColumnChange,
-} from "@/features/testsets/detail/TestcaseEditorDrawer"
+import type {FieldColumnActions} from "@/features/testsets/detail/fields/FieldMenu"
+import {TestcaseEditorDrawer} from "@/features/testsets/detail/TestcaseEditorDrawer"
 import {TestcaseEditorDrawerContent} from "@/features/testsets/detail/TestcaseEditorDrawerContent"
 
 const seen = vi.hoisted(() => ({
@@ -197,7 +195,7 @@ describe("Testcase drawer", () => {
         expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({question: "Q"})
     })
 
-    const openDrawer = (id: string, columnChanges: DrawerColumnChange[]) =>
+    const openDrawer = (id: string, columnChanges: PendingColumnOps[]) =>
         act(() =>
             root.render(
                 <TestcaseEditorDrawer
@@ -228,9 +226,9 @@ describe("Testcase drawer", () => {
             })
         })
         openDrawer(id, [
-            {kind: "rename", from: "question", to: "prompt"},
-            {kind: "delete", keys: ["old"]},
-            {kind: "add", key: "notes"},
+            {add: [], remove: [], rename: [{oldKey: "question", newKey: "prompt"}]},
+            {add: [], remove: ["old"], rename: []},
+            {add: ["notes"], remove: [], rename: []},
         ])
 
         act(() => (seen.drawer?.onRestoreSessionStart as (data: unknown) => void)(start))
@@ -247,8 +245,8 @@ describe("Testcase drawer", () => {
         const id = store.set(testcaseMolecule.actions.add, {data: {answer: "kept"}})?.id ?? ""
         const start = store.get(testcaseMolecule.atoms.data(id))
         openDrawer(id, [
-            {kind: "delete", keys: ["answer"]},
-            {kind: "rename", from: "answer_v2", to: "answer"},
+            {add: [], remove: ["answer"], rename: []},
+            {add: [], remove: [], rename: [{oldKey: "answer_v2", newKey: "answer"}]},
         ])
         act(() => {
             store.set(testcaseMolecule.actions.update, id, {data: {answer: "edited"}})

@@ -32,5 +32,6 @@
     "codeProblemMissingQuote": "faltam aspas",
     "codeProblemExtraComma": "há uma vírgula a mais",
     "codeProblemEndsEarly": "o texto termina cedo demais",
-    "codeProblemOther": "o texto tem um erro"
+    "codeProblemOther": "o texto tem um erro",
+    "codeProblemNotObject": "o caso de teste deve ser um objeto"
 }

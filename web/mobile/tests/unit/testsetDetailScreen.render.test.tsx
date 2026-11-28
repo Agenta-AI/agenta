@@ -320,7 +320,7 @@ describe("Test set page", () => {
 
         expect(renameColumn).toHaveBeenCalledWith("question", "prompt")
         expect(state.drawer?.columnChanges).toEqual([
-            {kind: "rename", from: "question", to: "prompt"},
+            {add: [], remove: [], rename: [{oldKey: "question", newKey: "prompt"}]},
         ])
         expect(state.drawerMounts).toBe(1)
 

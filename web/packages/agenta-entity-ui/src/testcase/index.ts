@@ -22,6 +22,7 @@ export {
     parseCodeString,
     textMatchesValue,
     toCodeString,
+    withShownEnd,
 } from "./codeFormat"
 export type {CodeFormat, CodeParseError, CodeProblem, RootDrawerViewMode} from "./codeFormat"
 export {inferPrimitiveFromText} from "./TestcasePrimitiveValue.utils"

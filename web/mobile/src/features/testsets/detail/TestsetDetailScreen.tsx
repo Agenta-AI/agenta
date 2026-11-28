@@ -5,6 +5,7 @@ import {
     testcaseDataController,
     type TestcaseTableRow,
 } from "@agenta/entities/testcase"
+import type {PendingColumnOps} from "@agenta/entities/testset"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -27,11 +28,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {PageNotFound} from "@/components/PageNotFound"
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
-
 import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
 import {useDeveloperPageFrame, useDetailHeaderTop} from "../../developer/developerPageFrame"
@@ -41,9 +37,8 @@ import {PageBackBar} from "../../page-layout/PageBackBar"
 import {ArchivedTestsetNotice} from "./ArchivedTestsetNotice"
 import {ColumnDialog, type ColumnDialogStep} from "./ColumnDialogs"
 import {columnHeaderTarget} from "./columnHeaderTarget"
-import type {FieldColumnActions} from "./fields/TestcaseFieldForm"
+import type {FieldColumnActions} from "./fields/FieldMenu"
 import {TestsetDetailSkeleton} from "./states/TestsetDetailSkeleton"
-import type {DrawerColumnChange} from "./TestcaseEditorDrawer"
 import {TestsetGrid} from "./TestsetGrid"
 import {TestsetHeader} from "./TestsetHeader"
 import {TESTCASE_QUERY_PARAM, testsetRevisionPath} from "./testsetRouteId"
@@ -54,6 +49,11 @@ import {useRevisionsList} from "./useRevisionsList"
 import {useTestsetEditor} from "./useTestsetEditor"
 import {useTestsetExport} from "./useTestsetExport"
 import {useUpdateTestsetDetails} from "./useUpdateTestsetDetails"
+
+import {PageNotFound} from "@/components/PageNotFound"
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 // The drawer pulls the rich editor, so it loads on the first row the reader opens.
 const TestcaseEditorDrawer = dynamic(
@@ -206,7 +206,7 @@ export const TestsetDetailScreen = ({
     // object split into nested columns is a group, deleted by its own key.
     const [fieldColumnStep, setFieldColumnStep] = useState<ColumnDialogStep | null>(null)
     // A column change from the drawer reaches every row, so the drawer's Cancel keeps it.
-    const [drawerColumnChanges, setDrawerColumnChanges] = useState<DrawerColumnChange[]>([])
+    const [drawerColumnChanges, setDrawerColumnChanges] = useState<PendingColumnOps[]>([])
     useEffect(() => {
         if (openRowId === null) setDrawerColumnChanges([])
     }, [openRowId])
@@ -253,12 +253,12 @@ export const TestsetDetailScreen = ({
                       ? await editor.deleteColumns(step.columnKeys)
                       : await editor.addColumn(name)
             if (result.ok) {
-                const change: DrawerColumnChange =
+                const change: PendingColumnOps =
                     step?.kind === "rename"
-                        ? {kind: "rename", from: step.columnKey, to: name}
+                        ? {add: [], remove: [], rename: [{oldKey: step.columnKey, newKey: name}]}
                         : step?.kind === "delete"
-                          ? {kind: "delete", keys: step.columnKeys}
-                          : {kind: "add", key: name}
+                          ? {add: [], remove: step.columnKeys, rename: []}
+                          : {add: [name], remove: [], rename: []}
                 setDrawerColumnChanges((changes) => [...changes, change])
             }
             return result

@@ -1,52 +1,32 @@
 import {useCallback, useRef} from "react"
 
 import {testcaseMolecule, type Testcase} from "@agenta/entities/testcase"
+import {applyColumnOps, type PendingColumnOps} from "@agenta/entities/testset"
 import {TestcaseDrawer, type TestcaseDrawerContentRenderProps} from "@agenta/entity-ui/testcase"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import type {FieldColumnActions} from "./fields/TestcaseFieldForm"
+import type {FieldColumnActions} from "./fields/FieldMenu"
 import {replaceDataUpdate} from "./testcaseDataUpdate"
 import {TestcaseEditorDrawerContent} from "./TestcaseEditorDrawerContent"
 import {TestcaseQueueButton} from "./TestcaseQueuePicker"
 
-/** A column change made from the drawer's field menu while the drawer is open. */
-export type DrawerColumnChange =
-    | {kind: "add"; key: string}
-    | {kind: "rename"; from: string; to: string}
-    | {kind: "delete"; keys: string[]}
-
 /**
  * The row as it was when the drawer first showed it, with the column changes made since then:
- * Cancel undoes the row's edits, not a column change that reached every row. A new column is
- * empty, as the commit sends it.
+ * Cancel undoes the row's edits, not a column change that reached every row. Each change is
+ * applied as the commit applies it.
  */
 export const withColumnChanges = (
     data: Record<string, unknown>,
-    changes: readonly DrawerColumnChange[],
-): Record<string, unknown> =>
-    changes.reduce<Record<string, unknown>>((current, change) => {
-        if (change.kind === "add") {
-            return Object.hasOwn(current, change.key) ? current : {...current, [change.key]: ""}
-        }
-        if (change.kind === "delete") {
-            return Object.fromEntries(
-                Object.entries(current).filter(([key]) => !change.keys.includes(key)),
-            )
-        }
-        return Object.fromEntries(
-            Object.entries(current).map(([key, value]) => [
-                key === change.from ? change.to : key,
-                value,
-            ]),
-        )
-    }, data)
+    changes: readonly PendingColumnOps[],
+): Record<string, unknown> => changes.reduce((current, ops) => applyColumnOps(current, ops), data)
 
 /**
  * The drawer of one testcase, with previous and next over the rows of the grid.
  *
  * "Apply" keeps the edit as an unsaved change; closing with Cancel puts the testcase back as it
- * was when the drawer opened, and removes a row that "Add row" just made. "Apply and Commit Changes" opens the page's commit step, so the
- * row is saved by the same commit as every other change. `viewOnly` (a reader, or a save that
+ * was when the drawer opened, and removes a row that "Add row" just made. "Apply and Commit
+ * Changes" opens the page's commit step, so the row is saved by the same commit as every other
+ * change. `viewOnly` (a reader, or a save that
  * runs) shows the data with no edit control.
  */
 export const TestcaseEditorDrawer = ({
@@ -78,8 +58,8 @@ export const TestcaseEditorDrawer = ({
     /** The field menu's Rename column and Delete column; the page asks before each. */
     columnActions?: (key: string) => FieldColumnActions | null
     onAddColumn?: () => void
-    /** The column changes made from the field menu since the drawer opened. */
-    columnChanges?: readonly DrawerColumnChange[]
+    /** The column changes made from the field menu since the drawer opened, one per entry. */
+    columnChanges?: readonly PendingColumnOps[]
 }) => {
     const id = testcaseId ?? ""
     const isNewRow = id.startsWith("new-")

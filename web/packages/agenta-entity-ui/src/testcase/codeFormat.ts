@@ -8,11 +8,15 @@ export type RootDrawerViewMode = "form" | "json" | "yaml"
 export type CodeFormat = "json" | "yaml"
 
 /** What is wrong with a text that does not parse, in words a user can act on. */
-export type CodeProblem = "missingComma" | "missingQuote" | "extraComma" | "endsEarly" | "other"
+export type CodeProblem =
+    | "missingComma"
+    | "missingQuote"
+    | "extraComma"
+    | "endsEarly"
+    | "notObject"
+    | "other"
 
 export interface CodeParseError {
-    /** The parser's own message, for logs. */
-    message: string
     /** The line (from 1) the problem is on, when the parser says where. */
     line: number | null
     problem: CodeProblem
@@ -23,6 +27,15 @@ const tNow = createT(testcaseCatalog)
 export function toCodeString(value: unknown, format: CodeFormat): string {
     if (format === "yaml") return dumpYaml(value ?? null)
     return JSON.stringify(value ?? null, null, 2) ?? ""
+}
+
+/**
+ * The text the code editor sends, with the end it drops put back. The editor sends its text
+ * without the spaces and line breaks at the end, and in YAML they can be part of the last value
+ * (a text that keeps its last line breaks, `|+`). `shown` is the text the editor was given.
+ */
+export function withShownEnd(text: string, shown: string): string {
+    return text.trimEnd() + shown.slice(shown.trimEnd().length)
 }
 
 /** The value of the text, or `fallback` when it does not parse. Empty YAML is `null`. */
@@ -143,10 +156,10 @@ function findJsonProblem(text: string): JsonProblem {
     }
 }
 
-function jsonParseError(text: string, message: string): CodeParseError {
+function jsonParseError(text: string): CodeParseError {
     const found = findJsonProblem(text)
     const at = found.problem === "endsEarly" ? text.trimEnd().length : found.at
-    return {message, line: lineAt(text, at), problem: found.problem}
+    return {line: lineAt(text, at), problem: found.problem}
 }
 
 /** Why the text does not parse, with its line when one is known, or null when it parses. */
@@ -156,14 +169,9 @@ export function codeParseError(value: string, format: CodeFormat): CodeParseErro
         else JSON.parse(value)
         return null
     } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        if (format === "json") return jsonParseError(value, message)
+        if (format === "json") return jsonParseError(value)
         const mark = (error as {mark?: {line?: number}}).mark
-        return {
-            message: message.split("\n")[0] || message,
-            line: typeof mark?.line === "number" ? mark.line + 1 : null,
-            problem: "other",
-        }
+        return {line: typeof mark?.line === "number" ? mark.line + 1 : null, problem: "other"}
     }
 }
 
@@ -177,6 +185,8 @@ const problemText = (problem: CodeProblem) => {
             return tNow("entityUi.testcase.codeProblemExtraComma")
         case "endsEarly":
             return tNow("entityUi.testcase.codeProblemEndsEarly")
+        case "notObject":
+            return tNow("entityUi.testcase.codeProblemNotObject")
         default:
             return tNow("entityUi.testcase.codeProblemOther")
     }
