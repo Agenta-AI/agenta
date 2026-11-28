@@ -1,0 +1,310 @@
+---
+slug: how-to-build-an-ai-agent-for-slack
+title: "How to Build an AI Agent for Slack: Step-by-Step Guide (2026)"
+description: "Learn how to build, test, and deploy an AI agent for Slack in 6 steps: configure instructions and skills, set tool approval gates, connect your Slack app manifest, wire proactive triggers, and hand off to teams or clients."
+category: Article
+date: 2026-04-21
+author: mahmoud-mabrouk
+heroImage: /blog/how-to-build-an-ai-agent-for-slack/hero.webp
+ogImage: /blog/how-to-build-an-ai-agent-for-slack/hero.webp
+readingTime: 13 min read
+tags:
+  - AI Agents
+  - Slack
+  - AI Coworker
+  - AI Automation
+  - Low-Code AI
+  - Open Source
+faq:
+  - question: "Does a Slack AI agent read every message in my workspace?"
+    answer: "No. When you connect an agent via Publish > Slack in Agenta, it only sees messages in channels it has been invited to and only answers in the channels you check under Advanced > Channels it answers in > Only these channels, plus direct messages if Direct messages is toggled on. In channels and threads, it only runs when someone explicitly @mentions its handle."
+  - question: "How do I stop a Slack agent from replying to every message in a busy thread?"
+    answer: "Agenta handles this automatically. When teammates reply to each other inside a thread where the agent is present, those messages do not start new agent runs. The agent only wakes up and reacts with 👀 when a message in the channel or thread explicitly addresses its @handle."
+  - question: "Can I send screenshots, PDFs, or voice notes to an Agenta agent in Slack?"
+    answer: "Yes. Any file you attach to a Slack message (screenshots, PDFs, CSVs, documents, voice notes, or short videos) arrives as a session attachment for that conversation. Vision models read attached images directly, and the agent can inspect documents or data files using its tools inside its isolated Daytona sandbox. Stickers, locations, and contact cards are not supported and return a short notice."
+  - question: "What happens when an unattended scheduled Slack automation hits a tool set to Ask?"
+    answer: "The run pauses and waits for human input instead of finishing. For unattended automations created in Sidebar > Automations, make sure every tool required to gather the data and post the Slack message is set to Allow (or covered by Allow reads), and tell the agent in its automation instruction to post proposed external writes as drafts in the Slack channel rather than calling an Ask-gated write tool at 6:00 AM."
+  - question: "Can I white-label the Slack bot name, handle, and icon for an agency client?"
+    answer: "Yes. When you choose Use your own Slack app in Publish > Slack > Add, Agenta generates a custom Slack app manifest with the exact display name, @handle, and description you choose. Because the app is created inside the client's own Slack workspace settings, you can upload the client's brand icon and keep all Agenta branding invisible to end users in Slack."
+---
+
+Most Slack bots get muted within two weeks.
+
+Either they are noisy webhook relays that dump raw JSON alerts into a channel every twenty minutes, or they are shallow Q&A bots that summarize wiki pages but freeze the moment someone drops a customer screenshot into a thread and asks: _"Can you check if this bug is already tracked in Linear, pull the customer's tier from HubSpot, and draft a reply?"_
+
+A real Slack AI coworker behaves like a sharp teammate in the thread. It stays silent until someone `@mentions` it (or a scheduled trigger wakes it up), reacts with `👀` while it works inside its own isolated computer sandbox, reads connected systems on its own, pauses inside the Slack thread with a one-click approval card before writing or sending anything externally, and switches its reaction to `✅` once the job is finished.
+
+If you are building Slack agents for your own engineering, support, or operations team, or delivering them to clients as an AI automation agency, you no longer need to maintain a custom Slack Bolt server, verify webhook signatures by hand, or code custom Block Kit state machines for human approvals.
+
+This guide walks through how to design, configure, permission, test, and hand off a production Slack AI agent in 6 steps using [Agenta](https://agenta.ai), an open-source AI coworker platform.
+
+## 3 Ways to Build a Slack AI Agent in 2026
+
+Before wiring the agent, it helps to compare the three main implementation paths and see where each one fits:
+
+| Approach                                               | Setup Effort                                       | Sandboxes, Files & Approvals                                                                         | Client Handoff & Hosting                                                          |
+| ------------------------------------------------------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Native Slack AI**                                    | Minutes (paid add-on)                              | Channel Q&A and basic MCP clients; no code sandbox or shared file workspace                          | Tied to one Slack workspace and per-user Slack seats                              |
+| **DIY Slack Bolt SDK**                                 | 1 to 3 weeks of custom backend code                | Unlimited if you build and host sandboxes, file stores, and Block Kit approval callbacks yourself    | Full code control, high maintenance, no visual admin UI                           |
+| **AI Coworker Platform ([Agenta](https://agenta.ai))** | 15 to 30 minutes via manifest or one-click connect | 1,000+ integrations, MCP servers, persistent files, **Daytona** sandboxes, and thread approval cards | Unlimited team members on Starter ($29/mo), project transfer, or MIT self-hosting |
+
+If all you need is summarizing long public channels inside Slack, native Slack AI is enough. If you want an agent that can inspect external tools, read PDFs and screenshots dropped into a thread, run Python or browser checks inside an isolated cloud sandbox, pause for approval before mutating systems of record, and reuse the exact same configuration across Telegram, WhatsApp, and an embedded website widget, an [AI coworker platform](/blog/ai-coworker-platforms-for-business) saves weeks of custom backend code.
+
+---
+
+## Step 1: Scope One Concrete Slack Job Before Touching the Slack API
+
+The fastest way to ruin a Slack agent is to call it `@ai-assistant`, drop it into `#general`, and tell your team _"ask it anything."_ Nobody knows what tools it can reach, what files it trusts, or whether mentioning it will accidentally fire an email to a customer.
+
+Start by scoping **one repeatable channel workflow** with a clear input, a bounded set of 2 to 8 tool actions, and an explicit approval boundary. (If you are evaluating how multi-step agent runtimes coordinate tools and triggers, see our breakdown of the [best AI agent orchestration platforms](/blog/best-ai-agent-orchestration-platforms).)
+
+Throughout this tutorial, we will build **`@opstriage` (Client Operations & Support Triage Coworker)** for a B2B product or agency team. Here is its 8-line job specification:
+
+- **Bot name & handle:** `Ops Triage` (`@opstriage`)
+- **Allowed Slack surfaces:** `#client-support` and `#ops-alerts` (plus direct messages from named operations leads)
+- **Reactive trigger:** Any `@opstriage` mention in `#client-support`, including messages with attached screenshots, PDFs, log files, or voice notes
+- **Proactive trigger:** Weekday `08:30 UTC` scheduled run that summarizes unresolved high-priority issues into `#ops-alerts`
+- **Persistent knowledge (shared agent files):** SLA policy (`sla-policy.md`), escalation owner matrix (`escalation-matrix.md`), and known issue workarounds (`known-issues.md`)
+- **Read tools (`Allow` automatically):** HubSpot contact/company lookup, Linear issue search, GitHub PR/issue search, and web search
+- **Write tools (`Ask` for human approval first):** Create Linear issue, add HubSpot timeline note, and post an external customer update
+- **Finish line:** A structured thread reply with root-cause context, customer SLA tier, a ready-to-send customer response draft, and (when needed) a paused tool approval card to create the tracking ticket
+
+Wait until this scope fits on one index card before you open Slack's app settings.
+
+---
+
+## Step 2: Configure Instructions, Reusable Skills, and Shared Agent Files
+
+A reliable Slack agent separates **standing rules** (how to behave in every Slack thread) from **task playbooks** (how to run a specific triage or reporting workflow) and **reference knowledge** (policies and templates stored as files).
+
+![Slack AI agent architecture showing progressive disclosure of instructions, skills, shared agent files, Daytona sandbox, and MCP tools](/blog/how-to-build-an-ai-agent-for-slack/slack-agent-architecture.webp)
+
+### 1. Pick your agent harness, model, and Daytona sandbox
+
+In Agenta, an agent's execution harness, model, and credential are three separate configuration choices (`Configuration -> Model & Harness`):
+
+1. **Harness:** Choose [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex/cli), or [Pi](https://shittycodingagent.ai/). The harness drives the reasoning loop, manages files, compacts long thread conversations, and executes commands.
+2. **Model & credential:** Connect Anthropic, OpenAI, Google Gemini, AWS Bedrock, Google Vertex AI, OpenRouter, Ollama, or your own Claude Pro/Max or ChatGPT Plus/Pro subscription. Because the harness and model are decoupled from your Slack connection, you can swap models later without re-installing the Slack app.
+3. **Isolated Daytona sandbox (`Configuration -> Advanced -> Execution environment`):** Select **Daytona** so the agent gets its own isolated cloud computer and headless browser. You can lock down **Network egress** (`Allow all egress`, `Block all egress`, or `Allowlist (CIDR ranges)`), **Filesystem** (`Read / write`, `Read-only`, or `No access`), and **Enforcement** (`Strict` or `Best effort`).
+
+### 2. Write Slack-native standing instructions
+
+Slack threads are not 2,000-word essay canvases. People read them between meetings or on their phones. Keep your standing **Instructions** under 60 lines so they load cleanly on every turn and enforce strict Slack etiquette:
+
+```markdown
+# Role: Ops Triage Coworker (@opstriage)
+
+You are the operations and support triage coworker for our team inside Slack.
+Your job is to investigate customer reports in #client-support, check Linear, HubSpot, and GitHub, and prepare verified answers and ticket drafts.
+
+## How to reply in Slack threads
+
+- Lead with the bottom-line answer in the first two lines: Customer tier, matching Linear/GitHub issue (or "New issue"), and recommended next step.
+- Keep thread replies under 180 words unless someone asks for a full log trace or document draft.
+- Use short bullet points with exact operational links (Linear issue IDs, HubSpot company records, GitHub PR URLs).
+- When a teammate attaches a screenshot, PDF, log file, or voice note in Slack, inspect the session attachment first before searching external tools.
+- Never invent a ticket ID, customer SLA tier, or status. If a lookup returns nothing, state what you checked.
+
+## Action boundaries
+
+- Read lookups in HubSpot, Linear, GitHub, and shared reference files run automatically.
+- Before creating a Linear ticket or writing a HubSpot note, post a 3-line summary of the proposed record in the thread and trigger the tool call so the reviewer can click Approve.
+- Never message a customer directly without explicit human approval in the thread.
+
+## Reference files (open only when needed)
+
+- Check `sla-policy.md` in shared agent files for response-time targets by customer plan.
+- Check `escalation-matrix.md` in shared agent files for engineering owner routing.
+- Check `known-issues.md` in shared agent files for verified workarounds before proposing a new bug ticket.
+```
+
+### 3. Add a reusable skill for multi-step workflows
+
+Instead of stuffing every SOP into your standing instructions, package step-by-step procedures as **Skills** (`Configuration -> Skills`). The agent sees only the skill's name and one-sentence trigger description until a Slack message matches that job (progressive disclosure):
+
+```markdown
+---
+name: slack-support-triage
+description: Use when a teammate mentions @opstriage in #client-support with a customer bug report, screenshot, or escalation question.
+---
+
+# Slack Support Triage Procedure
+
+1. **Inspect thread context and attachments:** Read the Slack message, thread history, and any attached screenshots, PDFs, or log files saved in the current session.
+2. **Identify customer and SLA tier:** Look up the customer domain or email in HubSpot (`READ-ONLY`) and match their plan against `sla-policy.md`.
+3. **Check known issues and active tickets:** Read `known-issues.md`, then search Linear and GitHub issues for matching error messages or component names.
+4. **Draft the thread response:**
+   - **Customer & SLA:** Plan tier and target response window.
+   - **Diagnosis:** Existing Linear issue link + workaround, or evidence that this is a new defect.
+   - **Draft customer reply:** A clean 3-to-5 sentence reply the support rep can copy-paste.
+5. **Propose system-of-record write (if new defect):** Call the Linear issue creation tool with title, reproduction steps, customer tier, and owner from `escalation-matrix.md`. Wait for the reviewer to click Approve on the card.
+```
+
+### 4. Split persistent shared agent files from temporary session files
+
+In Agenta, files live in two distinct scopes (`Files` drawer):
+
+- **Session files (today's desk):** Temporary to one Slack thread. When a teammate drags a screenshot of a stack trace, a CSV export, a PDF contract, or a voice note into a Slack message, Agenta delivers it directly into the session as an attachment. Vision-capable models inspect images directly, and the agent can parse CSVs or PDFs inside its Daytona sandbox without polluting future threads.
+- **Shared agent files (persistent shelf across all threads):** Upload your `sla-policy.md`, `escalation-matrix.md`, and `known-issues.md` to shared agent storage once. They survive across every Slack thread and scheduled automation, and they cost **zero context tokens** until the agent opens them.
+
+---
+
+## Step 3: Connect App Tools and Set Permissions (`Allow reads` vs. `Ask`)
+
+Giving a Slack agent access to HubSpot, Linear, or Gmail does not mean every action should fire automatically. A lookup changes nothing; creating a ticket or sending an email affects customers and teammates.
+
+### 1. Set the agent's baseline permission policy
+
+Open `Configuration -> Advanced -> Permissions` and set the baseline **Policy**:
+
+| Agent Policy      | Behavior                                                                                                        | When to Use It                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **`Allow reads`** | Tools with the `READ-ONLY` badge run automatically; any tool that writes, updates, or sends pauses for approval | Best default for interactive Slack channel coworkers                            |
+| **`Allow all`**   | Every connected tool runs without pausing                                                                       | Dedicated unattended automations where only safe destination tools are attached |
+| **`Ask`**         | Every single tool call (including reads) requires human approval                                                | High-sensitivity compliance testing or initial tool debugging                   |
+| **`Deny all`**    | Blocks all tool execution                                                                                       | Read-only Q&A agents working strictly from uploaded files                       |
+
+Select **`Allow reads`** and click **Save**.
+
+### 2. Override permissions for individual tools
+
+Sometimes you want one specific write action (like saving a scratch note or posting to an internal `#ops-alerts` log channel) to run automatically while every other write action pauses for review.
+
+Open `Configuration -> Tools`, click any connected-app tool or custom MCP server tool, and set **Permission** in the `TOOL DETAILS` pane:
+
+- **`Inherit`:** Follows the agent's baseline `Policy` (default).
+- **`Allow`:** Always runs without asking, regardless of the agent policy.
+- **`Ask`:** Always pauses for human approval, even if the agent policy is `Allow all`.
+- **`Deny`:** Blocks that specific action outright (for example, `delete_contact` or `close_repository_issue`) so the model can never invoke it.
+
+When the agent calls a tool, Agenta evaluates permissions in strict order: **the tool's own `Permission` (if not `Inherit`) -> the harness `Always allow` list -> the agent's baseline `Policy`**.
+
+### 3. How inline human approval works during a run
+
+When `@opstriage` finishes reading HubSpot and Linear and calls `create_linear_issue` (set to `Ask`), the run pauses immediately.
+
+Inside the Slack thread (and in the Agenta chat view), the agent surfaces an **Approval needed to continue** card (`Waiting for your input`). You can expand **Details** to inspect the exact JSON payload the model wrote (issue title, team ID, priority, and customer link), then click **Approve** or **Deny** with a single click.
+
+If you click **Approve**, the agent resumes from the exact point it paused, creates the ticket, and replies with the live Linear URL. If you click **Deny**, the write is blocked and you can reply in the thread with a correction.
+
+---
+
+## Step 4: Connect the Agent to Slack (`Publish -> Slack`)
+
+Once your agent's instructions, skills, files, and tool permissions are set, connecting it to Slack takes about five minutes.
+
+In Agenta, open your agent and click **Publish** in the top bar, then click **Add** next to **Slack**. You have two ways to connect:
+
+- **Option A: `Add to Slack` (One-Click Agenta App).** Available on deployments with the shared Agenta Slack app configured. Fast for internal testing.
+- **Option B: `Use your own Slack app` (From a Pre-Filled Manifest).** Best for production teams and client handoff because you control the exact bot display name, `@handle`, description, and custom icon in the workspace.
+
+Here is the exact 4-step manifest flow for Option B:
+
+### 1. Name the assistant in Agenta
+
+In `Publish -> Slack -> Add`, choose to use your own Slack app and fill in how the coworker should appear in Slack:
+
+- **Name:** `Ops Triage` (the display name shown on every message)
+- **Handle:** `@opstriage` (what people type to mention it; supports letters, numbers, periods, hyphens, and underscores)
+- **Description:** `Triages customer bugs across HubSpot, Linear, and GitHub with human approval before creating tickets.`
+
+### 2. Create the Slack app from Agenta's pre-filled manifest
+
+You do not need to hunt through Slack's OAuth scope screens or manually paste event webhook URLs:
+
+1. In the **Create app** step in Agenta, click **Copy** to copy the generated Slack app manifest. Agenta pre-populates the manifest with your bot's name, handle, description, required bot scopes, and event subscriptions.
+2. Click **Open Slack app settings**.
+3. In Slack's developer portal, click **Create New App**, then choose **From a manifest**.
+4. Pick your target Slack workspace, paste the manifest from Agenta, and click **Next**.
+5. Review the summary and click **Create and Install** to install the bot into your workspace.
+
+### 3. Paste the three Slack credentials into Agenta
+
+Copy three values from your newly created Slack app into Agenta's **Connect** step:
+
+| Agenta Field             | Slack App Settings Location              | Key Detail                                  |
+| ------------------------ | ---------------------------------------- | ------------------------------------------- |
+| **App ID**               | **Basic Information** -> App Credentials | Starts with `A` (not the Client ID)         |
+| **Signing Secret**       | **Basic Information** -> App Credentials | Verifies incoming Slack webhook signatures  |
+| **Bot User OAuth Token** | **Install App** -> OAuth Tokens          | Starts with `xoxb-` after workspace install |
+
+Click **Connect app**. Agenta verifies the handshake with Slack before saving and masks all three credentials afterward. The Slack panel now shows your bot as **Live**.
+
+### 4. Lock down which channels and people can use it
+
+Never leave a new workspace bot open to every channel by default. In the **Slack** connection panel:
+
+1. **Choose where it answers (`Answers in`):** Toggle **Direct messages** (anyone allowed can DM the bot) and **Channels** (the bot replies in a thread when `@mentioned`).
+2. **Invite the bot to target channels:** In Slack, run `/invite @opstriage` inside `#client-support` and `#ops-alerts` (or use **Add channel** in Agenta's Slack panel). Those channels now appear under **Channels it's in**.
+3. **Restrict to an explicit channel allowlist:** Open **Advanced** and set **Channels it answers in** to **Only these channels**, then check `#client-support` and `#ops-alerts`. Any unchecked channel stays marked **Off**, and if someone invites the bot to `#random` next week, it stays **Off** there until you check it. (Note: group DMs count as channels.)
+4. **Restrict who can message it (`Access -> Who can message it`):** Leave it on **Everyone** for a whole-team helper, or switch to **Specific people** and add team members by name or email. If someone outside the allowlist mentions the bot, Slack sends them at most one quiet private notice per day instead of cluttering the channel.
+
+---
+
+## Step 5: Test Thread Behavior, File Attachments, and Proactive Triggers
+
+Now test both modes of a Slack agent: **reactive thread work** (started by a human in Slack) and **proactive automations** (started by a schedule or external app event).
+
+![Interactive Slack thread runs with human approval cards versus unattended scheduled and event automations](/blog/how-to-build-an-ai-agent-for-slack/slack-thread-approval-and-triggers.webp)
+
+### 1. Run a live thread and attachment test in Slack
+
+Go to `#client-support`, attach a screenshot of an error dialog (or a sample log file), and post:
+
+> `@opstriage` Acme Corp (`acme.com`) just reported a 502 timeout when exporting CSV reports over 50k rows. See attached screenshot. Is this a known issue, what is their SLA window, and can you draft a reply and open a Linear ticket if needed?
+
+Watch four things happen in order:
+
+1. **Instant status reaction (`👀`):** As soon as Agenta receives the mention, `@opstriage` adds a `👀` reaction to your message so the channel knows the request is underway.
+2. **Quiet thread scoping:** Open the thread. While `@opstriage` is working, two teammates can discuss the customer in the same thread without triggering duplicate runs. In channels and threads, the agent **only runs when explicitly `@mentioned`**.
+3. **Read-first synthesis + paused approval card:** The agent inspects your screenshot attachment, looks up `acme.com` in HubSpot (`READ-ONLY`), checks `sla-policy.md` and `known-issues.md`, searches Linear (`READ-ONLY`), posts the diagnosis and draft reply in the thread, and pauses with an approval card for `create_linear_issue`.
+4. **Completion (`✅`):** Click **Approve**. The agent creates the Linear ticket, posts the ticket URL in the thread, and replaces `👀` with `✅` once every part of the answer is delivered.
+
+### 2. Wire proactive schedules and event triggers (`Sidebar > Automations`)
+
+A great Slack coworker does not just wait to be pinged. You can wake the exact same agent up automatically from `Sidebar > Automations > New automation`:
+
+- **On a schedule (`Hourly`, `Daily`, `Weekly`, `Monthly`, or `Cron` in UTC):** For example, run `@opstriage` every weekday at `08:30 UTC` (which is `10:30` Berlin summer time / `04:30` New York) with a self-contained instruction:
+  > _"Check Linear for all P0 and P1 customer issues opened or updated in the last 24 hours, cross-check customer tiers in HubSpot, and post a concise morning triage digest to #ops-alerts."_
+- **When something happens (App event subscription):** Pick a connected app (such as GitHub, Linear, or HubSpot) and an event (such as `issue opened` or `deal stage changed`). Each time the event fires, Agenta starts the agent with the event payload and posts the resulting triage summary or draft to your target Slack channel.
+
+### 3. Avoid the #1 automation trap: `Ask` gates on 6:00 AM runs
+
+Here is the operational rule that saves hours of debugging: **an approval card takes one second when you are chatting in Slack, and stalls an unattended automation at 6:00 AM when nobody is watching.**
+
+Match your permission settings to how the run starts:
+
+| Run Mode                  | Trigger Source                               | Read & Post Permissions                              | External System Writes (CRM / Tickets / Email)                          |
+| ------------------------- | -------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Interactive Mention**   | Teammate mentions or DMs the bot in Slack    | Read-only tools allowed; automatic thread reply      | Set to **Ask** so a human clicks **Approve** in the thread              |
+| **Unattended Automation** | UTC schedule or app event in **Automations** | Read-only tools and Slack post tool set to **Allow** | Draft summary in Slack first; human replies in thread to approve writes |
+
+Every scheduled or event-driven run records its full conversation and tool call trace in `Sidebar > Automations -> Run history`, so you can inspect exactly what happened if a morning digest looks off.
+
+---
+
+## Step 6: Privacy, Multi-Surface Reuse, and Client Handoff
+
+Every Slack conversation with your agent is also saved as a chat inside Agenta. Before you roll the bot out across a company or hand it off to an agency client, make sure your visibility and ownership settings match how the team works.
+
+### 1. Understand `Shared with project` vs. `Private` agents in Slack
+
+In the agent's top bar (between **Templates** and **Publish**), the privacy menu controls who inside Agenta can see the agent and its Slack transcripts (`Privacy and owner`):
+
+- **`Shared with project`:** Everyone in the Agenta project can read the agent's Slack conversations in Agenta (including direct messages sent to the bot) and send replies from Agenta that post directly back into the Slack thread. Use this for shared team workflows like `#client-support`, `#ops-alerts`, or `#team-marketing`.
+- **`Private`:** Everyone permitted in the Slack channel can still `@mention` and talk to the bot in Slack, but the resulting chat transcripts inside Agenta belong exclusively to the agent's owner (plus anyone the owner explicitly invites via **Share -> Can view** or **Can send**). Use this when building an executive assistant or sensitive HR/finance triage bot.
+
+### 2. Reuse the same agent on Telegram, WhatsApp, and website embeds
+
+Because your instructions, skills, shared reference files, and tool permissions live in the agent rather than inside Slack's proprietary workflow builder, you can publish the **exact same agent** to additional surfaces from the **Publish** panel:
+
+- **Telegram & WhatsApp (`Publish -> Telegram` / `WhatsApp`):** Let field teams or external clients send text, photos, PDFs, and voice notes to the same agent from mobile chat apps.
+- **Website or internal portal widget (`Publish -> Embed`):** Generate an `<iframe id="agenta-chat">` snippet restricted to your allowed domains, customize the greeting, avatar, theme, and up to four starter prompts, and pass logged-in user context (`agenta:init` and `agenta:context`) via `postMessage`.
+
+### 3. Hand off cleanly to clients without per-seat SaaS lock-in
+
+If you run an AI automation agency or internal platform team, you have three clean handoff paths:
+
+1. **Workspace collaboration with zero per-seat tax:** Agenta Cloud's **Hobby** plan is `$0` forever (500 signup bonus credits + 75 daily credits), and the **Starter** plan (`$29/month`) includes 2,900 credits, unlimited projects, unlimited schedules/triggers, and **unlimited team members with no per-seat fee**. You can invite the client's stakeholders to the project without triggering a `$30/user/month` bill.
+2. **Direct ownership transfer (`Privacy and owner -> Transfer ownership`):** Once the client's Slack app is live and verified across 10 real thread cases, transfer ownership of the agent directly to the client's project lead.
+3. **Self-hosted open source (`Free forever`):** For enterprise clients with strict data residency requirements, deploy the MIT-licensed open-source stack (`Agenta-AI/agenta`) on their own cloud via Docker Compose or Kubernetes Helm and connect their custom Slack app there. See our comparison of the [best open-source AI agent platforms](/blog/best-open-source-ai-agent-platforms) and our guide to choosing an [open-source Claude Cowork alternative](/blog/open-source-claude-cowork-alternative) for self-hosting details.
