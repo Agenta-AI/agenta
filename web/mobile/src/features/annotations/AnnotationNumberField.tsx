@@ -1,5 +1,7 @@
 import {useId, useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {InputNumber, Slider} from "@agenta/ui/ui"
 
 import {AnnotationFieldLabel} from "./AnnotationFieldLabel"
@@ -8,8 +10,9 @@ import {AnnotationFieldLabel} from "./AnnotationFieldLabel"
 const MINIMUM_KEYS = new Set(["Home", "ArrowLeft", "ArrowDown", "PageDown"])
 
 /**
- * A number metric. With both bounds it is a small input beside the label and a slider below; an
- * empty value leaves the slider without a thumb, so an unset metric never looks set.
+ * A number metric. With both bounds it is a small input beside the label, a slider below, and
+ * "Min N" and "Max N" under the slider; an empty value leaves the slider without a thumb, so an
+ * unset metric never looks set.
  */
 export const AnnotationNumberField = ({
     label,
@@ -28,6 +31,7 @@ export const AnnotationNumberField = ({
     readOnly: boolean
     onChange: (value: number | null) => void
 }) => {
+    const t = useT(queueScreensCatalog)
     const id = useId()
     const step = isInteger ? 1 : 0.1
     const shown = value !== null && isInteger ? Math.round(value) : value
@@ -98,6 +102,10 @@ export const AnnotationNumberField = ({
                             emit(next)
                         }}
                     />
+                    <div className="mt-2 flex justify-between text-meta text-muted-foreground">
+                        <span>{t("annotation.queueScreens.min", {value: min})}</span>
+                        <span>{t("annotation.queueScreens.max", {value: max})}</span>
+                    </div>
                 </div>
             ) : (
                 <div inert={readOnly}>

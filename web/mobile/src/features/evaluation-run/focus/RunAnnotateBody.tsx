@@ -3,15 +3,15 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
 import {AnnotationFormPanel} from "@/features/annotations/AnnotationFormPanel"
+import {RunInvocationPanel} from "@/features/annotations/RunInvocationPanel"
 import {ScenarioMessage} from "@/features/annotations/ScenarioMessage"
+import type {ScenarioInvocationState} from "@/features/annotations/useScenarioInvocation"
 import type {OnAnnotationsSaved} from "@/features/annotations/useSubmitAnnotations"
 import {useProjectPermission} from "@/features/context/useProjectPermission"
 
 import type {ScenarioRow} from "../scenarios/scenarioColumns"
 
-import {RunInvocationPanel} from "./RunInvocationPanel"
 import {ScenarioFocusBody} from "./ScenarioFocusBody"
-import type {ScenarioInvocationState} from "./useScenarioInvocation"
 
 /** The scenario's own values; the evaluator scores are what the form edits. */
 const CONTENT_KINDS = new Set(["testset", "application"])

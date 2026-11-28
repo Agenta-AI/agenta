@@ -72,6 +72,7 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {nextNeedsReviewId} from "../nextNeedsReview"
 import {
     buildAddToTestsetOperations,
     buildTestcaseExportRows,
@@ -2173,6 +2174,21 @@ const navigateNextAtom = atom(null, (get, set) => {
 })
 
 /**
+ * Navigate to the next scenario that is not completed, after the current one and then from the
+ * start ("Mark completed and next"). Stays when every other scenario is completed.
+ */
+const navigateNextNeedsReviewAtom = atom(null, (get, set) => {
+    const scenarioId = nextNeedsReviewId(
+        get(navigableScenarioIdsAtom),
+        get(currentScenarioIdAtom),
+        get(scenarioStatusesAtom),
+    )
+    if (scenarioId) {
+        setFocusedScenarioId({get, set, scenarioId, notify: true})
+    }
+})
+
+/**
  * Navigate to previous scenario.
  */
 const navigatePrevAtom = atom(null, (get, set) => {
@@ -3614,6 +3630,8 @@ export const annotationSessionController = {
         setFormEvaluators: setFormEvaluatorsAtom,
         /** Navigate to next scenario */
         navigateNext: navigateNextAtom,
+        /** Navigate to the next scenario that is not completed */
+        navigateNextNeedsReview: navigateNextNeedsReviewAtom,
         /** Navigate to previous scenario */
         navigatePrev: navigatePrevAtom,
         /** Navigate to specific index */
@@ -3723,6 +3741,7 @@ export const annotationSessionController = {
         setFormEvaluators: (next: FormEvaluators | null) =>
             getStore().set(setFormEvaluatorsAtom, next),
         navigateNext: () => getStore().set(navigateNextAtom),
+        navigateNextNeedsReview: () => getStore().set(navigateNextNeedsReviewAtom),
         navigatePrev: () => getStore().set(navigatePrevAtom),
         navigateToIndex: (index: number) => getStore().set(navigateToIndexAtom, index),
         syncScenarioOrder: () => getStore().set(syncScenarioOrderAtom),

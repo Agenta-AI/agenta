@@ -1,6 +1,8 @@
 import {useCallback} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
+import {useT} from "@agenta/i18n"
+import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -17,8 +19,9 @@ export type AnnotationScope = {queueId: string} | {runId: string}
 export type OnAnnotationsSaved = (saved: {scenarioId: string; replacedTraceIds: string[]}) => void
 
 /**
- * Saves one scenario's annotations. In a queue, a first save marks the scenario completed ("Mark
- * completed") and a save on a completed scenario updates it ("Update"). In a run, every save is
+ * Saves one scenario's annotations. In a queue, a first save marks the scenario completed and the
+ * session opens the next one that needs review ("Mark completed and next"); a save on a completed
+ * scenario updates it and stays ("Update"). In a run, every save is
  * "Annotate" and needs a change. Every entry point (the footer, the keyboard, the annotate sheets)
  * shares these rules and these messages.
  */
@@ -27,6 +30,7 @@ export const useSubmitAnnotations = (
     scope: AnnotationScope,
     onSaved?: OnAnnotationsSaved,
 ) => {
+    const t = useT(queueScreensCatalog)
     const queueId = "queueId" in scope ? scope.queueId : undefined
     const runId = "runId" in scope ? scope.runId : undefined
     const statuses = useAtomValue(annotationSessionController.selectors.scenarioStatuses())
@@ -85,6 +89,11 @@ export const useSubmitAnnotations = (
         isSubmitting,
         isCompleted,
         hasPendingChanges,
-        label: runId ? "Annotate" : isCompleted ? "Update" : "Mark completed",
+        hasFilledMetrics,
+        label: runId
+            ? "Annotate"
+            : isCompleted
+              ? "Update"
+              : t("annotation.queueScreens.markCompletedAndNext"),
     }
 }

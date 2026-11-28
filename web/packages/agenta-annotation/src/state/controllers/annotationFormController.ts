@@ -1631,7 +1631,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
         if (shouldMarkComplete && scenarioId) {
             annotationSessionController.set.markCompleted(scenarioId)
             if (get(annotationSessionController.selectors.focusAutoNext())) {
-                annotationSessionController.set.navigateNext()
+                annotationSessionController.set.navigateNextNeedsReview()
             }
 
             await patchScenarioStatus(projectId, scenarioId, "success")

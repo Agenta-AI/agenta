@@ -41,32 +41,9 @@ describe("span body sections on /m", () => {
         expect(text).not.toContain("inputs")
     })
 
-    it("has no switch of its own under the trace view's span header", async () => {
-        await render({section: "inputs", spanDataOverride: {question: "Hi"}, mode: "formatted"})
+    it("has no Formatted / Raw switch of its own", async () => {
+        await render({section: "inputs", spanDataOverride: {question: "Hi"}})
         expect(host.textContent).not.toContain("Raw")
-    })
-
-    it("keeps its own Formatted / Raw switch with no span header (the annotation queue)", async () => {
-        await render({section: "inputs", spanDataOverride: {question: "Where is my order?"}})
-        const raw = Array.from(host.querySelectorAll<HTMLElement>("button, [role=radio]")).find(
-            (element) => element.textContent === "Raw",
-        )
-        expect(raw).toBeDefined()
-        await act(async () => raw!.click())
-        // Raw: the code panel with JSON / YAML.
-        expect(host.textContent).toContain("JSON")
-        expect(host.textContent).toContain("YAML")
-    })
-
-    it("shows a plain text output in Raw YAML", async () => {
-        await render({section: "outputs", spanDataOverride: "Your order ships today."})
-        const option = (label: string) =>
-            Array.from(host.querySelectorAll<HTMLElement>("button, [role=radio]")).find(
-                (element) => element.textContent === label,
-            )
-        await act(async () => option("Raw")!.click())
-        await act(async () => option("YAML")!.click())
-        expect(host.textContent).toContain("Your order ships today.")
     })
 
     it("shows one line, No output, for an empty output", async () => {

@@ -10,9 +10,12 @@ interface AnnotationShortcuts {
     enabled: boolean
 }
 
-/** Controls that use the arrow keys themselves: a slider, True and False, tabs, menus, lists. */
+/**
+ * Controls that use the arrow keys themselves: a slider, True and False, tabs, menus, lists, the
+ * panel's width handle.
+ */
 const ARROW_KEY_CONTROLS =
-    "[role=slider],[role=radiogroup],[role=radio],[role=tablist],[role=menu],[role=listbox],[role=combobox]"
+    "[role=slider],[role=radiogroup],[role=radio],[role=tablist],[role=menu],[role=listbox],[role=combobox],[role=separator]"
 
 /** Typing in a field, or moving a control with the arrows, must not move to another scenario. */
 const ownsArrowKeys = (target: EventTarget | null) => {
@@ -26,7 +29,8 @@ const ownsArrowKeys = (target: EventTarget | null) => {
 
 /**
  * The session's keys: the left and right arrows move between scenarios, except inside a field or
- * a control that uses the arrows itself; Cmd or Ctrl+Enter submits from anywhere.
+ * a control that uses the arrows itself; Cmd or Ctrl+Enter submits from anywhere. The number keys
+ * of the queue belong to the field in focus (`AnnotationField` with `fieldKeys`).
  */
 export const useAnnotationKeyboardShortcuts = (shortcuts: AnnotationShortcuts) => {
     // One listener for the life of the screen; it reads the newest handlers through the ref.

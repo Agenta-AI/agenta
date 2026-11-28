@@ -207,15 +207,54 @@ describe("an annotation field", () => {
         expect(onChange).toHaveBeenLastCalledWith(null)
     })
 
-    it("A null enum option reads none of the above", async () => {
-        await render({value: null, type: ["string", "null"], enum: ["good", null]})
+    const SIX_OPTIONS = ["good", "fine", "ok", "meh", "bad", null]
+
+    it("A single choice with more than 5 options stays a select; null reads none of the above", async () => {
+        await render({value: null, type: ["string", "null"], enum: SIX_OPTIONS})
         const options = Array.from(host.querySelectorAll("[role=option]")).map((o) => o.textContent)
-        expect(options).toEqual(["good", "none of the above"])
+        expect(options).toEqual(["good", "fine", "ok", "meh", "bad", "none of the above"])
         expect(host.textContent).toContain("Select")
+        expect(host.querySelector("[role=radiogroup]")).toBeNull()
+    })
+
+    it("A single choice with up to 5 options draws buttons that pick", async () => {
+        await render({value: null, type: ["string", "null"], enum: ["correct", "wrong", null]})
+        expect(host.querySelector("[data-testid=select]")).toBeNull()
+        const radios = Array.from(host.querySelectorAll("[role=radio]")).map((r) => r.textContent)
+        expect(radios).toEqual(["correct", "wrong", "none of the above"])
+        await act(async () => button("wrong").click())
+        expect(onChange).toHaveBeenLastCalledWith("wrong")
+        await act(async () => button("none of the above").click())
+        expect(onChange).toHaveBeenLastCalledWith("null")
+    })
+
+    it("A number with a range writes Min and Max under the slider", async () => {
+        await render({value: 0.4, type: "number", minimum: 0, maximum: 1})
+        expect(host.textContent).toContain("Min 0")
+        expect(host.textContent).toContain("Max 1")
+    })
+
+    it("The note is 8 lines and keeps the height dragged for this field", async () => {
+        localStorage.setItem("note-height", "300")
+        await act(async () =>
+            root.render(
+                <AnnotationField
+                    fieldKey="note"
+                    field={{value: null, type: "string"}}
+                    heightKey="note-height"
+                    onChange={onChange}
+                />,
+            ),
+        )
+        const textarea = host.querySelector("textarea")!
+        expect(textarea.rows).toBe(8)
+        expect(textarea.className).toContain("resize-y")
+        expect(textarea.style.height).toBe("300px")
+        localStorage.removeItem("note-height")
     })
 
     it("Picking none of the above saves it as a value, not as empty", async () => {
-        await render({value: null, type: ["string", "null"], enum: ["good", null]})
+        await render({value: null, type: ["string", "null"], enum: SIX_OPTIONS})
         const select = host.querySelector("[data-testid=select]") as HTMLInputElement
         await typeInto(select, "good")
         expect(onChange).toHaveBeenLastCalledWith("good")

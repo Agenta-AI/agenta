@@ -65,7 +65,9 @@ export interface FakeSessionState {
     metricValues: Record<string, unknown>
     // Form controller
     metrics: Record<string, Record<string, Record<string, FakeMetricField>>>
-    evaluators: {slug?: string | null; name?: string | null}[]
+    evaluators: {slug?: string | null; name?: string | null; description?: string | null}[]
+    /** The saved annotations of each scenario. */
+    annotations: Record<string, unknown[]>
     evaluatorResolution: {isPending: boolean; hasError: boolean}
     isSubmitting: Record<string, boolean>
     hasFilledMetrics: Record<string, boolean>
@@ -110,6 +112,7 @@ export const initialSessionState = (): FakeSessionState => ({
     metricValues: {},
     metrics: {},
     evaluators: [{slug: "tone", name: "Tone"}],
+    annotations: {},
     evaluatorResolution: {isPending: false, hasError: false},
     isSubmitting: {},
     hasFilledMetrics: {},
@@ -188,7 +191,8 @@ export const annotationSessionController = {
         scenarioTraceRef: (id: string) => read(`trace:${id}`, (s) => s.traceRefs[id] ?? NO_TRACE),
         scenarioTestcaseRef: (id: string) =>
             read(`testcase:${id}`, (s) => s.testcaseRefs[id] ?? NO_TESTCASE),
-        scenarioAnnotations: (id: string) => read(`annotations:${id}`, () => NO_ANNOTATIONS),
+        scenarioAnnotations: (id: string) =>
+            read(`annotations:${id}`, (s) => s.annotations[id] ?? NO_ANNOTATIONS),
         testcaseData: (id: string) =>
             read(`testcaseData:${id}`, (s) => s.testcases[id] ?? IDLE_QUERY),
         scenarioMetricForEvaluator: (key: {scenarioId: string; path?: string | null}) =>
@@ -206,6 +210,7 @@ export const annotationSessionController = {
         setActiveView: action("setActiveView"),
         syncScenarioOrder: action("syncScenarioOrder"),
         navigateNext: action("navigateNext"),
+        navigateNextNeedsReview: action("navigateNextNeedsReview"),
         navigatePrev: action("navigatePrev"),
         navigateToIndex: action("navigateToIndex"),
         setHideCompletedInFocus: action("setHideCompletedInFocus"),

@@ -1,28 +1,34 @@
 import {SkeletonBlock} from "@agenta/ui/ui"
 
-/** The focus layout while the queue and its items load: content, the form panel and the footer. */
+/**
+ * The Annotate tab while the queue and its items load, in its three columns: the item list, the
+ * content under its bar, and the annotation panel. The list column shows on wide screens only.
+ */
 export const QueueSessionSkeleton = () => (
     <div
-        className="flex min-h-0 flex-1 flex-col"
+        className="flex min-h-0 flex-1 flex-col md:flex-row"
         role="status"
         aria-label="Loading the annotation queue"
     >
-        <div className="flex min-h-0 flex-1 flex-col gap-4 p-3 md:flex-row">
-            <div className="flex min-w-0 flex-1 flex-col gap-3 rounded-lg border border-solid border-border p-4">
-                <SkeletonBlock className="h-4 w-24" />
-                <SkeletonBlock className="h-20" />
-                <SkeletonBlock className="h-4 w-24" />
-                <SkeletonBlock className="h-32" />
-            </div>
-            <div className="flex w-full shrink-0 flex-col gap-3 rounded-lg border border-solid border-border p-4 md:w-75 lg:w-100 xl:w-112.5">
-                <SkeletonBlock className="h-5 w-28" />
-                <SkeletonBlock className="h-8" />
-                <SkeletonBlock className="h-8" />
-            </div>
+        <div className="hidden w-62 shrink-0 flex-col gap-3 border-0 border-r border-solid border-border p-4 min-[1360px]:flex">
+            <SkeletonBlock className="h-4 w-28" />
+            <SkeletonBlock className="h-1" />
+            <SkeletonBlock className="h-8" />
+            <SkeletonBlock className="h-8" />
+            <SkeletonBlock className="h-8" />
         </div>
-        <div className="flex h-14 shrink-0 items-center gap-3 border-0 border-t border-solid border-border px-4">
-            <SkeletonBlock className="h-6 w-20" />
-            <SkeletonBlock className="ml-auto h-7 w-36" />
+        <div className="flex min-w-0 flex-1 flex-col gap-3 p-4 sm:px-6">
+            <SkeletonBlock className="h-7 w-48" />
+            <SkeletonBlock className="h-4 w-24" />
+            <SkeletonBlock className="h-24" />
+            <SkeletonBlock className="h-4 w-24" />
+            <SkeletonBlock className="h-40" />
+        </div>
+        <div className="flex w-full shrink-0 flex-col gap-3 border-0 border-t border-solid border-border p-4 md:w-95 md:border-l md:border-t-0">
+            <SkeletonBlock className="h-5 w-28" />
+            <SkeletonBlock className="h-8" />
+            <SkeletonBlock className="h-8" />
+            <SkeletonBlock className="h-24" />
         </div>
     </div>
 )

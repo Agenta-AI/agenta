@@ -420,10 +420,14 @@ const scenarioInvocationStepKeyAtomFamily = atomFamily(
  * Returns all step results including trace_id and span_id references.
  * Uses `atomWithQuery` with imperative projectId read + retry.
  */
+/** Query key of one scenario's step results, for a screen that reads them again after a change. */
+export const scenarioStepsQueryKey = (runId: string, scenarioId: string) =>
+    ["scenarioSteps", runId, scenarioId] as const
+
 export const scenarioStepsQueryAtomFamily = atomFamily(
     ({runId, scenarioId}: ScenarioStepsKey) =>
         atomWithQuery(() => ({
-            queryKey: ["scenarioSteps", runId, scenarioId],
+            queryKey: scenarioStepsQueryKey(runId, scenarioId),
             queryFn: async (): Promise<EvaluationResult[]> => {
                 const projectId = getStore().get(projectIdAtom)
                 if (!runId || !scenarioId) return []
