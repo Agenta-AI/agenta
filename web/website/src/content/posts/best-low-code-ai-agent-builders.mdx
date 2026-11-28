@@ -1,0 +1,343 @@
+---
+slug: "best-low-code-ai-agent-builders"
+title: "10 Best Low-Code AI Agent Builders for Agencies and Teams (2026)"
+description: "Compare the 10 best low-code AI agent builders for agencies and teams across code sandboxes, reusable skills, Slack and web embeds, open-source licenses, and BYOK pricing."
+category: "Article"
+date: 2026-11-09
+readingTime: "19 min read"
+heroImage: "/blog/best-low-code-ai-agent-builders/hero.webp"
+ogImage: "/blog/best-low-code-ai-agent-builders/hero.webp"
+author: "mahmoud-mabrouk"
+featured: false
+tags:
+  - "AI Agent Builders"
+  - "Low-Code AI"
+  - "AI Agencies"
+  - "AI Coworkers"
+  - "Open Source AI"
+faq:
+  - question: "What is the best low-code AI agent builder for agencies in 2026?"
+    answer: "Agenta is the best overall low-code AI agent builder for agencies and delivery teams that want to configure shared AI coworkers in plain language, package repeatable procedures into reusable skills, run real code inside isolated Linux sandboxes (with Claude Code, Codex, or Pi), and deliver agents in Slack, Telegram, WhatsApp, or an embeddable website chat widget under the permissive MIT License. For deterministic webhook-to-CRM pipelines, n8n and Activepieces are the strongest workflow-canvas choices."
+  - question: "What is the difference between a no-code and a low-code AI agent builder?"
+    answer: "A pure no-code AI agent builder restricts you to prebuilt form fields, prompt templates, or rigid drag-and-drop connectors, which breaks as soon as a client workflow needs custom data cleaning, an unsupported API call, or file processing. A low-code AI agent builder pairs fast plain-language or visual setup with a real code escape hatch, such as an isolated Linux sandbox with Python and bash or inline JavaScript, Python, and TypeScript execution steps."
+  - question: "Which low-code AI agent builders allow commercial client hosting and white-labeling?"
+    answer: "Agenta, Activepieces (Community Edition), and Langflow are released under the permissive MIT License, allowing agencies to self-host on their own servers or inside a client's private cloud without commercial redistribution restrictions. By contrast, n8n uses the Sustainable Use License (which prohibits hosting n8n as a managed commercial service for clients without an enterprise license) and Dify's open-source license restricts multi-tenant commercial hosting without permission."
+  - question: "How do I embed a low-code AI agent on a client's website or internal portal?"
+    answer: "In Agenta, you open Publish > Embed to generate an iframe, floating chat widget, or React embed (@agenta/embed-react) with domain allowlists, custom theme colors, per-user conversation isolation via visitorKey, and live page context passed through agenta:init and agenta:context. Pickaxe and Dify also provide hosted web embeds and branded portals, while n8n offers an embeddable chat trigger widget for webhook workflows."
+  - question: "What happens when an agency plugs in a client's own OpenAI or Anthropic API key (BYOK)?"
+    answer: "Billing behavior varies sharply by platform. Agenta, n8n, and Langflow add zero platform markup on your own model API keys. Activepieces drops AI steps to 1 standard step credit on its $20/month Plus plan, and Make charges 1 module credit per step. Gumloop still charges tool-call credits, 5 credits per active VM minute, and an 8% to 16% orchestration fee even with BYOK, while Relevance AI skips Vendor Credits but still deducts Actions on every step."
+  - question: "Which low-code AI agent builder is best between Agenta, n8n, and Gumloop?"
+    answer: "Choose Agenta when you want conversational AI coworkers that combine plain-language instructions, reusable skills, permanent shared agent files, and coding agent harnesses (Claude Code, Codex, and Pi) inside Slack, Telegram, or web embeds. Choose n8n when you need deterministic node-and-wire API pipelines with flat per-execution billing. Choose Gumloop when your team wants a cloud-only combination of browser-scraping flows and a four-tab agent builder and does not mind credit-metered VM billing."
+---
+
+Every agency and internal operations team building AI agents hits the same wall with pure "no-code" tools. A drag-and-drop prompt wrapper looks effortless during a five-minute sales demo, then falls apart the first week of client delivery when a webhook payload arrives malformed, a spreadsheet has merged headers, an API needs custom pagination, or a client asks to use the agent inside their own Slack workspace and website without paying $40 per seat.
+
+That is why technical agencies, consultancies, and operational builders look for a **low-code AI agent builder** rather than a toy chatbot maker. You want plain-language instructions, reusable skills, or a visual flow canvas so non-engineers can configure 80% of the workflow in minutes, paired with a real code escape hatch (an isolated Linux sandbox or inline Python, TypeScript, and JavaScript steps) for the 20% where client edge cases live.
+
+The ten platforms below represent the three architectures that actually hold up in agency and team production:
+
+1. **Plain-language AI coworkers with real Linux sandboxes, reusable skills, and MIT open-source self-hosting:** [Agenta](#1-agenta-best-open-source-low-code-builder-for-shared-ai-coworkers-and-sandboxed-execution)
+2. **Self-hostable visual node workflows with JavaScript/Python steps and flat per-execution billing:** [n8n](#2-n8n-best-visual-workflow-builder-for-deterministic-api-and-code-node-pipelines)
+3. **Cloud visual scraping flows paired with a four-tab plain-language agent builder:** [Gumloop](#3-gumloop-best-cloud-visual-pipeline-builder-for-seo-and-gtm-agencies)
+4. **Visual RAG pipelines, document chunking controls, and embedded LLM APIs:** [Dify](#4-dify-best-low-code-studio-for-visual-rag-pipelines-and-client-apis)
+5. **Multi-agent GTM, BDR, and account-research workforces:** [Relevance AI](#5-relevance-ai-best-low-code-builder-for-multi-agent-gtm-and-bdr-workforces)
+6. **Branded client portals and Stripe-monetized AI tool storefronts:** [Pickaxe](#6-pickaxe-best-no-code-builder-for-monetized-client-portals-and-storefronts)
+7. **MIT-licensed step workflows with TypeScript extensibility and 1-credit BYOK:** [Activepieces](#7-activepieces-best-mit-licensed-flow-builder-with-typescript-steps)
+8. **Visual multi-app routing across 3,000+ SaaS integrations at a $9/month entry point:** [Make](#8-make-best-visual-scenario-router-across-3000-saas-integrations)
+9. **Ready-made inbox, meeting, calendar, and phone assistants:** [Lindy](#9-lindy-best-assistant-builder-for-inbox-calendar-and-meeting-workflows)
+10. **100% free MIT-licensed visual Python and MCP component graphs:** [Langflow](#10-langflow-best-free-visual-python-and-mcp-graph-builder-for-engineers)
+
+## The 10 best low-code AI agent builders at a glance
+
+| Platform                                          | Best for                                                           | Builder style & code escape hatch                                                                 | Client delivery channels                                                                      | Open-source & hosting license                                                                 | Starting price & BYOK billing                                                                            |
+| :------------------------------------------------ | :----------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------- |
+| **[Agenta](https://agenta.ai/)**                  | Shared AI coworkers, reusable skills, and sandboxed code execution | Plain-language instructions, reusable skills, and full Linux sandbox (**Claude Code, Codex, Pi**) | Web workspace, **Slack**, **Telegram**, **WhatsApp**, **website chat embed**, cron & webhooks | **MIT License**; free Docker & Kubernetes self-hosting (includes RBAC & SSO)                  | **$0 forever** self-hosted; Cloud Hobby **$0**; Starter **$29/mo** (unlimited seats); **$0 BYOK markup** |
+| **[n8n](https://n8n.io/)**                        | Deterministic API & webhook automation for technical agencies      | Visual node-and-wire canvas + JavaScript & Python `Code` nodes                                    | Webhooks, embedded chat widget, Slack/Teams bots, cron & app triggers                         | **Sustainable Use License** (free internal self-hosting; Enterprise required for client SaaS) | **$0** self-hosted; Cloud Starter **EUR 20/mo** annual (2,500 executions); **$0 BYOK markup**            |
+| **[Gumloop](https://www.gumloop.com/)**           | Cloud web scraping, SEO pipelines, and GTM workflows               | 4-tab plain-language Agent Builder + visual node Flows + per-session Python/shell VM              | Web workspace, Slack bot, form Interfaces, webhooks & schedules                               | Proprietary cloud SaaS (Enterprise VPC option)                                                | 14-day card trial; Pro **$37/mo** (20,000 credits, unlimited seats); **8% to 16% fee on BYOK**           |
+| **[Dify](https://dify.ai/)**                      | Custom RAG pipelines, hybrid retrieval, and embedded app backends  | Visual Chatflow & Workflow canvas + sandboxed Python/JS code blocks                               | REST API, embeddable web chat, hosted web app templates & MCP                                 | **Dify Open Source License** (Modified Apache 2.0; multi-tenant restrictions)                 | **$0** self-hosted; Cloud Sandbox **$0**; Professional **$59/workspace/mo** (3 seats)                    |
+| **[Relevance AI](https://relevanceai.com/)**      | Multi-agent GTM, outbound BDR, and CRM research workforces         | Visual Workforce graph + step-based Tools with Python/JS blocks                                   | Web dashboard, CRM triggers, Slack notifications, API & embeddable chat                       | Proprietary cloud SaaS                                                                        | 14-day trial; Pro **$19/mo** annual ($29 monthly, capped at **2 Build Users & 1 project**)               |
+| **[Pickaxe](https://pickaxe.co/)**                | Consultants selling subscription access to branded AI portals      | No-code prompt studio + custom Python Action code blocks                                          | Branded **Studios/Workspaces** with Stripe checkout, website embeds & APIs                    | Proprietary cloud SaaS                                                                        | Gold **$29/mo** annual ($37 monthly) + **10% payment processing cut**; Pro **$116/mo** annual (8% cut)   |
+| **[Activepieces](https://www.activepieces.com/)** | Budget-friendly client automations and human approval flows        | Clean linear step builder + custom **TypeScript** Pieces & inline code steps                      | Webhooks, forms, human approval links (`Todos`), schedules & MCP                              | **MIT License** (Community Edition); free Docker self-hosting                                 | **$0** self-hosted; Cloud Standard **$0**; Plus **$20/mo** (10,000 credits, **1-credit BYOK**)           |
+| **[Make](https://www.make.com/)**                 | Multi-app SaaS routing across 3,000+ connectors                    | Visual Scenario module canvas + custom JS steps (Enterprise/custom apps)                          | Webhooks, app events, Slack/email outputs & scheduled runs                                    | Proprietary cloud SaaS                                                                        | Free (**1,000 credits/mo**); Core **$9/mo** annual (10,000 credits, **1 credit/module with BYOK**)       |
+| **[Lindy](https://www.lindy.ai/)**                | Executive inbox triage, meeting prep, and phone/SMS agents         | Conversational assistant setup + trigger/action flow builder                                      | Gmail/Outlook, Slack, Zoom/Meet recording bots, phone calls & web embeds                      | Proprietary cloud SaaS                                                                        | 7-day trial; Plus **$29.99/user/mo** annual ($39.99 monthly, 3,000 pooled credits)                       |
+| **[Langflow](https://www.langflow.org/)**         | Custom Python agent DAGs and MCP servers                           | Visual component graph where every node is an editable **Python** class                           | REST API, MCP server endpoint, playground UI & embeddable chat widget                         | **MIT License**; free Desktop app, Python package & Docker container                          | **$0 forever** (MIT open source; pay only underlying LLM and vector DB providers)                        |
+
+## Why agency and ops teams outgrow pure no-code builders
+
+Building an AI agent for your own personal use is forgiving. Building an agent that an agency hands off to a paying client, or that an internal operations lead deploys to 40 teammates, exposes three failure modes that pure no-code builders rarely mention up front:
+
+1. **Brittle visual graphs vs. real code sandboxes:** On a node-and-wire canvas, parsing a messy client PDF, joining two CSV exports, and validating output formatting can easily balloon into a 45-node spaghetti graph. When the agent instead runs inside a real Linux sandbox with a coding agent harness (such as `Claude Code`, `Codex`, or `Pi`) and reusable skills, it can write and run a 15-line Python script, verify the output, and save the finished report to persistent shared agent files without a brittle node chain.
+2. **Client handoff friction and per-seat walls:** Many cloud agent builders price like traditional SaaS tools, charging $30 to $60 per seat or capping entry plans at 1 project and 2 builders. If an agency wants five client stakeholders to interact with the agent in Slack or on their website, per-seat pricing destroys project margins unless the platform supports unlimited seats or embeddable web chat widgets (`Publish > Embed`) and Slack/Telegram bots.
+3. **Licensing and BYOK traps:** Agencies routinely plug in a client's own OpenAI or Anthropic API key (BYOK) or deploy on a client's cloud VPC so the agency is not stuck reselling LLM tokens. However, source-available licenses like n8n's Sustainable Use License prohibit offering hosted multi-client automation services without an enterprise agreement, and several cloud builders still charge an 8% to 16% orchestration fee or per-step action credits on top of a client's own API key.
+
+![How low-code AI agent builders split into three operating models](/blog/best-low-code-ai-agent-builders/low-code-agent-builder-architectures.webp)
+
+## 1. Agenta: best open-source low-code builder for shared AI coworkers and sandboxed execution
+
+[Agenta](https://agenta.ai/) is an MIT-licensed, open-source platform for building and operating AI agents and coworkers. Instead of forcing builders to wire complex node graphs for every edge case or locking them into a shallow prompt wrapper, Agenta combines **plain-language instructions and reusable skills** with **real coding agent harnesses running inside isolated Linux sandboxes**.
+
+![Agenta workspace showing plain-language AI coworker setup, reusable skills, integrations, and sandbox terminal](/blog/best-low-code-ai-agent-builders/agenta.webp)
+_Agenta lets agencies and internal teams configure AI coworkers in plain language while giving each agent reusable skills, 1,000+ integrations, and an isolated Linux sandbox._
+
+### Why Agenta works well for agencies and delivery teams
+
+Agenta bridges the gap between non-technical consultants who shape domain workflows and technical builders who need real code execution, version control, and multi-channel client handoff:
+
+- **Plain-Language Setup with Reusable Skills and Version History:** You define an agent's role and workflow in plain English, and attach modular **reusable skills** (imported from GitHub repositories or created directly in chat once an agent learns a repeatable client playbook). Every change to an agent's instructions, skills, or connected tools is saved as a versioned commit with diffs, making it easy to roll back if a prompt edit causes regressions.
+- **Three Coding Agent Harnesses in Isolated Linux Sandboxes:** Every Agenta agent runs on a battle-tested coding agent harness ([Claude Code](https://code.claude.com/docs/en/overview), [OpenAI Codex](https://developers.openai.com/codex/cli), or [Pi](https://shittycodingagent.ai/)) inside its own isolated Linux sandbox (locally or via [Daytona](https://www.daytona.io/)). Each agent has a full bash shell, Python (`uv`, `pandas`, `playwright`), Node.js, `git`, `gh`, `sqlite3`, and headless Chromium, so it can inspect repositories, clean data, generate visual assets, and verify its own work before replying.
+- **Two-Tier File System with Persistent Shared Agent Files:** Each run gets **temporary session files** for scratch work during the current conversation alongside **persistent shared agent files** that survive across sessions and teammates. Unlike cloud sandboxes that wipe shared workspace folders after 14 days of inactivity, persistent shared agent files remain intact so client brand guides, competitive research, and custom CLI tools stay available long-term.
+- **1,000+ Managed OAuth Connectors and Custom MCP Servers:** Connect Slack, Gmail, Google Drive, Notion, HubSpot, Salesforce, Linear, Jira, GitHub, Google Search Console, Ahrefs, and custom Model Context Protocol (MCP) servers. Each tool action supports granular permission gates (`Allow`, `Ask`, or `Deny`), pausing with interactive approval cards before an agent sends an email, posts to a channel, or modifies production records.
+- **Multi-Surface Client Delivery (`Slack`, `Telegram`, `WhatsApp`, and `Publish > Embed`):** Once an agent is ready, you can deploy it into a client's **Slack** channels and threads, **Telegram** groups, or **WhatsApp**, or open `Publish > Embed` in [Agenta's embed documentation](https://docs.agenta.ai/) to drop an interactive chat widget onto any client website or internal portal (via Iframe, Floating Widget, or `@agenta/embed-react`, complete with domain allowlists, per-user `visitorKey` session isolation, and live page context via `agenta:init` and `agenta:context`). Agents also run autonomously on cron schedules and webhook/event subscriptions.
+
+### Pricing and licensing
+
+Agenta is available as a self-hosted open-source platform on [GitHub](https://github.com/Agenta-AI/agenta) and as a managed service on [Agenta Cloud](https://agenta.ai/pricing):
+
+- **Self-Hosted Open Source ($0 forever):** Released under the permissive **MIT License**. Agencies and enterprises can deploy via Docker Compose or Helm/Kubernetes on their own or a client's infrastructure with unlimited seats, unlimited projects, RBAC, and enterprise SSO included.
+- **Cloud Hobby ($0 forever):** Up to 3 team members and 2 projects, 500 signup bonus credits, and 25 to 75 daily refreshing credits.
+- **Cloud Starter ($29/month):** **Unlimited team members**, up to 10 projects, 2,900 monthly credits plus daily free credits, Slack/Telegram/WhatsApp publishing, and website embeds.
+- **Cloud Plus ($99/month) & Business ($299/month):** Unlimited team members, unlimited projects, 10,000 to 32,000 monthly credits, and RBAC.
+- **Zero-Markup BYOK & Subscription Logins:** Plug in your own or your client's OpenAI, Anthropic, Gemini, or OpenRouter API keys with **$0 model credit markup**, or connect an existing Claude subscription (`claude setup-token`) or self-hosted ChatGPT harness login (`Codex` or `Pi`).
+
+### Pros and cons
+
+- **Pros:** Permissive MIT License allows unrestricted internal or client-VPC self-hosting; real Linux sandbox with `Claude Code`, `Codex`, and `Pi` harnesses; persistent shared agent files never auto-expire; unlimited seats starting on the $29/month Cloud Starter plan; native Slack, Telegram, WhatsApp, and website chat embeds (`Publish > Embed`).
+- **Cons:** Built around conversational AI coworkers, reusable skills, and scheduled/event runs rather than a traditional drag-and-drop node canvas for legacy visual ETL mapping.
+
+## 2. n8n: best visual workflow builder for deterministic API and code-node pipelines
+
+For AI automation agencies whose core deliverable is a deterministic, multi-step backend workflow (such as enriching webhook leads, syncing HubSpot to Postgres, and firing structured Slack alerts), [n8n](https://n8n.io/) remains the benchmark visual node builder.
+
+![n8n visual workflow automation canvas with AI agent and sub-nodes](/blog/best-low-code-ai-agent-builders/n8n.webp)
+_n8n pairs a visual node-and-wire canvas with JavaScript and Python Code nodes and LangChain.js agent cluster nodes._
+
+### Why agencies choose n8n
+
+- **Explicit Graph Control with Inline JavaScript and Python:** Unlike rigid no-code tools, n8n lets builders drop a `Code` node anywhere on the canvas to transform JSON arrays, verify webhook signatures, or run custom Python and JavaScript logic.
+- **LangChain.js Agent Nodes and Standalone Preview Agents:** With [n8n's LangChain.js integration](https://docs.n8n.io/build/integrate-ai/langchain-in-n8n), builders can wire a root `AI Agent` (`Tools Agent`) node to Chat Model, Memory, Vector Store, and Tool sub-nodes, or test n8n's newer project-level **Agents (Preview)** with Markdown skills.
+- **Single-Charge Per-Execution Billing:** On [n8n's cloud pricing](https://n8n.io/pricing/), a 40-step workflow that loops over 200 items still counts as **1 workflow execution**, making backend loops far cheaper than per-step credit tools.
+
+### Pricing and licensing caveats for agencies
+
+- **Self-Hosted Community Edition ($0):** Free to deploy via Docker for your own internal workflows or inside a single client's own server when the client operates it. However, n8n's **Sustainable Use License** prohibits hosting a single multi-tenant n8n instance and selling commercial access to clients without a paid n8n Embed/Enterprise license.
+- **n8n Cloud:** **Starter** costs **EUR 20/month billed annually** (EUR 24 monthly, 2,500 executions, 5 active workflows on legacy tiers or unlimited with execution caps); **Pro** costs **EUR 50/month billed annually** (10,000 executions); **Business** jumps to **EUR 667/month billed annually** for 40,000 executions, Git version control, environments, and SSO.
+
+### Pros and cons
+
+- **Pros:** Flat per-execution billing; 1,000+ connectors with full JSON inspection; inline JS/Python `Code` nodes; zero platform fee on BYOK model calls.
+- **Cons:** Sustainable Use License restricts multi-client hosted SaaS models; steep jump from EUR 50/month Pro to EUR 667/month Business for Git environments and SSO; no built-in coding agent harness or persistent Linux workstation out of the box.
+
+## 3. Gumloop: best cloud visual pipeline builder for SEO and GTM agencies
+
+[Gumloop](https://www.gumloop.com/) combines a visual node canvas (**Flows**, **Subflows**, and form **Interfaces**) with a four-tab plain-language **Agent Builder** (`Agent`, `Triggers`, `Access`, `Settings`), making it popular with SEO, content marketing, and outbound GTM agencies. (For a direct comparison against n8n, read our [Gumloop vs n8n breakdown](/blog/gumloop-vs-n8n), or see the [best Gumloop alternatives](/blog/best-gumloop-alternatives).)
+
+![Gumloop visual workflow and agent builder interface](/blog/best-low-code-ai-agent-builders/gumloop.webp)
+_Gumloop combines a visual node canvas for scraping and enrichment with a four-tab conversational Agent Builder._
+
+### Why agencies choose Gumloop
+
+- **Built-in Web Scraping and Cloud Browser:** Gumloop ships with pre-configured web scrapers, SERP extractors, PDF readers, and a persistent cloud browser, plus **Company Brain** search across Google Drive, Notion, Slack, and GitHub.
+- **Per-Session Python and Shell VM:** Conversational agents in Gumloop can spin up an isolated Python and shell VM with 80+ pre-installed packages and can edit their own instructions and skills during a chat.
+
+### Pricing and agency watchouts
+
+- **No Permanent Free Tier & 4-Part Credit Meter:** On [Gumloop's pricing page](https://www.gumloop.com/pricing), new workspaces start with a 14-day card-required trial that converts to the **Pro plan at $37/month** (20,000 monthly credits, unlimited seats, up to 5 concurrent runs). [Gumloop's credit billing](https://docs.gumloop.com/core-concepts/credits_and_pricing) converts $1 into 200 credits (`$0.005/credit`) and bills simultaneously for model tokens, tool calls (`1 credit/call`, `2 credits/Company Brain search`), active VM compute (`5 credits/minute`), and an **8% to 16% platform orchestration fee** even when you bring a client's own API key.
+- **14-Day Shared File Expiration:** In [Gumloop's code sandbox](https://docs.gumloop.com/core-concepts/agent_sandbox_and_secrets), files saved in an agent's shared or personal workspace directories **automatically delete after 14 days of inactivity**, which can break client agents that rely on durable local files between monthly reporting cycles.
+
+### Pros and cons
+
+- **Pros:** Fast setup for web-scraping and SEO pipelines; unlimited seats on the $37/month Pro plan; combines visual Flows and conversational Agents in one UI.
+- **Cons:** Proprietary cloud-only platform with no self-hosting; 8% to 16% orchestration surcharge applies even with BYOK; shared workspace files auto-delete after 14 days of inactivity; unused monthly Pro credits never roll over.
+
+## 4. Dify: best low-code studio for visual RAG pipelines and client APIs
+
+When an agency's primary deliverable is a custom knowledge-base assistant or a structured LLM backend embedded into a client's web application, [Dify](https://dify.ai/) provides a dedicated visual studio for RAG and workflow orchestration.
+
+![Dify visual workflow and RAG pipeline builder](/blog/best-low-code-ai-agent-builders/dify.webp)
+_Dify gives technical builders granular control over document chunking, hybrid search, rerankers, and visual Chatflow graphs._
+
+### Why agencies choose Dify
+
+- **Granular RAG Ingestion Pipeline:** Unlike black-box knowledge uploads, Dify lets you tune parent-child chunking, cleaning rules, embedding models, vector stores (Qdrant, Weaviate, Milvus, PGVector), and rerankers, with live retrieval hit-testing.
+- **Chatflows, Workflows, and Instant REST APIs:** Every visual graph can include Python or JavaScript code blocks, iterators, and MCP plugins, and automatically publishes both an embeddable web widget and a documented REST API endpoint.
+
+### Pricing and licensing caveats
+
+- **Self-Hosted Community Edition ($0):** Deployable via Docker Compose under the **Dify Open Source License** (a Modified Apache 2.0 license that prohibits offering multi-tenant commercial hosting or stripping Dify branding in specific commercial deployments without a commercial license from LangGenius).
+- **Dify Cloud:** On [Dify's cloud plans](https://dify.ai/pricing), **Sandbox** is **$0** (200 OpenAI calls, 1 seat); **Professional** is **$59/workspace/month** (3 seats, 50 apps, 5,000 message credits); **Team** is **$159/workspace/month** (50 seats).
+
+### Pros and cons
+
+- **Pros:** Best-in-class visual RAG chunking and reranking controls; instant REST API and web app templates; free single-tenant Docker self-hosting.
+- **Cons:** Multi-tenant commercial restrictions in the Dify Open Source License; cloud plans cap apps and vector storage; lacks a full Linux coworker sandbox or native Slack/Telegram coworker workspace out of the box.
+
+## 5. Relevance AI: best low-code builder for multi-agent GTM and BDR workforces
+
+For revenue operations and outbound sales agencies building automated account research, CRM enrichment, and BDR follow-up sequences, [Relevance AI](https://relevanceai.com/) focuses specifically on multi-agent GTM workforces. (See our full guide to the [best Relevance AI alternatives](/blog/best-relevance-ai-alternatives) for a deeper breakdown.)
+
+![Relevance AI Workforce canvas showing multi-agent handoffs and custom GTM tools](/blog/best-low-code-ai-agent-builders/relevance-ai.webp)
+_Relevance AI separates deterministic step Tools from autonomous Agents and connects them on a visual Workforce canvas._
+
+### Why agencies choose Relevance AI
+
+- **Tools -> Agents -> Workforce Hierarchy:** Builders create deterministic step **Tools** (combining web scrapers, LLM prompts, and Python/JS transformation blocks), assign those tools to specialized **Agents**, and wire multi-agent delegation rules on the visual **Workforce** canvas.
+- **Deep Revenue Stack Templates:** Prebuilt connectors and templates for HubSpot, Salesforce, Apollo, LinkedIn research, and personalized outbound sequences.
+
+### Pricing and agency seat watchouts
+
+- **Strict Builder Seat & Project Caps on Pro:** On [Relevance AI's pricing](https://relevanceai.com/pricing), the **Pro** tier starts at **$19/month billed annually** ($29 monthly) with 7,000 Actions, but caps the workspace at **2 Build Users and 1 project**. An agency managing multiple client projects or adding a third builder must jump to the **Team** plan at **$234/month billed annually** ($349 monthly for 5 Build Users and 5 projects).
+- **Two-Meter Billing (Actions + Vendor Credits):** Under [Relevance AI's two-meter billing model](https://relevanceai.com/docs/get-started/relevance-pricing), supplying a client's own LLM API key skips Vendor Credits, but **every agent and tool step still consumes Actions** (with top-ups priced at $80 per 1,000 Actions).
+
+### Pros and cons
+
+- **Pros:** Purpose-built visual multi-agent handoff canvas for GTM and BDR teams; strong CRM and enrichment primitives.
+- **Cons:** Proprietary cloud-only SaaS; 1-project and 2-builder limit on Pro forces agencies onto the $234 to $349/month Team tier quickly; BYOK still burns Actions on every step.
+
+## 6. Pickaxe: best no-code builder for monetized client portals and storefronts
+
+While most low-code builders focus on backend workflows or internal Slack coworkers, [Pickaxe](https://pickaxe.co/) is built specifically for consultants, coaches, and solo agencies that want to wrap prompts and knowledge bases into a **branded web portal ("Studio" / "Workspace")** and charge end users via Stripe.
+
+![Pickaxe studio and no-code AI agent storefront builder](/blog/best-low-code-ai-agent-builders/pickaxe.webp)
+_Pickaxe lets consultants package prompt-based agents into branded web Studios with built-in Stripe subscriptions and usage tiers._
+
+### Why consultants and solo agencies choose Pickaxe
+
+- **Built-in Client Monetization and User Management:** Pickaxe lets you group multiple prompt- and knowledge-backed agents into a custom-domain web Workspace with user login, usage limits, and Stripe subscription or one-time checkout baked in.
+- **Low-Code Action Blocks:** Beyond document uploads and prompt instructions, builders can attach custom **Actions** (written in Python or connected to external webhooks/MCP endpoints) so a chatbot or form tool can trigger external APIs.
+
+### Pricing and revenue-share caveats
+
+- **Platform Subscription + 8% to 10% Payment Processing Cut:** On [Pickaxe's pricing page](https://pickaxe.co/pricing), **Gold** costs **$29/month billed annually** ($37 monthly, up to 3 Workspaces, 3 actions per agent, $15/month in credits) and charges a **10% platform processing fee** on monetized client payments (on top of Stripe fees). **Pro** costs **$116/month billed annually** ($147 monthly, unlimited Workspaces, $50/month in credits) and charges an **8% processing fee**. **Business** starts at **$597/month** with a 6-month minimum commitment.
+
+### Pros and cons
+
+- **Pros:** Fastest way for a solo consultant to launch a paywalled, white-labeled AI web portal with Stripe billing and user authentication out of the box.
+- **Cons:** Closed-source cloud platform; 8% to 10% revenue share on monetized portals plus credit metering; shallow orchestration and sandbox capabilities compared to full agent platforms like Agenta or workflow engines like n8n.
+
+## 7. Activepieces: best MIT-licensed flow builder with TypeScript steps
+
+[Activepieces](https://www.activepieces.com/) is an open-source, Zapier-style workflow and AI agent builder that gives budget-conscious agencies an **MIT-licensed** alternative to n8n and Make.
+
+![Activepieces clean step-by-step no-code workflow builder with AI and human approval steps](/blog/best-low-code-ai-agent-builders/activepieces.webp)
+_Activepieces combines a clean linear flow builder for non-technical clients with TypeScript extensibility and MIT self-hosting._
+
+### Why agencies choose Activepieces
+
+- **MIT-Licensed Self-Hosting with Unlimited Tasks:** Unlike n8n's Sustainable Use License, Activepieces' **Community Edition** is released under the permissive **MIT License**, allowing agencies to self-host via Docker with unlimited tasks and no per-execution fees.
+- **TypeScript Pieces and 1-Credit BYOK on Cloud:** Every integration ("Piece") is a typed TypeScript npm package that developers can extend in a standard IDE. On [Activepieces Cloud](https://www.activepieces.com/pricing), the **Plus** plan (**$20/month** for 10,000 credits) lets you plug in your own OpenAI or Anthropic API keys so AI steps cost just **1 standard step credit** with zero percentage markup.
+- **Built-in Tables and Human Approval (`Todos`):** Includes native lightweight **Tables** and human-in-the-loop approval steps so client stakeholders can review AI drafts before they ship.
+
+### Pros and cons
+
+- **Pros:** Permissive MIT License on the Community Edition; super clean UI that non-technical clients can understand immediately; $20/month cloud tier with 1-credit BYOK AI steps.
+- **Cons:** Designed for linear and branching step flows rather than open-ended conversational coworkers with a full Linux terminal, git repo access, and persistent file storage.
+
+## 8. Make: best visual scenario router across 3,000+ SaaS integrations
+
+When an agency client uses niche e-commerce, accounting, ERP, or regional marketing tools that newer AI builders do not integrate with natively, [Make](https://www.make.com/) provides over **3,000 prebuilt SaaS connectors** on a visual scenario canvas.
+
+![Make visual scenario builder connecting SaaS modules and routers](/blog/best-low-code-ai-agent-builders/make.webp)
+_Make connects 3,000+ SaaS applications with visual routers, iterators, error handlers, and Make AI Agents._
+
+### Why agencies choose Make
+
+- **Massive Connector Catalog + Make AI Agents:** Make covers thousands of long-tail business apps out of the box and now includes **Make AI Agents** and MCP support so an LLM can choose which sub-scenarios to invoke dynamically.
+- **Predictable 1-Credit-Per-Module Billing with BYOK:** Under [Make's credit model](https://help.make.com/credits) and [pricing tiers](https://www.make.com/en/pricing), each standard module action consumes **1 Make credit**. When an agency connects a client's own OpenAI or Anthropic key inside Make's standard app modules, each LLM call costs just 1 Make credit, with a permanent **Free** tier (1,000 credits/month) and **Core** starting at **$9/month billed annually** (10,000 credits/month).
+
+### Pros and cons
+
+- **Pros:** Unmatched 3,000+ connector library; $9/month entry point makes it easy for clients to own their own Make subscription directly; visual payload inspection.
+- **Cons:** Proprietary cloud-only SaaS with no self-hosting; complex looping scenarios burn 1 credit per module per item; lacks a persistent code sandbox or team coworker chat workspace.
+
+## 9. Lindy: best assistant builder for inbox, calendar, and meeting workflows
+
+If an agency or executive operations team specializes in automating email triage, calendar scheduling, meeting notes, and inbound/outbound phone calls for founders and sales reps, [Lindy](https://www.lindy.ai/) focuses on ready-made personal and team assistants ("Lindies").
+
+![Lindy interface for configuring automated business, inbox, and meeting assistants](/blog/best-low-code-ai-agent-builders/lindy.webp)
+_Lindy ships prebuilt assistant templates for Gmail triage, calendar scheduling, meeting recording, and voice calls._
+
+### Why teams choose Lindy
+
+- **Template-Driven Inbox and Meeting Automation:** Connect Gmail, Outlook, Google Calendar, Slack, and HubSpot via OAuth, pick a template, and Lindy handles trigger polling, meeting-bot recording on Zoom/Google Meet, and follow-up drafts.
+- **Built-in Voice Agents:** Supports inbound and outbound AI phone calls billed from your monthly credit pool.
+
+### Pricing and agency watchouts
+
+- **Per-Seat Subscription Pricing:** On [Lindy's pricing page](https://www.lindy.ai/pricing), **Plus** costs **$29.99/user/month billed annually** ($39.99 monthly, 3,000 credits) and **Pro** costs **$49.99/user/month billed annually** ($59.99 monthly, 5,000 credits) after a 7-day trial. Because pricing scales per user seat and offers no self-hosted or BYOK option, rolling Lindy out across a 15-person client team gets expensive quickly.
+
+### Pros and cons
+
+- **Pros:** Polished non-technical UX for email, calendar, meeting notes, and voice calls; fast template deployment.
+- **Cons:** Per-seat pricing ($29.99 to $59.99/user/month); closed-source cloud SaaS with no BYOK or Linux code sandbox; limited extensibility for custom engineering workflows.
+
+## 10. Langflow: best free visual Python and MCP graph builder for engineers
+
+[Langflow](https://www.langflow.org/) (backed by DataStax and IBM) is a **100% free, MIT-licensed** visual IDE where every node on the canvas is an editable Python component.
+
+![Langflow visual Python component canvas for agents and MCP tools](/blog/best-low-code-ai-agent-builders/langflow.webp)
+_Langflow lets technical builders inspect and edit the underlying Python class inside every visual node and publish flows as MCP servers._
+
+### Why technical agencies choose Langflow
+
+- **Zero "No-Code Cliff":** In most visual builders, hitting an unsupported edge case means rewriting the entire workflow in code outside the platform. In Langflow, you click the `Code` button on any component node, edit its Python class directly, import any PyPI package, and keep the visual DAG intact.
+- **Native MCP Client and Server:** Every Langflow flow can consume external Model Context Protocol (MCP) tools and expose itself as an MCP server or REST API endpoint.
+- **$0 Forever under the MIT License:** Run [Langflow Desktop](https://www.langflow.org/desktop) locally or deploy the Docker container on any cloud server with zero platform subscription fees, zero seat limits, and zero credit markups.
+
+### Pros and cons
+
+- **Pros:** Completely free MIT open source; every node is editable Python; native MCP client and server support.
+- **Cons:** No managed multi-user business workspace, Slack/Telegram coworker deployment, or managed OAuth credential vault out of the box; agencies must supply their own hosting, authentication, and client UI wrapper.
+
+## Agency economics, licensing, and client handoff comparison
+
+Before standardizing your agency or operations team on one builder, check how each platform handles the four operational details that determine long-term margin: **seat and project limits**, **BYOK surcharges**, **file persistence**, and **commercial hosting rights**.
+
+![How agencies choose a low-code AI agent builder by client handoff and license](/blog/best-low-code-ai-agent-builders/agency-client-handoff-and-licensing-map.webp)
+
+| Platform         | Entry paid tier seat & project caps                                                                     | What happens with a client's API key (BYOK)                                        | Sandbox & file persistence                                                                                 | Commercial client-hosting rights                                                                                                          |
+| :--------------- | :------------------------------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agenta**       | Starter ($29/mo): **Unlimited seats**, up to 10 projects (Plus $99/mo: unlimited projects)              | **$0 model credit markup** on BYOK or personal Claude/ChatGPT subscription logins  | Isolated Linux sandbox (**Claude Code, Codex, Pi**) + **persistent shared agent files** (no 14-day expiry) | **MIT License** allows unrestricted self-hosting on agency or client servers                                                              |
+| **n8n**          | Cloud Starter (EUR 20/mo annual): **Unlimited users**, 2,500 executions                                 | **$0 LLM markup**; full workflow run counts as 1 execution                         | Inline JS/Python `Code` nodes (Preview Agent KB needs external Daytona setup)                              | **Sustainable Use License** allows single-client internal self-hosting, prohibits multi-tenant commercial SaaS without Enterprise license |
+| **Gumloop**      | Pro ($37/mo): **Unlimited seats**, 20,000 credits, 5 concurrent runs                                    | Removes token credits, but keeps tool/VM credits + **8% to 16% orchestration fee** | Per-session Python/shell VM; shared workspace files **auto-delete after 14 days of inactivity**            | Proprietary cloud SaaS (client must own a Gumloop workspace or share yours)                                                               |
+| **Dify**         | Cloud Professional ($59/mo): **3 seats**, 50 apps                                                       | **$0 markup** on self-hosted; Cloud plans deduct message credits                   | Sandboxed Python/JS transformation blocks + vector storage                                                 | **Dify Open Source License** permits single-tenant client installs; restricts multi-tenant commercial hosting                             |
+| **Relevance AI** | Pro ($19/mo annual): Capped at **2 Build Users & 1 project** (Team $234/mo annual: 5 seats, 5 projects) | Skips Vendor Credits, but **every step still deducts Actions**                     | Cloud Python/JS transformation steps + Knowledge Tables                                                    | Proprietary cloud SaaS                                                                                                                    |
+| **Pickaxe**      | Gold ($29/mo annual): **3 Workspaces**, 1 collaborator/Workspace                                        | Uses Pickaxe credit system ($1 credit = $1 AI usage)                               | Custom Python Action snippets (no persistent Linux sandbox)                                                | Built for commercial resale via branded Studios, with an **8% to 10% Pickaxe payment cut**                                                |
+| **Activepieces** | Cloud Plus ($20/mo): **10 active flows**, 10,000 credits                                                | Drops AI steps to **1 standard step credit** ($0 on self-hosted)                   | TypeScript Piece & code step runner + built-in relational Tables                                           | **MIT License** (Community Edition) permits unrestricted self-hosting                                                                     |
+| **Make**         | Core ($9/mo annual): Unlimited active scenarios, 10,000 credits                                         | Costs **1 Make credit per module step** with no percentage fee                     | Short cloud JS steps on Enterprise/custom apps                                                             | Proprietary cloud SaaS (agencies typically set up a dedicated client Make account)                                                        |
+| **Lindy**        | Plus ($29.99/user/mo annual): **Billed per user seat**                                                  | No BYOK; all runs draw from pooled seat credits                                    | No user-accessible code sandbox                                                                            | Proprietary cloud SaaS                                                                                                                    |
+| **Langflow**     | **$0 forever** (no seat or project caps)                                                                | **$0 platform markup**                                                             | Direct Python execution inside your container/server                                                       | **MIT License** permits unrestricted embedding and client hosting                                                                         |
+
+## How to choose the right low-code stack for your agency or team
+
+The highest-margin AI agencies and internal platform teams rarely force every workflow into a single tool. Instead, they pair two complementary layers based on how humans interact with the work:
+
+1. **Use [Agenta](https://agenta.ai/) for interactive AI coworkers, research, content, and code-assisted delivery:** Whenever an agent needs to collaborate with humans in **Slack**, **Telegram**, **WhatsApp**, or an **embedded website chat widget** (`Publish > Embed`), maintain **persistent shared agent files** across weeks of work, execute real scripts and CLI tools inside an isolated Linux sandbox (with **Claude Code**, **Codex**, or **Pi**), and evolve through plain-language instructions and **reusable skills**, run it on Agenta. You can start on Agenta Cloud for $0 (or $29/month with unlimited seats) or self-host the MIT-licensed stack on your own or your client's infrastructure.
+2. **Use [n8n](https://n8n.io/) or [Activepieces](https://www.activepieces.com/) for silent, high-frequency webhook pipes:** When a workflow has zero human conversation and simply moves a Stripe webhook payload into HubSpot and QuickBooks 5,000 times a day, wire it on a deterministic flow canvas and let your Agenta coworker trigger or inspect those pipelines when exceptions occur.
+
+If you are comparing broader agent infrastructure for your team, check out our guides to the [best open-source AI agent platforms](/blog/best-open-source-ai-agent-platforms), [AI coworker platforms for business](/blog/ai-coworker-platforms-for-business), and [how to start an AI transformation](/blog/how-to-start-ai-transformation).
+
+## Frequently asked questions
+
+### What is the best low-code AI agent builder for agencies in 2026?
+
+Agenta is the best overall low-code AI agent builder for agencies and delivery teams that want to configure shared AI coworkers in plain language, package repeatable procedures into reusable skills, run real code inside isolated Linux sandboxes (with Claude Code, Codex, or Pi), and deliver agents in Slack, Telegram, WhatsApp, or an embeddable website chat widget under the permissive MIT License. For deterministic webhook-to-CRM pipelines, n8n and Activepieces are the strongest workflow-canvas choices.
+
+### What is the difference between a no-code and a low-code AI agent builder?
+
+A pure no-code AI agent builder restricts you to prebuilt form fields, prompt templates, or rigid drag-and-drop connectors, which breaks as soon as a client workflow needs custom data cleaning, an unsupported API call, or file processing. A low-code AI agent builder pairs fast plain-language or visual setup with a real code escape hatch, such as an isolated Linux sandbox with Python and bash or inline JavaScript, Python, and TypeScript execution steps.
+
+### Which low-code AI agent builders allow commercial client hosting and white-labeling?
+
+Agenta, Activepieces (Community Edition), and Langflow are released under the permissive MIT License, allowing agencies to self-host on their own servers or inside a client's private cloud without commercial redistribution restrictions. By contrast, n8n uses the Sustainable Use License (which prohibits hosting n8n as a managed commercial service for clients without an enterprise license) and Dify's open-source license restricts multi-tenant commercial hosting without permission.
+
+### How do I embed a low-code AI agent on a client's website or internal portal?
+
+In Agenta, you open Publish > Embed to generate an iframe, floating chat widget, or React embed (@agenta/embed-react) with domain allowlists, custom theme colors, per-user conversation isolation via visitorKey, and live page context passed through agenta:init and agenta:context. Pickaxe and Dify also provide hosted web embeds and branded portals, while n8n offers an embeddable chat trigger widget for webhook workflows.
+
+### What happens when an agency plugs in a client's own OpenAI or Anthropic API key (BYOK)?
+
+Billing behavior varies sharply by platform. Agenta, n8n, and Langflow add zero platform markup on your own model API keys. Activepieces drops AI steps to 1 standard step credit on its $20/month Plus plan, and Make charges 1 module credit per step. Gumloop still charges tool-call credits, 5 credits per active VM minute, and an 8% to 16% orchestration fee even with BYOK, while Relevance AI skips Vendor Credits but still deducts Actions on every step.
+
+### Which low-code AI agent builder is best between Agenta, n8n, and Gumloop?
+
+Choose Agenta when you want conversational AI coworkers that combine plain-language instructions, reusable skills, permanent shared agent files, and coding agent harnesses (Claude Code, Codex, and Pi) inside Slack, Telegram, or web embeds. Choose n8n when you need deterministic node-and-wire API pipelines with flat per-execution billing. Choose Gumloop when your team wants a cloud-only combination of browser-scraping flows and a four-tab agent builder and does not mind credit-metered VM billing.
