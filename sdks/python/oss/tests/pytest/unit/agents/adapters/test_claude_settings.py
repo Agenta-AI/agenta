@@ -78,6 +78,21 @@ def test_content_is_json_dumps_indent_2():
     )
 
 
+def test_ask_policy_requires_approval_for_bash():
+    files = build_claude_settings_files(None, permission_default="ask")
+    assert _settings(files)["permissions"] == {"ask": ["Bash"]}
+
+
+def test_ask_policy_overrides_authored_bash_allow():
+    files = build_claude_settings_files(
+        {"allow": ["Read", "Bash(npm run:*)"]}, permission_default="ask"
+    )
+    assert _settings(files)["permissions"] == {
+        "allow": ["Read"],
+        "ask": ["Bash"],
+    }
+
+
 def test_network_off_denies_web_tools():
     files = build_claude_settings_files(
         None, SandboxPermission(network={"mode": "off"})
@@ -335,7 +350,7 @@ def test_unset_tool_renders_no_rule():
         ("allow_reads", False, None, None),
         ("allow_reads", None, None, None),
         ("allow", None, "allow", _rule("tool")),
-        ("ask", True, None, None),
+        ("ask", True, "ask", "Bash"),
         ("deny", True, "deny", _rule("tool")),
     ],
 )

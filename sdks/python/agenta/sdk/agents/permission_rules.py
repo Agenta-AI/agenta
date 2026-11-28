@@ -36,7 +36,14 @@ def parse_author_permissions(slice_: Any) -> Dict[str, Any]:
     return out
 
 
-def wire_author_permission_rules(slice_: Any) -> List[PermissionRule]:
+def is_bash_rule(pattern: str) -> bool:
+    """Whether a Claude permission rule targets the Bash builtin."""
+    return pattern == "Bash" or pattern.startswith("Bash(")
+
+
+def wire_author_permission_rules(
+    slice_: Any, permission_default: str = "allow_reads"
+) -> List[PermissionRule]:
     """Build runner permission rules from authored builtin lists, excluding MCP rules.
 
     ``mcp__`` patterns are still rendered into Claude settings; on the runner wire they would
@@ -47,6 +54,12 @@ def wire_author_permission_rules(slice_: Any) -> List[PermissionRule]:
     for permission in ("deny", "ask", "allow"):
         for pattern in author[permission]:
             if pattern.startswith("mcp__"):
+                continue
+            if (
+                permission_default == "ask"
+                and permission == "allow"
+                and is_bash_rule(pattern)
+            ):
                 continue
             rules.append({"pattern": pattern, "permission": permission})
     return rules
