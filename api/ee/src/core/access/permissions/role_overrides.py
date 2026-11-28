@@ -3,7 +3,7 @@
 Parses and applies `AGENTA_ACCESS_ROLES` / `AGENTA_ACCESS_ROLES_OVERLAY` on top
 of the OSS code-default role catalog. Invoked from
 `oss.src.core.access.permissions.controls.build_role_controls()` via a
-function-local `is_ee()`-guarded import.
+function-local import.
 
 The default-catalog builders and the minima contract live in OSS
 (`oss.src.core.access.permissions.controls`); this module only adds the
@@ -283,7 +283,7 @@ def _apply_roles_overlay(
 
 
 # ---------------------------------------------------------------------------
-# Entry point (called from OSS build_role_controls under is_ee())
+# Entry point (called from OSS build_role_controls)
 # ---------------------------------------------------------------------------
 
 

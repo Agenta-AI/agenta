@@ -49,7 +49,10 @@ def harness(monkeypatch):
     monkeypatch.setattr(worker_queues, "DiscordSocketLoop", _FakeLoop)
     monkeypatch.setattr(worker_queues, "warn_deprecated_env_vars", lambda: None)
     monkeypatch.setattr(worker_queues, "validate_required_env_vars", lambda: None)
-    monkeypatch.setattr(worker_queues, "is_ee", lambda: False)
+    monkeypatch.setattr(
+        "ee.src.core.licenses.cloud.validate_cloud_license", lambda: None
+    )
+    monkeypatch.setattr(worker_queues, "bootstrap_entitlements_services", lambda: None)
     monkeypatch.setattr(worker_queues, "bootstrap_access", lambda: None)
     monkeypatch.setattr(worker_queues.heartbeat, "ticker", _idle_ticker)
     return service

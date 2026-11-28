@@ -82,28 +82,25 @@ from oss.src.tasks.asyncio.sessions.live_relay_worker import LiveRelayWorker
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
 from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
-from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.server_tracing import setup_server_tracing
 
-# Guard EE imports so an OSS build needn't import the ee.* package.
-if is_ee():
-    from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
-    from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
-    from ee.src.core.wallets.service import WalletsService
-    from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
-    from ee.src.dbs.postgres.wallets.dao import WalletsDAO
-    from ee.src.dbs.redis.wallets.streams import RedisDebitPublisher
-    from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
-    from ee.src.tasks.asyncio.wallets.worker import DebitWorker
+from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
+from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
+from ee.src.core.wallets.service import WalletsService
+from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
+from ee.src.dbs.postgres.wallets.dao import WalletsDAO
+from ee.src.dbs.redis.wallets.streams import RedisDebitPublisher
+from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
+from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 
 log = get_module_logger(__name__)
 
 setup_server_tracing("agenta-worker-streams")
 
-WALLET_STREAMS_ENABLED = is_ee() and env.wallets.enabled
+WALLET_STREAMS_ENABLED = env.wallets.enabled
 
 ALL_STREAMS = ("records", "events", "spans", "sessions") + (
     ("measurements", "debits") if WALLET_STREAMS_ENABLED else ()
@@ -291,13 +288,12 @@ async def main_async() -> int:
         warn_deprecated_env_vars()
         validate_required_env_vars()
 
-        if is_ee():
-            from ee.src.core.licenses.cloud import (  # noqa: PLC0415
-                validate_cloud_license,
-            )
+        from ee.src.core.licenses.cloud import (  # noqa: PLC0415
+            validate_cloud_license,
+        )
 
-            validate_cloud_license()
-            bootstrap_entitlements_services()
+        validate_cloud_license()
+        bootstrap_entitlements_services()
 
         bootstrap_access()
 

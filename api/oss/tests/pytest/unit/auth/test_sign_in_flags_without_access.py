@@ -25,7 +25,6 @@ STORED = {
 
 
 def _service(monkeypatch, *, entitled: bool, stored=STORED) -> AuthService:
-    monkeypatch.setattr(auth_service_module, "is_ee", lambda: True)
     # The operator turned on social sign-in after the organization was created.
     monkeypatch.setattr(
         auth_service_module,

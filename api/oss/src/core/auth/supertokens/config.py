@@ -30,7 +30,6 @@ from supertokens_python.recipe.session import (
 )
 
 from oss.src.utils.env import env
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.validators import (
     validate_user_email_or_username,
@@ -414,21 +413,20 @@ def init_supertokens():
         ]
         log.info("✓ OIDC providers enabled: %s", ", ".join(enabled_providers))
 
-    # Initialize thirdparty recipe if we have static providers OR if EE is enabled
-    if oidc_providers or is_ee():
-        recipe_list.append(
-            thirdparty.init(
-                sign_in_and_up_feature=thirdparty.SignInAndUpFeature(
-                    providers=oidc_providers
-                ),
-                override=ThirdPartyInputOverrideConfig(
-                    apis=override_thirdparty_apis,
-                    functions=override_thirdparty_functions,
-                ),
-            )
+    # The thirdparty recipe always runs: static providers and dynamic OIDC (EE) use it.
+    recipe_list.append(
+        thirdparty.init(
+            sign_in_and_up_feature=thirdparty.SignInAndUpFeature(
+                providers=oidc_providers
+            ),
+            override=ThirdPartyInputOverrideConfig(
+                apis=override_thirdparty_apis,
+                functions=override_thirdparty_functions,
+            ),
         )
-        if is_ee() and not oidc_providers:
-            log.info("✓ Third-party recipe enabled for dynamic OIDC (EE)")
+    )
+    if not oidc_providers:
+        log.info("✓ Third-party recipe enabled for dynamic OIDC (EE)")
 
     # Sessions always required if auth is enabled
     recipe_list.append(

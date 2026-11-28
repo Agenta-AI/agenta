@@ -5,7 +5,6 @@ import httpx
 from supertokens_python.framework.request import BaseRequest
 
 from oss.src.utils.exceptions import UnauthorizedException
-from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -18,7 +17,7 @@ _turnstile_disabled_reason_logged = False
 
 
 def is_turnstile_enabled() -> bool:
-    return is_ee() and env.cloudflare.turnstile.enabled
+    return env.cloudflare.turnstile.enabled
 
 
 def _normalize_ip(value: str) -> str | None:
@@ -71,9 +70,6 @@ def _normalize_hostname(hostname: str | None) -> str:
 
 
 def _get_turnstile_disabled_reason() -> str | None:
-    if not is_ee():
-        return "not_ee"
-
     if not env.cloudflare.turnstile.enabled:
         return "missing_keys"
 

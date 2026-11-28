@@ -33,11 +33,8 @@ def test_instance_kind(monkeypatch, web_url, ci, kind):
     assert instances_service.get_instance_kind() == kind
 
 
-@pytest.mark.parametrize(("ee", "edition"), [(True, "ee"), (False, "oss")])
-def test_edition(monkeypatch, ee, edition):
-    monkeypatch.setattr(instances_service, "is_ee", lambda: ee)
-
-    assert instances_service.get_edition() == edition
+def test_edition_is_ee_in_every_image():
+    assert instances_service.get_edition() == "ee"
 
 
 @pytest.mark.asyncio

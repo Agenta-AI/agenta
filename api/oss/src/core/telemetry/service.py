@@ -14,7 +14,6 @@ from oss.src.core.instances.service import (
 )
 from oss.src.core.telemetry.dtos import InstanceTelemetry, TelemetryStatus
 from oss.src.core.telemetry.runtime import InstanceStarted, collect_runtime_facts
-from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -50,11 +49,7 @@ _LIBRARY_PROPERTIES = (
 
 
 async def active_license() -> Optional[Any]:
-    """The EE license key in force, or None on OSS and on an EE image without the
-    license module. The license service caches it, so most calls read no database row."""
-
-    if not is_ee():
-        return None
+    """The EE license key in force, or None when the license module is absent. The license service caches it, so most calls read no database row."""
 
     try:
         from ee.src.core.licenses.service import (  # noqa: PLC0415

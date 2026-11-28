@@ -7,15 +7,13 @@ from fastapi.responses import RedirectResponse
 from supertokens_python.recipe.session.asyncio import get_session
 from supertokens_python.asyncio import get_user as get_supertokens_user_by_id
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.apis.fastapi.auth.models import DiscoverRequest, DiscoverResponse
 from oss.src.core.auth.service import AuthService
 from oss.src.services import db_manager
 
-if is_ee():
-    from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
+from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
 
 
 auth_router = APIRouter()
@@ -159,12 +157,6 @@ async def sso_callback_redirect(
     3. Call our sign_in_up override (creates user_identity, adds user_identities to session)
     4. Redirect to frontend with session cookie
     """
-    if not is_ee():
-        raise HTTPException(
-            status_code=404,
-            detail="SSO/OIDC is only available in EE",
-        )
-
     try:
         # Validate organization exists
         organization = await db_manager.get_organization_by_slug(organization_slug)

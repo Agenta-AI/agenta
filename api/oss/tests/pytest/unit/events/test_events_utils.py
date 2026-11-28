@@ -770,7 +770,6 @@ async def test_l1_quota_soft_check_drops_when_over_quota():
             "oss.src.core.events.utils.publish_event",
             new=_captured_publishes(captured),
         ),
-        patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
             "ee.src.core.access.entitlements.service.check_entitlements",
             new=_fake_check,
@@ -803,7 +802,6 @@ async def test_l1_quota_soft_check_allows_under_quota():
             "oss.src.core.events.utils.publish_event",
             new=_captured_publishes(captured),
         ),
-        patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
             "ee.src.core.access.entitlements.service.check_entitlements",
             new=_fake_check,
@@ -836,7 +834,6 @@ async def test_l1_quota_soft_check_fails_open_on_exception():
             "oss.src.core.events.utils.publish_event",
             new=_captured_publishes(captured),
         ),
-        patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
             "ee.src.core.access.entitlements.service.check_entitlements",
             new=_fake_check,
@@ -872,7 +869,6 @@ async def test_l1_quota_soft_check_skipped_when_org_unknown():
             "oss.src.core.events.utils.publish_event",
             new=_captured_publishes(captured),
         ),
-        patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
             "ee.src.core.access.entitlements.service.check_entitlements",
             new=_fake_check,
@@ -891,39 +887,3 @@ async def test_l1_quota_soft_check_skipped_when_org_unknown():
         )
     assert len(captured) == 1
     assert calls == []  # L1 was not invoked
-
-
-@pytest.mark.asyncio
-async def test_l1_quota_soft_check_skipped_on_oss():
-    """OSS (is_ee()=False) → skip L1 entirely."""
-    captured: List[dict] = []
-    calls: List[dict] = []
-
-    async def _fake_check(**kwargs):
-        calls.append(kwargs)
-        return True, None, None
-
-    with (
-        patch(
-            "oss.src.core.events.utils.publish_event",
-            new=_captured_publishes(captured),
-        ),
-        patch("oss.src.core.events.utils.is_ee", return_value=False),
-        patch(
-            "ee.src.core.access.entitlements.service.check_entitlements",
-            new=_fake_check,
-            create=True,
-        ),
-        patch(
-            "ee.src.core.access.entitlements.service.scope_from",
-            new=lambda **kw: kw,
-            create=True,
-        ),
-    ):
-        await publish_trace_fetched(
-            request=_make_request(),
-            count=1,
-            trace_id="abc",
-        )
-    assert len(captured) == 1
-    assert calls == []

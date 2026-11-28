@@ -26,7 +26,6 @@ from oss.src.utils.context import (
     reset_auth_context,
 )
 
-from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
 from oss.src.services import api_key_service
 from oss.src.utils.exceptions import (
@@ -1416,9 +1415,7 @@ async def verify_apikey_token(
         user_email = api_key_obj.user.email
         project_id = str(api_key_obj.project_id)
         organization_id = str(apikey_project_db.organization_id)
-        organization_name = None
-        if is_ee():
-            organization_name = apikey_project_db.organization.name
+        organization_name = apikey_project_db.organization.name
 
         # After the `user.email` read above, so a key whose creator is not a user
         # keeps failing at the same place as before, with nothing cached.
@@ -1800,9 +1797,6 @@ async def _check_organization_policy(request: Request):
     - Admin endpoints (using ACCESS_TOKEN)
     - Invitation-related routes to allow users to accept invitations
     """
-    if not is_ee():
-        return
-
     if hasattr(request.state, "admin") and request.state.admin:
         return
 

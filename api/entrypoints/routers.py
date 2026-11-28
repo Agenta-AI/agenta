@@ -17,7 +17,6 @@ from oss.src.core.sessions.commands.delivery import (
     deliver_continue_input,
     deliver_continue_interaction,
 )
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.server_tracing import instrument_fastapi, setup_server_tracing
 from oss.src.utils.helpers import (
@@ -94,7 +93,6 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
-from oss.src.core.secrets.limits import NoProjectLimits
 from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
@@ -368,14 +366,12 @@ _startup(f"[STARTUP] ag.init() completed (+{time.perf_counter() - _t_ag_init:.3f
 # Before the engines, brokers and HTTP sessions below exist, so they get traced too.
 setup_server_tracing("agenta-api")
 
-ee = None
 _t_before_ee = time.perf_counter()
-if is_ee():
-    _startup("[STARTUP] EE module import starting (Stripe init happens here)")
-    import ee.src.main as ee  # type: ignore
+_startup("[STARTUP] EE module import starting (Stripe init happens here)")
+import ee.src.main as ee  # type: ignore  # noqa: E402
 
-    _ee_elapsed = time.perf_counter() - _t_before_ee
-    _startup(f"[STARTUP] EE module import completed (+{_ee_elapsed:.3f}s)")
+_ee_elapsed = time.perf_counter() - _t_before_ee
+_startup(f"[STARTUP] EE module import completed (+{_ee_elapsed:.3f}s)")
 
 
 log = get_module_logger(__name__)
@@ -401,10 +397,9 @@ async def lifespan(*args, **kwargs):
     warn_deprecated_env_vars()
     validate_required_env_vars()
     validate_platform_runtime_key()
-    if is_ee():
-        from ee.src.core.licenses.cloud import validate_cloud_license  # noqa: PLC0415
+    from ee.src.core.licenses.cloud import validate_cloud_license  # noqa: PLC0415
 
-        validate_cloud_license()
+    validate_cloud_license()
 
     await log_telemetry_status()
     schedule_install_ping()
@@ -663,10 +658,9 @@ app = FastAPI(
 # placed above them would never see the handler's `support_ctx.set(...)`.
 app.add_middleware(SupportHeadersMiddleware)
 
-if is_ee():
-    from ee.src.middlewares.throttling import throttling_middleware
+from ee.src.middlewares.throttling import throttling_middleware  # noqa: E402
 
-    app.middleware("http")(throttling_middleware)
+app.middleware("http")(throttling_middleware)
 
 app.middleware("http")(auth_middleware)
 app.middleware("http")(analytics_middleware)
@@ -742,8 +736,7 @@ app.router.redirect_slashes = False
 _ROUTED_APP = app
 app.add_middleware(ApiPrefixStripMiddleware, routes=lambda: _ROUTED_APP.routes)
 
-if ee and is_ee():
-    app = ee.extend_main(app)
+app = ee.extend_main(app)
 
 instrument_fastapi(app)
 
@@ -825,14 +818,11 @@ _t_services = time.perf_counter()
 bootstrap_access()
 
 # The EE project limit of organization credentials reuses the RBAC entitlement (M5).
-if is_ee():
-    from ee.src.core.secrets.limits import EntitlementProjectLimits
+from ee.src.core.secrets.limits import EntitlementProjectLimits  # noqa: E402
 
-    _project_limits = EntitlementProjectLimits(
-        rbac_entitlement=get_access_service().rbac_entitlement
-    )
-else:
-    _project_limits = NoProjectLimits()
+_project_limits = EntitlementProjectLimits(
+    rbac_entitlement=get_access_service().rbac_entitlement
+)
 
 vault_service = VaultService(
     secrets_dao=secrets_dao,
@@ -1525,7 +1515,7 @@ mcp_secrets_resolver = SecretsResolver(
 # policy service keeps its null ports: every call admitted, no usage handed off.
 gateway_spend_admission = None
 gateway_usage_sink = None
-if ee and is_ee() and env.wallets.enabled:
+if env.wallets.enabled:
     from ee.src.core.access.entitlements.service import plan_for
     from ee.src.core.measurements.sink import MeasurementUsageSink
     from ee.src.core.wallets.admission import WalletSpendAdmission
@@ -1544,7 +1534,7 @@ if ee and is_ee() and env.wallets.enabled:
 # Managed tool actions spend Agenta's own provider accounts, so they exist only where the
 # wallet does. The only providers today are the mocks.
 managed_mcp_adapter = None
-if ee and is_ee() and env.wallets.enabled and env.mock_gateways.enabled:
+if env.wallets.enabled and env.mock_gateways.enabled:
     from oss.src.core.gateways.mcps.providers.managed.adapter import ManagedMCPAdapter
     from oss.src.core.managed_tools.limits import RedisManagedActionRateLimiter
     from oss.src.core.managed_tools.mock.actions import MOCK_ACTIONS
@@ -2507,8 +2497,7 @@ _startup(f"[STARTUP] Router initialization completed (+{_t_routers_done:.3f}s)")
 _t_mount_routers_done = time.perf_counter() - _t_mount_routers
 _startup(f"[STARTUP] Router mounting completed (+{_t_mount_routers_done:.3f}s)")
 
-if ee and is_ee():
-    app = ee.extend_app_schema(app)
+app = ee.extend_app_schema(app)
 
 _total_startup = time.perf_counter() - _startup_t0
 _startup(f"[STARTUP] module initialization completed in {_total_startup:.3f}s")

@@ -10,8 +10,7 @@ calls `build_role_controls()` once at import time.
 Custom roles are an EE feature: `AGENTA_ACCESS_ROLES` /
 `AGENTA_ACCESS_ROLES_OVERLAY` env overrides are parsed and applied in
 `ee.src.core.access.permissions.role_overrides`, invoked from
-`build_role_controls()` via a function-local `is_ee()`-guarded import. OSS always
-enforces the code-default catalog.
+`build_role_controls()` via a function-local import.
 
 Minima contract: every scope MUST expose `owner`, `admin`, `member` and `viewer` with
 code-defined permissions. EE env overrides may add roles or customize permissions
@@ -20,8 +19,6 @@ re-bound to a different permission set.
 """
 
 from typing import Any, Dict, List
-
-from oss.src.utils.common import is_ee
 
 from oss.src.core.access.permissions.types import (
     Permission,
@@ -170,22 +167,17 @@ def _default_roles() -> Dict[str, List[Dict[str, Any]]]:
 def build_role_controls() -> tuple[Dict[str, List[Dict[str, Any]]], str]:
     """Build the per-scope role catalogs.
 
-    OSS enforces the code-default catalog. In EE, `AGENTA_ACCESS_ROLES` /
-    `AGENTA_ACCESS_ROLES_OVERLAY` overrides are applied on top via a
-    function-local import of the EE override module (the sanctioned OSS→EE
-    optional-coupling pattern; a module-top `from ee...` would break OSS-only
-    deployments where the `ee` package is absent).
+    `AGENTA_ACCESS_ROLES` / `AGENTA_ACCESS_ROLES_OVERLAY` overrides are applied on
+    top of the code-default catalog via a function-local import of the EE override
+    module.
 
     Returns ``(roles, source_label)`` where ``source_label`` is a short string
     for startup logging (e.g. ``"roles=defaults roles_overlay=none"``).
     """
     roles = _default_roles()
 
-    if is_ee():
-        from ee.src.core.access.permissions.role_overrides import (  # noqa: PLC0415
-            apply_role_overrides,
-        )
+    from ee.src.core.access.permissions.role_overrides import (  # noqa: PLC0415
+        apply_role_overrides,
+    )
 
-        return apply_role_overrides(roles)
-
-    return roles, "roles=defaults roles_overlay=none"
+    return apply_role_overrides(roles)

@@ -76,17 +76,7 @@ def bootstrap_entitlements_services(
     Pass the services in when you already have them (the HTTP entrypoint
     does, since `BillingRouter` shares them). Pass `None` to let this
     function build them — useful for worker entrypoints.
-
-    No-op when EE is not enabled, so OSS-only worker entrypoints can call
-    this unconditionally without pulling EE imports into their startup
-    path beyond this one symbol.
     """
-    from oss.src.utils.common import is_ee
-
-    if not is_ee():
-        return
-
-    # Imports are EE-only; deferred so the OSS binary never executes them.
     from ee.src.dbs.postgres.meters.dao import MetersDAO
     from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 
