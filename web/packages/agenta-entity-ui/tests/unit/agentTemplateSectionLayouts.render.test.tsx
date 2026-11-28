@@ -8,6 +8,7 @@ import {
     AgentTemplateSectionList,
     type AgentTemplateSectionDescriptor,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/AgentTemplateSectionList"
+import {ConfigSectionGroupsContext} from "../../src/DrillInView/SchemaControls/agentTemplate/sectionGroups"
 
 beforeAll(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -67,5 +68,29 @@ describe("AgentTemplateSectionList layouts", () => {
         expect(section("subagents").textContent).not.toContain("None")
         expect(headerRow("skills").className).toContain("bg-info/10")
         expect(headerRow("subagents").className).not.toContain("bg-info/10")
+    })
+
+    it("page: the sections under group titles, in the order of the groups", () => {
+        act(() =>
+            root.render(
+                createElement(
+                    ConfigSectionGroupsContext.Provider,
+                    {value: true},
+                    createElement(AgentTemplateSectionList, {sections}),
+                ),
+            ),
+        )
+        const groups = [...container.querySelectorAll("section")]
+        expect(groups.map((group) => group.firstElementChild?.textContent)).toEqual([
+            "What it can use",
+            "More settings",
+        ])
+        expect(groups[0].querySelectorAll("[data-config-section]")).toHaveLength(2)
+        expect(groups[1].querySelector("[data-config-section=advanced]")).not.toBeNull()
+    })
+
+    it("pane: one flat list with no group titles", () => {
+        renderList()
+        expect(container.querySelectorAll("section")).toHaveLength(0)
     })
 })

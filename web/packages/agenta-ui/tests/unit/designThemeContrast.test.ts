@@ -54,10 +54,16 @@ describe("design theme contrast", () => {
             brand: ["#f2f25c", "#d1d151"],
             "brand-hover": ["#e7e712", "#dcdc6b"],
             link: ["#5e5e08", "#8ccfff"],
-            ring: ["#d9d92c", "#d9d92c"],
         }
         for (const [name, [light, dark]] of Object.entries(locked)) {
             expect([resolveColor(name, "light"), resolveColor(name, "dark")]).toEqual([light, dark])
         }
+    })
+
+    it("keeps focus neutral: the ring is never brand yellow", () => {
+        expect([resolveColor("ring", "light"), resolveColor("ring", "dark")]).toEqual([
+            resolveColor("border-strong", "light"),
+            resolveColor("border-strong", "dark"),
+        ])
     })
 })

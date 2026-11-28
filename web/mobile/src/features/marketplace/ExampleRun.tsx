@@ -83,7 +83,7 @@ export const ExampleRun = ({
                         >
                             <span aria-hidden className="flex flex-col items-center">
                                 <span className="box-border flex size-4 shrink-0 items-center justify-center rounded-sm border border-solid border-border bg-background text-foreground">
-                                    <CheckIcon weight="bold" className="size-2.5" />
+                                    <CheckIcon className="size-2.5" />
                                 </span>
                                 {index < example.steps.length - 1 ? (
                                     <span className="w-px flex-1 bg-border" />

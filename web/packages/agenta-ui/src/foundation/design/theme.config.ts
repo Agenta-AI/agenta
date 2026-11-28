@@ -188,8 +188,8 @@ export const colors: ThemeVariable<ColorValue>[] = [
     },
     {
         name: "ring",
-        value: {light: "#d9d92c", dark: "#d9d92c"},
-        usage: "LOCKED brand lime. Outer focus outline, always with a foreground ring inside it.",
+        value: {light: "#797773", dark: "#7c7a76"},
+        usage: "Focus. Neutral, never brand yellow: the 2px outline on a focused control (a foreground line inside it), and the 2px edge of a focused field.",
     },
     {
         name: "destructive",
@@ -405,6 +405,9 @@ export const radius: ThemeVariable[] = [
         usage: "Only for things that are round by nature: status dots, typing dots, the switch track and thumb, the radio and its dot, the slider handle.",
     },
 ]
+
+// The icon weight lives in its own small module so the app shell can import it without this file.
+export {iconWeight} from "./icons"
 
 export const sizes: ThemeVariable[] = [
     {name: "control-xs", value: "24px", usage: "Controls inside inputs and dense toolbars."},

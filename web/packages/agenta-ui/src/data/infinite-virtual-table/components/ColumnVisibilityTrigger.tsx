@@ -106,11 +106,11 @@ const ColumnVisibilityTrigger = <Row extends object>({
                 aria-label={label}
                 onClick={stopPropagation}
             >
-                <GearSix size={16} weight="bold" />
+                <GearSix size={16} />
             </Button>
         ) : (
             <Button variant="outline" onClick={stopPropagation}>
-                <GearSix size={14} weight="bold" />
+                <GearSix size={14} />
                 {label} ({visibleLeafCount})
             </Button>
         )

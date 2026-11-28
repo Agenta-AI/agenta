@@ -18,6 +18,8 @@ import {
 } from "@phosphor-icons/react"
 import clsx from "clsx"
 
+import {AgentaMark} from "./SidebarLogo"
+
 export interface SwitcherEntry {
     key: string
     name: string
@@ -217,13 +219,19 @@ export const ProjectOrgSwitcherView = ({
     const [open, setOpen] = useState(false)
     const [panel, setPanel] = useState<Panel>("projects")
     const rowRef = useRef<HTMLDivElement>(null)
+    const triggerRef = useRef<HTMLButtonElement>(null)
     const [headerWidth, setHeaderWidth] = useState<number>()
+    const [headerOffset, setHeaderOffset] = useState(0)
 
     const handleOpenChange = useCallback(
         (next: boolean) => {
-            // In the header the panel spans the rail, 8px in from each side, as the trigger is.
-            if (next && compact && !collapsed && rowRef.current)
-                setHeaderWidth(rowRef.current.offsetWidth - 16)
+            // In the header the panel spans the rail, 8px in from each side, so it starts left
+            // of the trigger, under the Agenta mark.
+            if (next && compact && !collapsed && rowRef.current && triggerRef.current) {
+                const row = rowRef.current.getBoundingClientRect()
+                setHeaderWidth(row.width - 16)
+                setHeaderOffset(row.left + 8 - triggerRef.current.getBoundingClientRect().left)
+            }
             setOpen(next)
             if (!next) setPanel("projects")
         },
@@ -353,19 +361,21 @@ export const ProjectOrgSwitcherView = ({
     const trigger = (
         <PopoverTrigger asChild>
             <button
+                ref={triggerRef}
                 type="button"
                 data-project-org-switcher
                 className={clsx(
                     // Borderless at rest; the hover fill is the affordance.
                     "flex h-row-dense cursor-pointer items-center rounded-md border-0 bg-transparent transition-colors hover:bg-accent focus-ring",
-                    // px-2 puts the Mark on the nav icons' column and the name on their text line.
                     collapsed
                         ? "w-row-dense justify-center p-0"
                         : clsx("min-w-0 gap-2 px-2", !compact && "flex-1"),
                 )}
                 title={collapsed ? undefined : `${projectLabel} · ${orgLabel}`}
             >
-                <EntryMark name={projectLabel} />
+                {/* Expanded, the Agenta mark stands outside the button; the collapsed rail keeps
+                    the project's letter tile, as it has no room for both. */}
+                {collapsed && <EntryMark name={projectLabel} />}
                 {/* One line: the org names itself on the panel's caption. */}
                 {!collapsed && (
                     <>
@@ -409,7 +419,14 @@ export const ProjectOrgSwitcherView = ({
                         <span className="inline-flex">{trigger}</span>
                     </SimpleTooltip>
                 ) : (
-                    trigger
+                    // The mark is the app's, not a control: it sits beside the trigger, and pl-2
+                    // puts it on the nav icons' column.
+                    <div className={clsx("flex min-w-0 items-center gap-1", !compact && "flex-1")}>
+                        <span className="flex shrink-0 pl-2">
+                            <AgentaMark width={20} height={20} />
+                        </span>
+                        {trigger}
+                    </div>
                 )}
                 {/* A popover, not a menu: a Radix menu swallows touch scrolling of its lists. */}
                 <PopoverContent
@@ -418,6 +435,7 @@ export const ProjectOrgSwitcherView = ({
                     side={side}
                     align="start"
                     sideOffset={side === "bottom" ? 4 : undefined}
+                    alignOffset={compact && !collapsed ? headerOffset : undefined}
                     style={compact && !collapsed ? {width: headerWidth} : undefined}
                     className={PANEL_CLASS}
                 >

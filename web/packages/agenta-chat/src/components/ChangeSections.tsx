@@ -342,7 +342,7 @@ const Item = ({
                         added ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
                     }`}
                 >
-                    {added ? <Plus size={11} weight="bold" /> : <X size={11} weight="bold" />}
+                    {added ? <Plus size={11} /> : <X size={11} />}
                 </span>
                 <SectionIcon size={14} aria-hidden className="shrink-0 text-muted-foreground" />
                 <span className="truncate text-label font-medium text-foreground">

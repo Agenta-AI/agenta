@@ -1,11 +1,10 @@
 import {useT, type CatalogKey} from "@agenta/i18n"
 import settingsPreferencesCatalog from "@agenta/i18n/catalogs/settings.preferences"
-import {isBetaDeveloperModeEnabled} from "@agenta/shared/api"
 import {clearClassicModeCookie, mobileEscapeHref} from "@agenta/shared/hooks"
 import {
     agentaChannelSurfaceEnabledAtom,
-    betaDeveloperModeFlagAtom,
     channelDebugEnabledAtom,
+    classicAppFlagAtom,
     classicModeEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "@agenta/shared/state"
@@ -19,7 +18,7 @@ import {ThemePicker, type ThemePickerProps} from "./ThemePicker"
 /** One switch on the Preferences page. The key names the row, not its storage. */
 export type PreferenceKey =
     | "classic-mode"
-    | "beta-developer-mode"
+    | "classic-app"
     | "playground-inspector"
     | "channel-debug"
     | "agenta-channel-surface"
@@ -53,9 +52,9 @@ export const PREFERENCE_SECTIONS: PreferenceSection[] = [
                 description: "settings.preferences.developerModeDescription",
             },
             {
-                key: "beta-developer-mode",
-                title: "settings.preferences.betaDeveloperMode",
-                description: "settings.preferences.betaDeveloperModeDescription",
+                key: "classic-app",
+                title: "settings.preferences.classicApp",
+                description: "settings.preferences.classicAppDescription",
             },
         ],
     },
@@ -91,16 +90,16 @@ export interface PreferenceBinding {
 export type PreferenceBindings = Partial<Record<PreferenceKey, PreferenceBinding>>
 
 /** Bound only while Developer Mode is on; every other row is always bound. */
-type ConditionalPreferenceKey = "beta-developer-mode"
+type ConditionalPreferenceKey = "classic-app"
 
 /**
  * Every row bound to its shared atom. A host replaces a binding only where its behavior differs
  * (`/m`'s Developer Mode switch also navigates to the desktop app).
  *
- * The beta developer mode row is bound only while Developer Mode is on and the deployment offers
- * it (`AGENTA_BETA_DEVELOPER_MODE`). Its default binding is the desktop's: turning it on sends the
- * user to `/m`, where Developer Mode then stays. Turning it off keeps Developer Mode on as an
- * explicit choice, so the gate cookie says "1" again.
+ * The "Use classic app" row is bound only while Developer Mode is on. Its default binding is the
+ * desktop's: turning it on keeps Developer Mode on as an explicit choice, so the gate cookie says
+ * "1" and the user stays in `/w`. Turning it off sends the user to `/m`, where Developer Mode
+ * then stays.
  */
 export const usePreferenceBindings = (): Record<
     Exclude<PreferenceKey, ConditionalPreferenceKey>,
@@ -108,7 +107,7 @@ export const usePreferenceBindings = (): Record<
 > &
     PreferenceBindings => {
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
-    const [betaDeveloperMode, setBetaDeveloperMode] = useAtom(betaDeveloperModeFlagAtom)
+    const [classicApp, setClassicApp] = useAtom(classicAppFlagAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
     const [channelDebug, setChannelDebug] = useAtom(channelDebugEnabledAtom)
     const [channelProbe, setChannelProbe] = useAtom(agentaChannelSurfaceEnabledAtom)
@@ -118,23 +117,22 @@ export const usePreferenceBindings = (): Record<
         "playground-inspector": {enabled: inspector, onChange: setInspector},
         "channel-debug": {enabled: channelDebug, onChange: setChannelDebug},
         "agenta-channel-surface": {enabled: channelProbe, onChange: setChannelProbe},
-        ...(classicMode &&
-            isBetaDeveloperModeEnabled() && {
-                "beta-developer-mode": {
-                    enabled: betaDeveloperMode,
-                    onChange: (enabled: boolean) => {
-                        setBetaDeveloperMode(enabled)
-                        if (!enabled) {
-                            setClassicMode(true)
-                            return
-                        }
-                        // Withdraw the "1" before leaving: the sync effect would not run before the
-                        // document unloads, and `/m`'s gate would send the user straight back.
-                        clearClassicModeCookie()
-                        window.location.replace(mobileEscapeHref())
-                    },
+        ...(classicMode && {
+            "classic-app": {
+                enabled: classicApp,
+                onChange: (enabled: boolean) => {
+                    setClassicApp(enabled)
+                    if (enabled) {
+                        setClassicMode(true)
+                        return
+                    }
+                    // Withdraw the "1" before leaving: the sync effect would not run before the
+                    // document unloads, and `/m`'s gate would send the user straight back.
+                    clearClassicModeCookie()
+                    window.location.replace(mobileEscapeHref())
                 },
-            }),
+            },
+        }),
     }
 }
 

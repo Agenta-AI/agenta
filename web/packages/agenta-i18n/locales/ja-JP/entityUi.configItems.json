@@ -49,5 +49,8 @@
     "countServer_other": "{{count}} 件のサーバー",
     "countSkill_other": "{{count}} 件のスキル",
     "countTool_other": "{{count}} 件のツール",
-    "removeName": "{{name}} を削除"
+    "removeName": "{{name}} を削除",
+    "groupSetup": "モデルと指示",
+    "groupUses": "使えるもの",
+    "groupMore": "その他の設定"
 }

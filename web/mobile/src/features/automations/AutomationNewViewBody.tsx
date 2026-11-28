@@ -26,8 +26,9 @@ const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => 
         defaultReferences: params.references.application?.id ? params.references : undefined,
     })
     useViewForm({
-        // An open form counts as edits: leaving it asks first.
-        dirty: true,
+        // Leaving asks only after a change; Create works on the untouched form too.
+        dirty: state.dirty,
+        saveWhenClean: true,
         valid: true,
         save: async () => {
             // Missing fields show their own errors, so the stack adds no failure line.
@@ -35,6 +36,7 @@ const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => 
             const created = await state.create()
             return created ? true : blocked ? "stay" : false
         },
+        leaveDescription: t("automations.screens.leaveMessage"),
         saveLabel: t("automations.screens.createAutomation"),
     })
     return (

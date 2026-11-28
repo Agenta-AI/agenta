@@ -71,6 +71,7 @@ The page layout and the body are separate, and each part is optional (LAYOUT-07)
 
 - `Field` around every control: the label above (forms) or on the left (settings rows), the error below.
 - One Save for the section, right-aligned. A switch that applies at once needs no Save.
+- Focus is neutral (FORM-02). A focused field gets a 2px gray `ring` edge; a control on keyboard focus gets a 2px gray `ring` outline. Brand yellow and `primary` never mark focus.
 
 ### Session
 
@@ -95,4 +96,5 @@ One title and one illustration. Everything else follows the app rules.
 - To change a value, edit `theme.config.ts` and run `pnpm --filter @agenta/ui generate:theme`. It writes the CSS and `tokens.json` (for design tools; the app does not read it).
 - To add or change a rule, edit `rules.json` and add its Do and Avoid example to the guide. The guide test fails when a rule has no example or an example has no rule.
 - Three checks run in the app's `pnpm lint`. `theme:check` fails when the generated CSS is stale, when `rules.json` is malformed, or when this file uses a word from the "Do not say" column. `design:ratchet` counts the patterns that a rule bans and fails when a count rises. ESLint bans a second icon library.
+- Icons are Phosphor at one weight: `iconWeight` in `packages/agenta-ui/src/design/icons.ts` (bold, re-exported by `theme.config.ts`), set once by the `IconContext` provider in `mobile/src/pages/_app.tsx`. Do not pass `weight` to an icon; pass `weight="fill"` only to show a state, and `undefined` for its off state (ICON-01). Bold, because at the 12 to 16px icon sizes a regular stroke is 1px or less and looks faint.
 - Old antd-era names still resolve through the legacy block in `mobile/src/styles/globals.css`, which shows the new name for each. Do not add new uses; replace them when you touch the code.

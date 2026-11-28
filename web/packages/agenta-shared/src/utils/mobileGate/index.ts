@@ -29,7 +29,7 @@ export const MOBILE_AUTH_CALLBACK_MAX_AGE = 60 * 10
 export const CLASSIC_MODE_COOKIE = "agenta-classic-mode"
 
 /**
- * Published by the desktop app while the user has beta developer mode on (`"1"`), absent
+ * Published while Developer Mode opens in `/m` (`"1"`: Developer Mode on, "Use classic app" off), absent
  * otherwise. The middleware reads only cookies, and `agenta-classic-mode` says "0" for a
  * simplified user too, whose `/m` hides the developer views. This cookie is how the gate knows
  * the developer views are there, so a `/w` developer link can go to the `/m` page that shows it.
@@ -170,7 +170,7 @@ const templateQueryFrom = (search: string): string => {
 
 export interface MobileRouteOptions {
     /**
-     * Beta developer mode is on: `/m` shows the developer views, so the `/w` pages they rebuild
+     * Developer Mode opens in `/m`: `/m` shows the developer views, so the `/w` pages they rebuild
      * map to them. Off, `/m` has none of them and every app page collapses to the agent screen.
      */
     developerViews?: boolean
@@ -208,7 +208,7 @@ const developerProjectRoute = (segments: string[]): string | null => {
 
 /**
  * `/w` app pages (`/apps/<id>/<section>`) as `/m` paths relative to the project: the same
- * `/apps/<id>/<section>` pages, which beta developer mode has. Overview and playground tell a
+ * `/apps/<id>/<section>` pages, which Developer Mode in `/m` has. Overview and playground tell a
  * prompt app from an agent themselves and send an agent to its own screen. A `switch`, not a lookup by name: `section` is user
  * input. `undefined` means the section has no view of its own; `null`, no `/m` page.
  */

@@ -210,9 +210,9 @@ export function Progress({
         if (format) {
             info = format(pct)
         } else if (effectiveStatus === "exception") {
-            info = isCircle ? <X weight="bold" /> : <XCircle weight="fill" />
+            info = isCircle ? <X /> : <XCircle weight="fill" />
         } else if (effectiveStatus === "success") {
-            info = isCircle ? <Check weight="bold" /> : <CheckCircle weight="fill" />
+            info = isCircle ? <Check /> : <CheckCircle weight="fill" />
         } else {
             info = `${pct}%`
         }

@@ -38,6 +38,7 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
     useViewForm({
         dirty: draft !== original,
         valid: !writer.readOnly,
+        leaveDescription: t("entityUi.configItems.saveOrDiscardDraft"),
         save: async () => {
             writer.update((agent) => ({
                 ...agent,

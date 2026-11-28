@@ -463,7 +463,7 @@ const ChannelRow = ({
                 )}
                 <CaretRight
                     size={phone ? 16 : 10}
-                    weight={phone ? "regular" : "fill"}
+                    weight={phone ? undefined : "fill"}
                     aria-hidden
                     className={`flex-none text-muted-foreground ${phone ? "mr-2" : "mx-1"}`}
                 />

@@ -1,6 +1,7 @@
 {
     "accountsStay": "Das eigene Konto jeder Person bleibt verbunden.",
     "appLoadError": "Diese App konnte nicht geladen werden.",
+    "connectLeaveDescription": "Änderungen speichern, um die App in diesem Projekt zu verbinden, oder verwerfen?",
     "connectionStays": "Die Verbindung bleibt im Projekt.",
     "removeFromAgent": "Vom Agenten entfernen",
     "removeTitle": "{{name}} von diesem Agenten entfernen?",

@@ -90,7 +90,7 @@ export const ArchivedAppRowCells = ({
                                 aria-label="App actions"
                                 className="relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground after:absolute after:-inset-1.5 after:content-[''] hover:bg-accent hover:text-foreground"
                             >
-                                <DotsThreeVertical size={16} weight="bold" />
+                                <DotsThreeVertical size={16} />
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-max min-w-40">

@@ -74,7 +74,7 @@ export function ComposerSendButton({
             {sending ? (
                 // The ring the rest of the chat surfaces load with, not the antd four-dot
                 // spinner: one glyph swaps for another at the same weight on the same button.
-                <CircleNotch size={16} weight="bold" className="animate-spin" />
+                <CircleNotch size={16} className="animate-spin" />
             ) : (
                 (icon ?? (
                     // The kit's icon size for the button: 14 px in the 28 px canvas button.

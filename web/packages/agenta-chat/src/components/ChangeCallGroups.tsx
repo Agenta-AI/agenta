@@ -94,7 +94,6 @@ const Row = ({block}: {block: ChangeBlock}) => {
             >
                 <CaretRight
                     size={11}
-                    weight="bold"
                     aria-hidden
                     className={`shrink-0 text-muted-foreground transition-transform ${
                         open && !phone ? "rotate-90" : ""
@@ -111,11 +110,11 @@ const Row = ({block}: {block: ChangeBlock}) => {
                     }`}
                 >
                     {mark === "added" ? (
-                        <Plus size={11} weight="bold" />
+                        <Plus size={11} />
                     ) : mark === "removed" ? (
-                        <X size={11} weight="bold" />
+                        <X size={11} />
                     ) : (
-                        <PencilSimple size={11} weight="bold" />
+                        <PencilSimple size={11} />
                     )}
                 </span>
                 <span className="shrink-0 truncate text-label font-medium text-foreground">

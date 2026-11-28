@@ -42,6 +42,7 @@
         "./editor": "./src/editor/editor/index.ts",
         "./editor-theme.css": "./src/foundation/styles/editor-theme.css",
         "./design/theme": "./src/foundation/design/theme.config.ts",
+        "./design/icons": "./src/foundation/design/icons.ts",
         "./design/contrast": "./src/foundation/design/contrast.ts",
         "./design/rules.json": "./src/foundation/design/rules.json",
         "./design/theme.css": "./src/foundation/design/theme.css",

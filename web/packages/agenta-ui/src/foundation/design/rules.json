@@ -10,9 +10,7 @@
                     "why": "Color on a large area pulls the eye away from the content.",
                     "avoid": "Gradients; large saturated fills",
                     "do": "A neutral surface; color on one small thing",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "LOUD-02",
@@ -20,9 +18,7 @@
                     "why": "Size is the last tool for hierarchy. A banner or a number larger than the title takes over the page.",
                     "avoid": "Text larger than the page title (big metrics, banners)",
                     "do": "`text-heading` at most; `text-metric` for a tile number; `text-display` only on Home, first-run hero screens, and auth and error pages",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "LOUD-03",
@@ -30,9 +26,7 @@
                     "why": "The product speaks plainly. Sentence case reads faster than capitals.",
                     "avoid": "ALL CAPS, exclamation marks, emoji",
                     "do": "Sentence case, plain words",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "LOUD-04",
@@ -40,9 +34,7 @@
                     "why": "A colored icon competes with the text next to it.",
                     "avoid": "Colored icons outside status",
                     "do": "The text color; only a status icon takes its status color",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "LOUD-05",
@@ -50,9 +42,7 @@
                     "why": "One highlight tells the user where to look. Several cancel each other out.",
                     "avoid": "Several highlight colors on one screen",
                     "do": "One highlight: the brand action or one status",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "LOUD-06",
@@ -60,9 +50,7 @@
                     "why": "A heavy frame is louder than its content.",
                     "avoid": "Lines of 2px or more; hard or colored shadows",
                     "do": "1px lines; 2px only for focus, the active tab underline and a diff or recent-change gutter marker; translucent shadows on floating things only",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -76,10 +64,7 @@
                     "why": "A variable names a job, so the same job gets the same color everywhere. A raw value drifts with the next person.",
                     "avoid": "Raw hex, stock Tailwind colors, antd names (`colorBg*`, `--ag-color*`); a text color used as a border (`border-muted-foreground`)",
                     "do": "A theme variable: `bg-muted`, `text-muted-foreground`; a border takes `border`, `border-muted` or `border-strong`",
-                    "checkedBy": [
-                        "ratchet",
-                        "review"
-                    ]
+                    "checkedBy": ["ratchet", "review"]
                 },
                 {
                     "id": "COLOR-02",
@@ -87,9 +72,7 @@
                     "why": "The yellow is the strongest color. On several things it points at nothing, and in dark `primary` is yellow too.",
                     "avoid": "Brand yellow on badges, highlights, Publish, sign-in, billing, or more than one button",
                     "do": "`brand` only on New agent on Home; the default primary elsewhere",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "COLOR-03",
@@ -97,9 +80,7 @@
                     "why": "About 1 in 12 men see red and green poorly. Color only supports the meaning.",
                     "avoid": "Status shown by a colored dot alone",
                     "do": "A tint and a word, with an icon where it fits",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "COLOR-04",
@@ -107,9 +88,7 @@
                     "why": "A theme variable already changes per theme. A component's own dark color drifts from the theme.",
                     "avoid": "A component that sets its own dark-mode color (`.dark .menu {…}`)",
                     "do": "A theme variable whose value changes per theme (`popover`)",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "COLOR-05",
@@ -117,9 +96,7 @@
                     "why": "A color for one component adds a palette nobody controls. A data color on UI state reads as a category.",
                     "avoid": "A new color for one component; a data color for selected, hover, status or a button; a color per workspace or project Mark",
                     "do": "One of the 23 UI colors or a tint of one; `data-1` … `data-6` only for categories and chart series, in order; the current workspace Mark takes `bg-brand/15`, and an agent Mark may take a data color",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -133,10 +110,7 @@
                     "why": "Each near-miss size looks a little wrong next to the real ones. One screen had 35 sizes.",
                     "avoid": "Arbitrary sizes: `text-[13px]`, `text-[15px]`, 13.5px",
                     "do": "One of the text styles",
-                    "checkedBy": [
-                        "ratchet",
-                        "review"
-                    ]
+                    "checkedBy": ["ratchet", "review"]
                 },
                 {
                     "id": "TYPE-02",
@@ -144,9 +118,7 @@
                     "why": "A bigger size breaks the scale and makes the line taller.",
                     "avoid": "A bigger size to show importance",
                     "do": "Weight 500 and `foreground`; quiet the rest with `muted-foreground`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "TYPE-03",
@@ -154,9 +126,7 @@
                     "why": "Proportional digits move a column of numbers left and right.",
                     "avoid": "Proportional digits in columns",
                     "do": "`tabular-nums`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "TYPE-04",
@@ -164,10 +134,7 @@
                     "why": "Bold text shouts.",
                     "avoid": "`font-bold`, weight 700 or more, `<strong>` in the interface",
                     "do": "600 for titles only, 500 for emphasis",
-                    "checkedBy": [
-                        "ratchet",
-                        "review"
-                    ]
+                    "checkedBy": ["ratchet", "review"]
                 },
                 {
                     "id": "TYPE-05",
@@ -175,10 +142,7 @@
                     "why": "A bolder word is wider, so the label and its neighbors move. Weight already means rank.",
                     "avoid": "A control that turns bolder when active, selected, current, open or focused (`data-[state=active]:font-semibold`); a 600 button",
                     "do": "Weight 500 (`text-label`) in every state; state shows by color or a fill (`bg-selected`, `text-foreground`)",
-                    "checkedBy": [
-                        "ratchet",
-                        "review"
-                    ]
+                    "checkedBy": ["ratchet", "review"]
                 }
             ]
         },
@@ -192,10 +156,7 @@
                     "why": "A control owns its height, padding, radius, text and icon. A height class breaks that on one screen.",
                     "avoid": "Height classes on controls: `h-[34px]`, `h-[30px]`",
                     "do": "The `size` prop",
-                    "checkedBy": [
-                        "ratchet",
-                        "review"
-                    ]
+                    "checkedBy": ["ratchet", "review"]
                 },
                 {
                     "id": "SIZE-02",
@@ -203,9 +164,7 @@
                     "why": "Bigger controls make every screen bulky: the toolbar no longer fits and lists show half the rows. The kit already steps down below 640px.",
                     "avoid": "`phone ? \"h-11\"`, `pointer-coarse:size-11`, `max-md:h-11`, `[&_button]:min-h-11`, 44px rows, hidden tap boxes",
                     "do": "The same kit sizes everywhere; they step down below 640px by themselves",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -219,10 +178,7 @@
                     "why": "One shape family makes every component look like one product. A pill button or a circle Mark next to a 6px control reads as a second system. A status dot, a switch and a radio are round by nature, and a square one looks wrong.",
                     "avoid": "A round button, input, badge, chip, tag, Mark, card or menu; a pill; `rounded-full` or `50%` anywhere; a square status dot, switch, radio or slider handle",
                     "do": "Controls and containers: `radius-sm` or `radius-md`, at most a quarter of the short side. Status dots, typing dots, the switch, the radio and the slider handle: `rounded-round`. Icons are drawings and keep their own curves",
-                    "checkedBy": [
-                        "ratchet",
-                        "review"
-                    ]
+                    "checkedBy": ["ratchet", "review"]
                 },
                 {
                     "id": "SHAPE-02",
@@ -230,9 +186,7 @@
                     "why": "With the same radius inside and out, the gap is wider at the corners than on the sides.",
                     "avoid": "The same radius inside and outside a padded box",
                     "do": "Inner radius = outer radius − padding",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -242,15 +196,11 @@
             "rules": [
                 {
                     "id": "ICON-01",
-                    "rule": "Phosphor, regular weight, only",
-                    "why": "Phosphor's thin round strokes next to heavier ones look like two products.",
-                    "avoid": "`lucide-react` or a second icon library; a filled icon that does not show a state",
-                    "do": "Phosphor, regular weight; `fill` only to show a state",
-                    "checkedBy": [
-                        "ratchet",
-                        "lint",
-                        "review"
-                    ]
+                    "rule": "Phosphor, bold weight, only",
+                    "why": "Two stroke weights side by side look like two products. Regular strokes are 1px at 16px and look faint at the 12 to 16px icon sizes.",
+                    "avoid": "`lucide-react` or a second icon library; a `weight` prop other than `fill`; a filled icon that does not show a state",
+                    "do": "Phosphor with no `weight` prop: the app sets `iconWeight` from `design/icons.ts` once, through `IconContext`. Pass `weight=\"fill\"` only to show a state, and `undefined` (not `\"regular\"`) for the off state",
+                    "checkedBy": ["ratchet", "lint", "review"]
                 },
                 {
                     "id": "ICON-02",
@@ -258,9 +208,7 @@
                     "why": "A second icon makes the button look like two controls.",
                     "avoid": "Two icons in one button",
                     "do": "One icon: leading, or a trailing caret on a menu trigger",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "ICON-03",
@@ -268,9 +216,7 @@
                     "why": "A play triangle or an arrow looks off-center when its box is centered.",
                     "avoid": "Play and arrow icons centered by their box",
                     "do": "Move them 1px so they look centered",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "ICON-04",
@@ -278,19 +224,15 @@
                     "why": "An icon picked per screen looks wrong next to the text beside it.",
                     "avoid": "18 or 20px icons next to 13px text",
                     "do": "12, 14 or 16px, by the `usage` of the `icon-*` sizes in `theme.config.ts`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "ICON-05",
                     "rule": "One icon per product term",
                     "why": "When a term has two icons, users read two different things.",
                     "avoid": "Skill as a compass in the nav and a book in a list",
-                    "do": "The icon from the terms list in `rules.json`; bare in nav and menus, inside a Mark in lists, pickers and headers; any Phosphor regular icon for a generic action (Plus, Trash, Copy)",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "do": "The icon from the terms list in `rules.json`; bare in nav and menus, inside a Mark in lists, pickers and headers; any Phosphor icon for a generic action (Plus, Trash, Copy)",
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -304,9 +246,7 @@
                     "why": "Each border is one more line to read.",
                     "avoid": "Borders around borders to separate areas",
                     "do": "A different surface tone. The one exception is a resizable edge (SURF-07)",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "SURF-02",
@@ -314,9 +254,7 @@
                     "why": "Two bordered boxes stacked draw a 2px seam.",
                     "avoid": "Two bordered boxes stacked",
                     "do": "One border, with a divider inside",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "SURF-03",
@@ -324,9 +262,7 @@
                     "why": "A shadow says this sits above the page.",
                     "avoid": "Shadows on flat cards and list items; opaque gray shadows",
                     "do": "`shadow-overlay`, `shadow-modal`, `shadow-raised`, on floating things only",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "SURF-04",
@@ -334,9 +270,7 @@
                     "why": "A shadow on hover says the element moved up, not that it is hovered.",
                     "avoid": "A shadow or a lift on hover",
                     "do": "The hover fill",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "SURF-05",
@@ -344,10 +278,7 @@
                     "why": "`accent` is ink at 5%, so it is the same step darker on the page, in the sidebar and in a popover.",
                     "avoid": "`hover:bg-muted`, `hover:bg-foreground/10`, a gray picked per screen",
                     "do": "`hover:bg-accent`; on a sticky row that must stay opaque, `accent` over the ground as a gradient image",
-                    "checkedBy": [
-                        "ratchet",
-                        "review"
-                    ]
+                    "checkedBy": ["ratchet", "review"]
                 },
                 {
                     "id": "SURF-06",
@@ -355,9 +286,7 @@
                     "why": "A fill that matches the hover disappears when the row is hovered.",
                     "avoid": "A fill inside a row that matches the hover fill",
                     "do": "A translucent fill (`secondary`) that stacks on the hover",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "SURF-07",
@@ -365,9 +294,7 @@
                     "why": "A pane that can be dragged needs a visible edge, and a thicker line on hover and while dragging tells the person that the edge moves. The sidebar, the side pane, the file tree and the split pane all do the same.",
                     "avoid": "An invisible edge, a different color or width per pane, a handle drawn beside the border",
                     "do": "`border-border-muted` at rest, and `ResizeEdgeLine` (2px, `bg-border-strong`) over it on hover, on focus and while dragging",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -381,9 +308,7 @@
                     "why": "Less space inside a group than between groups shows the groups without lines.",
                     "avoid": "Off-scale gaps (11px); even spacing that hides groups",
                     "do": "`gap-1/2/3/4/6/8`; less space inside a group than between groups",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "SPACE-02",
@@ -391,9 +316,7 @@
                     "why": "A group reads as one unit only when its gap is smaller than the space around it.",
                     "avoid": "Grouped buttons 12px or more apart",
                     "do": "`gap-1`; `gap-2` at most",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "SPACE-03",
@@ -401,9 +324,7 @@
                     "why": "The gap follows the place, so the same element looks the same everywhere.",
                     "avoid": "Icon-to-text gaps picked per screen (1, 10, 12px)",
                     "do": "4px in badges and `xs` buttons, 6px in other controls, 8px in rows",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "SPACE-04",
@@ -411,9 +332,7 @@
                     "why": "A bigger Mark needs more room, and the same Mark always gets the same gap.",
                     "avoid": "Mark-to-text gaps picked per screen",
                     "do": "8px for 16–24px Marks, 12px for 32–40px Marks",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "SPACE-05",
@@ -421,9 +340,7 @@
                     "why": "Icons differ in width, so gaps measured from their boxes look uneven.",
                     "avoid": "Icons in a row spaced by their boxes",
                     "do": "Equal gaps between the visible icon edges",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -437,9 +354,7 @@
                     "why": "Rows of one height make a list easy to scan.",
                     "avoid": "List rows other than 28, 36 and 48px; mixed heights in one list; a divider below the row's height",
                     "do": "`row-dense` for tree and rail rows, `row-single`, `row-double`; the divider inside the height",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "ROW-02",
@@ -447,9 +362,7 @@
                     "why": "A menu, a select and a combobox are the same thing to a user.",
                     "avoid": "Menu rows with their own height, padding or text (a 28px dropdown, a 36px option)",
                     "do": "`MENU_ITEM`: 32px, 8px side padding, `text-label`, a 16px icon",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "ROW-03",
@@ -457,9 +370,7 @@
                     "why": "Users learn the layout once.",
                     "avoid": "A search popover with a tall search, rows on other edges, or a big button as the action",
                     "do": "Search on top, group headings, `MENU_ITEM` rows, a divider, then the action as one more row",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "ROW-04",
@@ -467,9 +378,7 @@
                     "why": "A small gap lets each row's hover fill stand on its own, and the gap grows with the row, so tall rows with a Mark and two lines do not crowd each other.",
                     "avoid": "Two-line rows that touch; a gap picked per screen (6px, 12px); more than 8px between rows of one list",
                     "do": "`gap-0.5` (2px) between dense rows: menus, the sidebar, trees and rails · `gap-1` (4px) between one-line rows (`row-single`) · `gap-2` (8px) between two-line rows (`row-double`): the Home lists and the Agents, Skills and Automations tables · no gap in a table whose rows are split by divider lines",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -483,9 +392,7 @@
                     "why": "The primary button answers \"what do I do here?\". Two give two answers.",
                     "avoid": "Two primary buttons in one view",
                     "do": "One primary; the rest `secondary`, `outline` or `ghost`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "ACT-02",
@@ -493,9 +400,7 @@
                     "why": "A verb and an object say what happens. OK makes the user read the dialog again.",
                     "avoid": "\"OK\", \"Submit\", \"Yes\"",
                     "do": "Verb + object: \"Delete agent\"",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "ACT-03",
@@ -503,9 +408,7 @@
                     "why": "A solid red button on a page is louder than the primary action.",
                     "avoid": "A solid red button on a page, in a toolbar or in a menu",
                     "do": "`destructive-ghost`; solid `destructive` only to confirm in a dialog; in a menu, destructive items come last, after a separator",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -519,19 +422,15 @@
                     "why": "Help under every label doubles the height of the form.",
                     "avoid": "Help text under every label",
                     "do": "`Field` with `tooltip`: the \"?\" opens on hover, on focus and on a tap",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "FORM-02",
                     "rule": "One focus style",
                     "why": "Focus that looks different per control is easy to lose.",
-                    "avoid": "A gray halo, `outline-4`, `ring-[3px]`, an offset gap",
-                    "do": "`focus-ring` on any control (a 2px `ring` outline with a 1px `foreground` line inside), `focus-ring-field` on a bordered field, `focus-ring-inset` on a full-bleed row inside a scroller; all three are in `@agenta/ui/focus.css`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "avoid": "Brand yellow or `primary` on focus (`focus:border-primary`, a yellow ring), a gray halo, `outline-4`, `ring-[3px]`, an offset gap",
+                    "do": "Focus is neutral: `ring` is a gray. `focus-ring` on any control (a 2px `ring` outline with a 1px `foreground` line inside), `focus-ring-field` on a bordered field (the border turns `ring` and grows to 2px), `focus-ring-inset` on a full-bleed row inside a scroller; all three are in `@agenta/ui/focus.css`",
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "FORM-03",
@@ -539,9 +438,7 @@
                     "why": "A click to reach the only field is a wasted step. When typing is the next step, the keyboard that opens on touch is wanted.",
                     "avoid": "The user must click into the field; autofocus on a page the user only reads",
                     "do": "Autofocus it when typing is the next step: a New dialog, a rename, a search the user opened",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -555,9 +452,7 @@
                     "why": "\"Nothing here\" is a dead end.",
                     "avoid": "\"No data\", \"Nothing here\"",
                     "do": "What is missing, why it matters, one first action (`EmptyState`)",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "STATE-02",
@@ -565,9 +460,7 @@
                     "why": "Another layout makes the page jump when the data arrives.",
                     "avoid": "A spinner or generic bars for a list",
                     "do": "A skeleton with the loaded layout (`Skeleton`, `SkeletonBlock`, `SkeletonRows`)",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "STATE-03",
@@ -575,9 +468,7 @@
                     "why": "\"Something went wrong\" gives the user nothing to act on.",
                     "avoid": "\"Something went wrong\"",
                     "do": "Cause, effect, fix, in an `Alert` next to the problem",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -591,9 +482,7 @@
                     "why": "The eye follows what it sees at rest: text, the edge of a field, a Mark. The hover fill of a row is not visible at rest, so when its box starts on the line, the Mark inside drifts right by the padding of the row.",
                     "avoid": "A field pushed out left of the line; the box of a row on the line, so its Mark and the column label drift right",
                     "do": "The title, the description, the edge of a field, the labels and the first Mark of each row on the line; a row or a nav item hangs its hover fill outside by its own padding (row 12, nav item 8); the screen sets the negative margin, since the kit does not yet",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "ALIGN-02",
@@ -601,9 +490,7 @@
                     "why": "The eye reads the rail down its edges. Icons, the Mark and icon-less rows on one edge, and the labels of icon rows on a second, keep the rail one column instead of a staircase.",
                     "avoid": "Sidebar icons off the workspace Mark's edge; group labels or session rows indented to their own line; nav text and the workspace name on different lines",
                     "do": "The 16px workspace Mark and every 16px icon on the icon line (16px from the rail edge); their labels on the text line (40px); rows and labels with no icon (group labels, sessions) start on the icon line",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -617,9 +504,7 @@
                     "why": "Two areas that scroll the same way trap the scroll wheel.",
                     "avoid": "Nested scroll areas that scroll the same way",
                     "do": "One scroll container per pane",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "LAYOUT-02",
@@ -627,10 +512,7 @@
                     "why": "Text across a wide window is hard to read.",
                     "avoid": "Text and lists stretched across the window; a width of its own (880, 920, 960, 1120)",
                     "do": "`content-sm`, `content-md` or `content-lg`, centered, with margins that follow the page area (16px under 640px, 32px under 960px, then `page-margin`), so a docked right pane or sidebar shrinks them; full width only for workbench pages",
-                    "checkedBy": [
-                        "ratchet",
-                        "review"
-                    ]
+                    "checkedBy": ["ratchet", "review"]
                 },
                 {
                     "id": "LAYOUT-03",
@@ -638,9 +520,7 @@
                     "why": "When the top changes per page, the title jumps between pages.",
                     "avoid": "A page with its own top padding or title style; a breadcrumb bar",
                     "do": "The title row from the page frame, at the same place on every general page; `PageTitle` draws the title",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "LAYOUT-04",
@@ -648,9 +528,7 @@
                     "why": "A second panel beside the content competes with the right pane and squeezes the content.",
                     "avoid": "A page that draws its own panel beside the content; a panel squeezed into a narrow window; the right pane stacked under the body",
                     "do": "The right pane, one thing at a time; an overlay with the scrim when there is no room; a drill-in with Back on compact",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "LAYOUT-05",
@@ -658,9 +536,7 @@
                     "why": "A fade says there is more this way.",
                     "avoid": "A fade on an edge that cannot scroll",
                     "do": "`useScrollFadeEdges` with `.ag-scroll-fade`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "LAYOUT-06",
@@ -668,9 +544,7 @@
                     "why": "The user asks about the open item, so the item stays in view and the header says what the agent sees.",
                     "avoid": "An agent chat in a stacked route or a dialog, or that does not name the item",
                     "do": "The right pane; a drill-in with Back on compact; the item named in the header; the same Composer; on compact, Back returns to the item and the draft stays",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "LAYOUT-07",
@@ -678,9 +552,7 @@
                     "why": "A page without a table or a toolbar must still get the same top, and a list must not decide the page frame.",
                     "avoid": "A page that draws its own search row, group heading or row frame; a part shown with nothing in it; a toolbar that only works over a table",
                     "do": "`PageLayout` frames every general page: title, description, an optional `toolbar` (`PageToolbar`: search, filters and an end slot, each optional) and any body. The body is what the page needs: a list (`ListTable`, with `ListTableNameCell`), cards, a form (sections at `content-sm`) or a detail (sections at `content-md`)",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -694,9 +566,7 @@
                     "why": "The thumb lands on the bottom edge, so whatever sits there is the main action.",
                     "avoid": "Two things on the bottom edge (a composer and a floating New); a bottom nav bar",
                     "do": "The composer entry or one primary action; another primary action goes in the compact header or the content",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "COMPACT-02",
@@ -704,9 +574,7 @@
                     "why": "A compact window has little height, and the compact header is on every screen.",
                     "avoid": "A tall header; 44px icon buttons; two titles",
                     "do": "One 44px bar, the kit's compact icon buttons, one leading button, one title, at most two actions",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "COMPACT-03",
@@ -714,9 +582,7 @@
                     "why": "Two leading buttons make the user guess which way each goes.",
                     "avoid": "Back and the menu together; the menu on a detail page",
                     "do": "The menu on top-level pages; Back alone on detail pages and drill-ins",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "COMPACT-04",
@@ -724,9 +590,7 @@
                     "why": "The kit turns them into bottom sheets. A hand-made variant drifts.",
                     "avoid": "A popover made for an expanded window on a compact one; a hand-made compact variant",
                     "do": "The kit menus, selects and dialogs",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "COMPACT-05",
@@ -734,9 +598,7 @@
                     "why": "`100vh` hides content under browser bars and the notch.",
                     "avoid": "`100vh`; fixed bars without safe-area padding",
                     "do": "`svh` or `dvh`; `env(safe-area-inset-*)`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -750,9 +612,7 @@
                     "why": "A field bigger than the page around it looks out of place; iOS zooms on focus only when the page allows zoom.",
                     "avoid": "16px field text on touch only; a taller field on touch; `maximum-scale=1` outside iOS (it blocks pinch zoom there)",
                     "do": "The field's own text style; the app's viewport adds `maximum-scale=1` on iOS only, which stops the focus zoom and keeps pinch zoom",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "TOUCH-02",
@@ -760,9 +620,7 @@
                     "why": "Touch has no hover.",
                     "avoid": "Actions shown only on hover",
                     "do": "Shown on focus too, and always under `pointer: coarse`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -776,9 +634,7 @@
                     "why": "A short fade and slide shows that something changed.",
                     "avoid": "An instant swap of one view for another; a duration or an easing written in a component",
                     "do": "A 120–200ms fade and 4px slide from `useMotionPresets()` (`src/lib/motion`); package code uses the `duration-*` and `ease-*` theme variables",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "MOTION-02",
@@ -786,9 +642,7 @@
                     "why": "Motion that repeats or overshoots pulls the eye from the work.",
                     "avoid": "Bounce, overshoot, shaking; a ping, a scaling dot, a spinning ring or gradient",
                     "do": "The three durations with `ease-out` or `ease-in-out`; still at rest; live activity is a spinning `circle-notch` or a 1.5s opacity pulse on a status dot; under reduced motion the new state shows without the movement",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -802,9 +656,7 @@
                     "why": "The caret says a panel opens there, then points back at the trigger while it is open.",
                     "avoid": "A caret that points the same way open and closed",
                     "do": "Phosphor `CaretDown` that turns 180° while open (`ag-caret`)",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "MICRO-02",
@@ -812,9 +664,7 @@
                     "why": "A panel that grows out of its trigger shows where it came from.",
                     "avoid": "A menu or popover that grows from its center or appears from nowhere",
                     "do": "`ag-overlay-motion` from the trigger's edge; only dialogs open from the center",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "MICRO-03",
@@ -822,9 +672,7 @@
                     "why": "The person is looking at what they clicked.",
                     "avoid": "A toast for Copy, a banner for a toggle",
                     "do": "The control changes: Copy becomes Check for 1.5s, the switch slides; the send arrow becomes Stop while the agent runs; a number counts to its new value (`useCountUp`)",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "MICRO-04",
@@ -832,9 +680,7 @@
                     "why": "Any animation there makes the person wait, again and again.",
                     "avoid": "An animated open for the command palette or a shortcut",
                     "do": "It opens at once",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "MICRO-05",
@@ -842,9 +688,7 @@
                     "why": "Waiting for the server first makes every click feel slow.",
                     "avoid": "A spinner, then the switch moves",
                     "do": "The switch and its label change on the click; they go back only if the call fails",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "MICRO-06",
@@ -852,9 +696,7 @@
                     "why": "The caret tells the person where the new content is.",
                     "avoid": "A caret that does not change open or closed; a filled triangle",
                     "do": "Phosphor `CaretRight` that turns 90° (`CollapseCaret`)",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -868,9 +710,7 @@
                     "why": "In Title Case every word competes for attention.",
                     "avoid": "Title Case labels",
                     "do": "Sentence case",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "COPY-02",
@@ -878,9 +718,7 @@
                     "why": "A toast confirms a result.",
                     "avoid": "\"Success!\" toasts",
                     "do": "What happened, in the past tense, with Undo when possible",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "COPY-03",
@@ -888,9 +726,7 @@
                     "why": "Users manage connections and runs, not integration configs and invocations.",
                     "avoid": "System words (invocation, integration config)",
                     "do": "The user's words (run, connection); address the user as \"you\"",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -904,9 +740,7 @@
                     "why": "A badge color means a status. Other colors add a palette with no meaning.",
                     "avoid": "Categorical badge colors (blue, purple, gold), data colors on a badge, bordered tags",
                     "do": "`default`, `success`, `warning`, `destructive`, `info`; text in `text-caption`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "KIT-02",
@@ -914,9 +748,7 @@
                     "why": "A tab that starts an action surprises the user.",
                     "avoid": "Title Case tabs, an icon in every tab, an action as a tab",
                     "do": "Short nouns; the `line` variant on pages",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "KIT-03",
@@ -924,9 +756,7 @@
                     "why": "An icon alone is a guess.",
                     "avoid": "An icon-only button with no tooltip; a paragraph in a tooltip",
                     "do": "`SimpleTooltip` with two or three words and the shortcut",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "KIT-04",
@@ -934,9 +764,7 @@
                     "why": "A tooltip over the next control blocks the user's next click.",
                     "avoid": "A tooltip that opens over the control the user goes to next",
                     "do": "Pick the side: `tooltipPlacement` on `Field`, `side` on `TooltipContent`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "KIT-05",
@@ -944,9 +772,7 @@
                     "why": "A toast closes on its own, so it cannot hold a decision or an error to fix.",
                     "avoid": "A question or a fixable error in a toast",
                     "do": "An inline `Alert`, or a dialog for a decision that blocks; a toast only confirms",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "KIT-06",
@@ -954,9 +780,7 @@
                     "why": "Grid lines and zebra fills add ink without meaning.",
                     "avoid": "Grid lines, zebra rows, dark header rows",
                     "do": "36px rows, `border-muted` dividers, numbers right-aligned in `tabular-nums`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "KIT-07",
@@ -964,9 +788,7 @@
                     "why": "Code is content, not decoration.",
                     "avoid": "A dark code slab on a light page; line numbers on short snippets",
                     "do": "A bordered box: a `muted` header with the label and one Copy button, the code in `text-code` on `background`",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "KIT-08",
@@ -974,9 +796,7 @@
                     "why": "Each item reads as an action, and one wrong Enter must not delete anything.",
                     "avoid": "Bare nouns and destructive items in the palette",
                     "do": "Verb + object, grouped by object, the shortcut on the right",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "KIT-09",
@@ -984,9 +804,7 @@
                     "why": "One box reads as one control.",
                     "avoid": "Composer controls outside the field; a loud send pill",
                     "do": "Attach and Send inside the field; Send is the one filled button; Send is disabled while the field is empty",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "KIT-10",
@@ -994,9 +812,7 @@
                     "why": "A plain input dressed up as the entry opens something else and drifts from the real one.",
                     "avoid": "A plain input dressed up as the composer entry",
                     "do": "The Composer's collapsed state, which opens into the same component",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "KIT-11",
@@ -1004,9 +820,7 @@
                     "why": "Long answers, code and tables read like a document at full width.",
                     "avoid": "Both sides in colored bubbles",
                     "do": "The user's turn on `bg-secondary`; the agent's reply as plain full-width text",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 }
             ]
         },
@@ -1020,9 +834,7 @@
                     "why": "The same Mark, icon or row at two sizes reads as two things.",
                     "avoid": "18, 22 or 28px Marks; 15px icons; a size copied from the nearest screen",
                     "do": "The size whose `usage` in `theme.config.ts` names the place",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "CONS-02",
@@ -1030,9 +842,7 @@
                     "why": "An entity, an action or a list drawn two ways looks like two things.",
                     "avoid": "The same entity, action or list drawn differently on two screens",
                     "do": "The same Mark, label, icon and row shape everywhere",
-                    "checkedBy": [
-                        "review"
-                    ]
+                    "checkedBy": ["review"]
                 },
                 {
                     "id": "CONS-03",
@@ -1040,10 +850,7 @@
                     "why": "A second button or menu drifts from the kit on the next change.",
                     "avoid": "A hand-rolled button, input, menu or dialog; a copy of a kit component in a feature",
                     "do": "Import from `@agenta/ui/ui`; a new base component goes in the kit",
-                    "checkedBy": [
-                        "ratchet",
-                        "review"
-                    ]
+                    "checkedBy": ["ratchet", "review"]
                 }
             ]
         }

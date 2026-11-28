@@ -1,6 +1,7 @@
 {
     "accountsStay": "Each person's own account stays connected.",
     "appLoadError": "Couldn't load this app.",
+    "connectLeaveDescription": "Save your changes to connect the app in this project, or discard them?",
     "connectionStays": "The connection stays in the project.",
     "removeFromAgent": "Remove from agent",
     "removeTitle": "Remove {{name}} from this agent?",
