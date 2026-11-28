@@ -174,6 +174,41 @@ describe("run overview tiles", () => {
         expect(tile("testCases")).toBe("Test cases1 of 21 did not run")
     })
 
+    it("On touch, a tap on the did not run line opens the explanation in a popover", () => {
+        vi.stubGlobal("matchMedia", (query: string) => ({
+            matches: query === "(pointer: coarse)",
+            addEventListener() {},
+            removeEventListener() {},
+        }))
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                observe() {}
+                unobserve() {}
+                disconnect() {}
+            },
+        )
+        render(
+            view({
+                metrics: [
+                    evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN),
+                    {...invocationMetric("duration", {mean: 1, count: 2}), stepKey: "app"},
+                ],
+                scenarioMetrics: {
+                    status: "ready",
+                    rows: [binaryRow("s1", {success: true}), binaryRow("s2", {})],
+                    failedSteps: [{scenarioId: "s2", stepKey: "app"}],
+                },
+            }),
+        )
+        const line = host.querySelector<HTMLButtonElement>('[data-testid="tile-testCases"] button')!
+        expect(line.textContent).toBe("1 did not run")
+        act(() => line.click())
+        expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+            "1 of 2 test cases did not run, because the application returned an error.",
+        )
+    })
+
     it("Without per-test-case rows the Passed tile shows a dash and the assertions line", () => {
         render(view({metrics: [evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN)]}))
         expect(tile("passed")).toBe("Passed—3 of 4 assertions true")
