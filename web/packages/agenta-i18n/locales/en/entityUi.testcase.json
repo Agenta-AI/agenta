@@ -28,6 +28,8 @@
     "noTestcases": "No test cases found",
     "codeError": "Not valid {{format}}: {{problem}} in line {{line}}. The field keeps its last valid value until you fix it.",
     "codeErrorNoLine": "Not valid {{format}}: {{problem}}. The field keeps its last valid value until you fix it.",
+    "codeErrorTestcase": "Not valid {{format}}: {{problem}} in line {{line}}. The test case keeps its last valid value until you fix it.",
+    "codeErrorTestcaseNoLine": "Not valid {{format}}: {{problem}}. The test case keeps its last valid value until you fix it.",
     "codeProblemMissingComma": "a comma is missing",
     "codeProblemMissingQuote": "a quote is missing",
     "codeProblemExtraComma": "there is an extra comma",

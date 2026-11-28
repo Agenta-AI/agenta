@@ -28,6 +28,8 @@
     "noTestcases": "未找到测试用例",
     "codeError": "无效的 {{format}}：第 {{line}} 行{{problem}}。在你修正之前，该字段保留最后一个有效值。",
     "codeErrorNoLine": "无效的 {{format}}：{{problem}}。在你修正之前，该字段保留最后一个有效值。",
+    "codeErrorTestcase": "无效的 {{format}}：第 {{line}} 行{{problem}}。在你修正之前，该测试用例保留最后一个有效值。",
+    "codeErrorTestcaseNoLine": "无效的 {{format}}：{{problem}}。在你修正之前，该测试用例保留最后一个有效值。",
     "codeProblemMissingComma": "缺少逗号",
     "codeProblemMissingQuote": "缺少引号",
     "codeProblemExtraComma": "多了一个逗号",

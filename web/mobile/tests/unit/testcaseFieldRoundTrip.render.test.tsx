@@ -253,7 +253,7 @@ describe("Testcase editor round trip", () => {
 
         expect(row.writes).toEqual([])
         expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-            "the test case must be an object",
+            "the test case must be an object. The test case keeps its last valid value until you fix it.",
         )
     })
 

@@ -28,6 +28,8 @@
     "noTestcases": "No se encontraron casos de prueba",
     "codeError": "{{format}} no válido: {{problem}} en la línea {{line}}. El campo conserva su último valor válido hasta que lo corrijas.",
     "codeErrorNoLine": "{{format}} no válido: {{problem}}. El campo conserva su último valor válido hasta que lo corrijas.",
+    "codeErrorTestcase": "{{format}} no válido: {{problem}} en la línea {{line}}. El caso de prueba conserva su último valor válido hasta que lo corrijas.",
+    "codeErrorTestcaseNoLine": "{{format}} no válido: {{problem}}. El caso de prueba conserva su último valor válido hasta que lo corrijas.",
     "codeProblemMissingComma": "falta una coma",
     "codeProblemMissingQuote": "faltan unas comillas",
     "codeProblemExtraComma": "sobra una coma",

@@ -126,7 +126,7 @@ function FullPayloadCodeEditor({
 
     const errorNote = parseError ? (
         <p role="alert" className="m-0 mt-2 text-meta text-destructive">
-            {codeErrorText(parseError, format)}
+            {codeErrorText(parseError, format, "testcase")}
         </p>
     ) : null
 

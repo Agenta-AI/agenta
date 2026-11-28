@@ -28,6 +28,8 @@
     "noTestcases": "テストケースが見つかりません",
     "codeError": "無効な {{format}}: {{line}} 行目で{{problem}}。修正するまで、フィールドは最後の有効な値を保持します。",
     "codeErrorNoLine": "無効な {{format}}: {{problem}}。修正するまで、フィールドは最後の有効な値を保持します。",
+    "codeErrorTestcase": "無効な {{format}}: {{line}} 行目で{{problem}}。修正するまで、テストケースは最後の有効な値を保持します。",
+    "codeErrorTestcaseNoLine": "無効な {{format}}: {{problem}}。修正するまで、テストケースは最後の有効な値を保持します。",
     "codeProblemMissingComma": "カンマがありません",
     "codeProblemMissingQuote": "引用符がありません",
     "codeProblemExtraComma": "余分なカンマがあります",

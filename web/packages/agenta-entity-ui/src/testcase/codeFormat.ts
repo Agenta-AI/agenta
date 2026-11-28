@@ -193,10 +193,22 @@ const problemText = (problem: CodeProblem) => {
     }
 }
 
-/** The sentence under a code editor whose text does not parse, in the active language. */
-export function codeErrorText(error: CodeParseError, format: CodeFormat): string {
+/**
+ * The sentence under a code editor whose text does not parse, in the active language. `of` says
+ * what keeps its last valid value: one field, or the whole test case.
+ */
+export function codeErrorText(
+    error: CodeParseError,
+    format: CodeFormat,
+    of: "field" | "testcase" = "field",
+): string {
     const name = format === "json" ? "JSON" : "YAML"
     const problem = problemText(error.problem)
+    if (of === "testcase") {
+        return error.line === null
+            ? tNow("entityUi.testcase.codeErrorTestcaseNoLine", {format: name, problem})
+            : tNow("entityUi.testcase.codeErrorTestcase", {format: name, problem, line: error.line})
+    }
     return error.line === null
         ? tNow("entityUi.testcase.codeErrorNoLine", {format: name, problem})
         : tNow("entityUi.testcase.codeError", {format: name, problem, line: error.line})

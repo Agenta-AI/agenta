@@ -28,6 +28,8 @@
     "noTestcases": "Keine Testfälle gefunden",
     "codeError": "Kein gültiges {{format}}: {{problem}} in Zeile {{line}}. Das Feld behält seinen letzten gültigen Wert, bis Sie den Fehler beheben.",
     "codeErrorNoLine": "Kein gültiges {{format}}: {{problem}}. Das Feld behält seinen letzten gültigen Wert, bis Sie den Fehler beheben.",
+    "codeErrorTestcase": "Kein gültiges {{format}}: {{problem}} in Zeile {{line}}. Der Testfall behält seinen letzten gültigen Wert, bis Sie den Fehler beheben.",
+    "codeErrorTestcaseNoLine": "Kein gültiges {{format}}: {{problem}}. Der Testfall behält seinen letzten gültigen Wert, bis Sie den Fehler beheben.",
     "codeProblemMissingComma": "ein Komma fehlt",
     "codeProblemMissingQuote": "ein Anführungszeichen fehlt",
     "codeProblemExtraComma": "ein Komma ist zu viel",

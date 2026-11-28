@@ -180,10 +180,13 @@ describe("withShownEnd", () => {
     })
 })
 
-describe("codeErrorText for a test case that is not an object", () => {
-    it("says the test case must be an object", () => {
-        expect(codeErrorText({line: null, problem: "notObject"}, "json")).toBe(
-            "Not valid JSON: the test case must be an object. The field keeps its last valid value until you fix it.",
+describe("codeErrorText for the whole test case", () => {
+    it("says the test case keeps its last valid value", () => {
+        expect(codeErrorText({line: null, problem: "notObject"}, "json", "testcase")).toBe(
+            "Not valid JSON: the test case must be an object. The test case keeps its last valid value until you fix it.",
+        )
+        expect(codeErrorText({line: 3, problem: "missingComma"}, "yaml", "testcase")).toBe(
+            "Not valid YAML: a comma is missing in line 3. The test case keeps its last valid value until you fix it.",
         )
     })
 })
