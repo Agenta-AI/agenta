@@ -15,6 +15,7 @@
     "reviewsFailed": "Could not load the reviews",
     "agree": "Agree",
     "disagree": "Disagree",
+    "notReviewable": "You cannot review this result. The run did not save the trace link that a review needs.",
     "agreed": "Agreed",
     "disagreed": "Disagreed",
     "correctedValue": "Corrected value",

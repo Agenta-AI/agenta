@@ -15,6 +15,7 @@
     "reviewsFailed": "Bewertungen konnten nicht geladen werden",
     "agree": "Zustimmen",
     "disagree": "Widersprechen",
+    "notReviewable": "Sie können dieses Ergebnis nicht bewerten. Der Lauf hat den Trace-Link, den eine Bewertung braucht, nicht gespeichert.",
     "agreed": "Zugestimmt",
     "disagreed": "Widersprochen",
     "correctedValue": "Korrigierter Wert",

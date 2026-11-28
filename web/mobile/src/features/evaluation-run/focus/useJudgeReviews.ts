@@ -4,6 +4,7 @@ import {createAnnotation, updateAnnotation} from "@agenta/entities/annotation"
 import {
     annotationStepSlug,
     buildJudgeReview,
+    sortEvaluatorResults,
     type JudgeVerdict,
 } from "@agenta/entities/evaluationRun"
 import {
@@ -79,7 +80,10 @@ export const setAtPath = (
     }
 }
 
-/** The judges of a test case: the results that are not human, with their step's references. */
+/**
+ * The judges of a test case: the results that are not human, with their step's references, in
+ * the Results tab's order (failed first, by name).
+ */
 export function scenarioJudges(
     row: ScenarioRow,
     groups: readonly RunColumnGroup[],
@@ -99,7 +103,7 @@ export function scenarioJudges(
             return group && name ? [[`${group}|${name}`, outputPath(mapping.step?.path, name)]] : []
         }),
     )
-    return judgeResults.map((result) => {
+    return sortEvaluatorResults(judgeResults).map((result) => {
         const refs = refsOf.get(result.id) ?? null
         const traceId = result.step?.traceId ?? null
         const spanId = result.step?.spanId ?? null

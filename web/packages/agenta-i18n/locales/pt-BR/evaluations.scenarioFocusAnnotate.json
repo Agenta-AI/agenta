@@ -16,6 +16,7 @@
     "reviewsFailed": "Não foi possível carregar as revisões",
     "agree": "Concordo",
     "disagree": "Discordo",
+    "notReviewable": "Você não pode revisar este resultado. A execução não salvou o link do trace de que uma revisão precisa.",
     "agreed": "Concordou",
     "disagreed": "Discordou",
     "correctedValue": "Valor corrigido",

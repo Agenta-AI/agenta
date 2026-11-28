@@ -186,9 +186,10 @@ const header = (closed = false): RunHeader => ({
  * The fixture run made automatic (its app step has origin `auto` and a trace per scenario), on
  * version 7 of its test set, with a judge whose result has a trace and a span; `human` adds the
  * human evaluator "reviewer-feedback", with the value `good` true on sc-1 when `humanValue`.
+ * `judgeSpan: false` drops the span id of the judge's results, as a run made with the SDK has.
  */
 const run =
-    ({human = false, humanValue = false} = {}) =>
+    ({human = false, humanValue = false, judgeSpan = true} = {}) =>
     (
         runId: string,
         serverState: ScenarioServerState,
@@ -232,7 +233,7 @@ const run =
                     ...result,
                     step_key: "ev",
                     trace_id: `${id}-ev-trace`,
-                    span_id: `${id}-ev-span`,
+                    span_id: judgeSpan ? `${id}-ev-span` : null,
                 })
             }
         }
@@ -594,6 +595,25 @@ describe("Annotate panel in the test case drawer", () => {
         })
         expect(evaluationsClient.addSteps).not.toHaveBeenCalled()
         expect(submission.submit).not.toHaveBeenCalled()
+    })
+
+    it("A judge result with no span id shows its name, disabled answers and the reason", async () => {
+        await mount({answer: run({judgeSpan: false})})
+        await press("Annotate")
+        const reviews = section("Evaluator results")
+        // The evaluator's name as the Results tab writes it, not its slug.
+        expect(reviews.textContent).toContain("Exact Match")
+        expect(reviews.textContent).not.toContain("exact-match")
+        expect(reviews.textContent).toContain(
+            "You cannot review this result. The run did not save the trace link that a review needs.",
+        )
+        expect(buttonNamed("Agree").hasAttribute("disabled")).toBe(true)
+        expect(buttonNamed("Disagree").hasAttribute("disabled")).toBe(true)
+        await press("Disagree")
+        expect(reviews.textContent).not.toContain("Corrected value")
+        expect(reviews.textContent).toContain("0 of 1 failed reviewed")
+        expect(buttonNamed("Save").hasAttribute("disabled")).toBe(true)
+        expect(creates()).toHaveLength(0)
     })
 
     it("A review draft stays with its test case when the user moves on", async () => {

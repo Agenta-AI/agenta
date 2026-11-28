@@ -16,6 +16,7 @@
     "reviewsFailed": "No se pudieron cargar las revisiones",
     "agree": "De acuerdo",
     "disagree": "En desacuerdo",
+    "notReviewable": "No puedes revisar este resultado. La ejecución no guardó el enlace de traza que necesita una revisión.",
     "agreed": "De acuerdo",
     "disagreed": "En desacuerdo",
     "correctedValue": "Valor corregido",

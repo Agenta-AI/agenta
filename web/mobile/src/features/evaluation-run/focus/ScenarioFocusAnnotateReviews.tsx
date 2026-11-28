@@ -157,6 +157,8 @@ export const ScenarioFocusAnnotateReviews = ({
                         note: draft?.note ?? "",
                     })
                 const focused = judge.id === focusJudge
+                // A closed run or reviews still loading: the answer shows, but nothing changes.
+                // A result with no span to link (a run made with the SDK): disabled, with why.
                 const locked = readOnly || !judge.reviewable
                 return (
                     <div
@@ -170,15 +172,16 @@ export const ScenarioFocusAnnotateReviews = ({
                     >
                         <div className="flex min-w-0 items-center gap-2">
                             <span className="min-w-0 flex-1 truncate text-body" title={judge.name}>
-                                {judge.slug ?? judge.name}
+                                {judge.name}
                             </span>
                             {judge.failed ? (
                                 <Badge variant="destructive">{t("chat.valueView.fail")}</Badge>
                             ) : null}
-                            <div inert={locked}>
+                            <div inert={readOnly}>
                                 <Segmented
                                     size="sm"
                                     aria-label={judge.name}
+                                    disabled={!judge.reviewable}
                                     options={[
                                         {
                                             value: "agree",
@@ -194,6 +197,11 @@ export const ScenarioFocusAnnotateReviews = ({
                                 />
                             </div>
                         </div>
+                        {judge.reviewable ? null : (
+                            <p className="m-0 text-meta text-muted-foreground">
+                                {t("evaluations.scenarioFocusAnnotate.notReviewable")}
+                            </p>
+                        )}
                         {draft?.verdict === "disagree" ? (
                             <JudgeCorrection
                                 judge={judge}
