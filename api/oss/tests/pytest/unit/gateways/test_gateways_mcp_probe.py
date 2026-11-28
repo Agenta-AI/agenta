@@ -298,6 +298,52 @@ def _key_server(*, challenge: str | None = 'Bearer realm="acme"'):
 
 
 @pytest.mark.asyncio
+async def test_a_key_surface_beside_an_oauth_surface_on_one_origin_is_not_oauth():
+    """The shape `mcps/providers/mock/app.py` serves, where both surfaces share an origin.
+
+    `/key/mcp` challenges with a scheme and no protected-resource document, while the
+    origin's own well-known documents describe `/oauth/mcp`. A document for a different
+    path on the same origin is not evidence about this one, and taking it reported
+    `oauth` for a server that wants a header, so the API-key screen could not be reached.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(
+                200,
+                json={
+                    "resource": "https://mcp.acme.io/oauth/mcp",
+                    "authorization_servers": ["https://mcp.acme.io/"],
+                },
+            )
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(
+                200,
+                json={
+                    "issuer": "https://mcp.acme.io/",
+                    "authorization_endpoint": "https://mcp.acme.io/oauth/authorize",
+                    "token_endpoint": "https://mcp.acme.io/oauth/token",
+                },
+            )
+        if path == "/key/mcp":
+            return httpx.Response(
+                401,
+                json={"error": "invalid_token"},
+                headers={"WWW-Authenticate": 'Bearer realm="agenta-mock-mcp-key"'},
+            )
+        return httpx.Response(404)
+
+    result = await _probe(handler).probe(server_url="https://mcp.acme.io/key/mcp")
+
+    assert result.reachable is True
+    assert result.auth.mode is MCPProbeAuthMode.UNKNOWN
+    assert result.auth.challenge_status == 401
+    assert result.auth.challenge_schemes == ["Bearer"]
+    assert result.auth.authorization_server is None
+
+
+@pytest.mark.asyncio
 async def test_an_undiscoverable_challenge_carries_what_the_server_asked_for():
     """`unknown` is what the connect journey turns into its API-key screen, and that
     screen asks for a header name. The challenge is the only thing the probe ever saw
