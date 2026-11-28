@@ -199,7 +199,14 @@ export const ScenarioTable = ({
     onLoadMore?: () => void
 }) => {
     const t = useT(scenariosCatalog)
-    const {density, rowHeight, widths} = view
+    const {density, rowHeight} = view
+    // A saved or dragged label width above the cap is drawn at the cap.
+    const widths = useMemo(() => {
+        const saved = label ? view.widths[label.key] : undefined
+        return label && saved !== undefined && saved > LEAD_WIDTH.labelMax
+            ? {...view.widths, [label.key]: LEAD_WIDTH.labelMax}
+            : view.widths
+    }, [label, view.widths])
     const compact = density === "compact"
     const tall = rowHeight === "tall"
     const lines = tall ? 3 : 1

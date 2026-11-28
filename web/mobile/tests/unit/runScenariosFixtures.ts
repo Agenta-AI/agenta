@@ -28,6 +28,8 @@ export interface ScenarioServerState {
     reasons: boolean
     /** True: a person fills the evaluator (its step's origin is human). */
     humanEvaluator: boolean
+    /** The run-wide app call duration samples (a run-level metric row), if any. */
+    runWideDurationCount?: number
     calls: {url: string; body: unknown}[]
 }
 
@@ -162,7 +164,32 @@ export function answerRequest(
     }
     if (url.endsWith("/evaluations/metrics/query")) {
         if (state.failMetrics) throw new Error("Request failed with status code 500")
-        const ids = ((body?.metrics as {scenario_ids?: string[]})?.scenario_ids ?? []) as string[]
+        const scope = (body?.metrics as {scenario_ids?: string[] | boolean})?.scenario_ids
+        if (scope === false && state.runWideDurationCount !== undefined) {
+            const count = state.runWideDurationCount
+            return {
+                data: {
+                    count: 1,
+                    metrics: [
+                        {
+                            id: "met-run",
+                            run_id: runId,
+                            data: {
+                                app: {
+                                    "attributes.ag.metrics.duration.cumulative": {
+                                        type: "numeric/continuous",
+                                        count,
+                                        mean: 500,
+                                        sum: 500 * count,
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            }
+        }
+        const ids = (Array.isArray(scope) ? scope : []) as string[]
         return {
             data: {
                 count: ids.length,

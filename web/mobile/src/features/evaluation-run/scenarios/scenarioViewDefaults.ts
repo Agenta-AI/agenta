@@ -208,4 +208,6 @@ export const LEAD_WIDTH = {
     run: 160,
     annotate: 104,
     label: {compact: 220, comfortable: 240},
+    /** The widest the pinned label column gets, so the pinned columns never cover the table. */
+    labelMax: 400,
 } as const

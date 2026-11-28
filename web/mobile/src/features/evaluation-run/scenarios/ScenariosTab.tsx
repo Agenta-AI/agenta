@@ -237,9 +237,15 @@ export const ScenariosTab = ({
         })
     }, [comparing, filter.rows, compared, columnGroups, header.name, runId, sort, sortColumn])
 
-    // The run's test case count: the run-wide count of app calls, else every row once all loaded.
     const runWide = catalog.find((entry) => entry.id === "duration" && entry.statsAreRunWide)
-    const total = runWide?.stats?.count ?? (scenarios.hasMore ? null : rows.length)
+    // Every row once all loaded. Before that, the run-wide count of app calls, which can miss a
+    // scenario with no duration, so never fewer than the loaded rows.
+    const runWideCount = runWide?.stats?.count
+    const total = !scenarios.hasMore
+        ? rows.length
+        : runWideCount !== undefined
+          ? Math.max(runWideCount, rows.length)
+          : null
     const groups = useMemo<ListTableGroup<ScenarioEntry>[]>(
         () => [{key: "scenarios", label: null, rows: entries}],
         [entries],

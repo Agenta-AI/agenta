@@ -448,6 +448,32 @@ describe("scenarios table", () => {
         expect(rows()).toHaveLength(3)
     })
 
+    it("The label column is never drawn wider than 400 px", async () => {
+        const runId = await mount({ids: ["sc-1"]})
+        const key = host
+            .querySelector<HTMLElement>('th[data-column-key$="::country"]')
+            ?.getAttribute("data-column-key")
+        const storageKey = `agenta:evaluation-run:scenario-view:${runId}`
+        window.localStorage.setItem(storageKey, JSON.stringify({widths: {[key ?? ""]: 900}}))
+        try {
+            act(() => root.unmount())
+            root = createRoot(host)
+            await mount({ids: ["sc-1"]}, RUN, runId)
+            await openMenu(button("country"))
+            expect([...document.querySelectorAll('[role="menu"]')].at(-1)?.textContent).toContain(
+                "400 px",
+            )
+        } finally {
+            window.localStorage.removeItem(storageKey)
+        }
+    })
+
+    it("Once every row is loaded, the count is the number of rows, not the duration samples", async () => {
+        await mount({ids: ["sc-1", "sc-2", "sc-3"], appMetrics: true, runWideDurationCount: 2})
+        expect(host.textContent).toContain("3 test cases")
+        expect(host.textContent).not.toContain("2 test cases")
+    })
+
     it("A column menu stays open while its width changes", async () => {
         await mount({ids: ["sc-1"]})
         await openMenu(button("Cost"))
