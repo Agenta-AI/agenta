@@ -30,9 +30,12 @@ const TABLE_CELL_CHARS = 80
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
+/** A Markdown link, `[label](target)`: a cell draws only its label. */
+const MARKDOWN_LINK = /\[[^\]]*\]\([^)\s]+\)/
+
 /**
- * A table cell draws one line and cannot open, so it holds only short values: no object, no
- * list, no JSON text, no text longer than a cell.
+ * A table cell draws one line of plain text and cannot open, so it holds only short values: no
+ * object, no list, no JSON text, no text longer than a cell, no link.
  */
 const isCellValue = (value: unknown) => {
     if (typeof value === "object" && value !== null) return false
@@ -40,6 +43,7 @@ const isCellValue = (value: unknown) => {
     return (
         value.length <= TABLE_CELL_CHARS &&
         !value.includes("\n") &&
+        !MARKDOWN_LINK.test(value) &&
         !detectValueShape(value).parsedFromText
     )
 }

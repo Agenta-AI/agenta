@@ -244,13 +244,29 @@ const partText = (part: unknown): string => {
     return part.type === "text" && typeof part.text === "string" ? part.text : ""
 }
 
-/** An image with a URL or a file: stored parts can be null or cut short. */
-const isAttachmentPart = (part: unknown): boolean =>
-    isRecord(part) &&
-    ((part.type === "image_url" &&
-        isRecord(part.image_url) &&
-        typeof part.image_url.url === "string") ||
-        (part.type === "file" && isRecord(part.file)))
+/**
+ * An image with a URL or a file, in the one form the views draw: `{type: "image_url", image_url:
+ * {url}}` or `{type: "file", file: {...}}`. An image URL may be stored as a bare string, and a file
+ * part may keep its fields on the part itself (the AI SDK parts Agenta's chat stores). Null for a
+ * part that is neither, or is null or cut short.
+ */
+const attachmentPart = (part: unknown): unknown => {
+    if (!isRecord(part)) return null
+    if (part.type === "image_url") {
+        const url =
+            typeof part.image_url === "string"
+                ? part.image_url
+                : isRecord(part.image_url)
+                  ? part.image_url.url
+                  : null
+        return typeof url === "string" ? {type: "image_url", image_url: {url}} : null
+    }
+    if (part.type === "file") {
+        const {type: _type, ...fields} = part
+        return {type: "file", file: isRecord(part.file) ? part.file : fields}
+    }
+    return null
+}
 
 /** Read one chat message, in any of the shapes `isChatMessageObject` accepts. */
 export function readValueMessage(message: unknown): ValueMessage {
@@ -284,7 +300,7 @@ export function readValueMessage(message: unknown): ValueMessage {
         toolCallId: typeof record.tool_call_id === "string" ? record.tool_call_id : null,
         toolName: typeof record.name === "string" ? record.name : null,
         attachments: Array.isArray(content)
-            ? getAttachments(content.filter(isAttachmentPart) as MessageContent)
+            ? getAttachments(content.map(attachmentPart).filter(Boolean) as MessageContent)
             : [],
     }
 }

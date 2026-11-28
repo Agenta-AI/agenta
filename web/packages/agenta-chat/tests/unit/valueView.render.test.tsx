@@ -179,6 +179,45 @@ describe("ValueField shapes", () => {
         expect(screen.getByText("invoice.pdf")).toBeTruthy()
     })
 
+    it("draws a stored file part that keeps its fields on the part, and a bare image URL", () => {
+        const message = {
+            role: "user",
+            parts: [
+                {type: "text", text: "Invoice attached."},
+                {
+                    type: "file",
+                    filename: "invoice.pdf",
+                    mediaType: "application/pdf",
+                    url: "https://example.com/invoice.pdf",
+                },
+            ],
+        }
+        render(<ValueField value={message} />)
+        expect(screen.getByText("invoice.pdf")).toBeTruthy()
+
+        const {container} = render(
+            <ValueField
+                value={{
+                    role: "user",
+                    content: [{type: "image_url", image_url: "https://example.com/bare.png"}],
+                }}
+            />,
+        )
+        expect(container.querySelector('img[src="https://example.com/bare.png"]')).not.toBeNull()
+    })
+
+    it("keeps the target of a Markdown link in a list of objects (no table cell)", () => {
+        const {container} = render(
+            <ValueField
+                value={{
+                    title: "Order",
+                    sources: [{reference: "[Receipt](https://example.com/receipt)"}],
+                }}
+            />,
+        )
+        expect(container.querySelector('a[href="https://example.com/receipt"]')).not.toBeNull()
+    })
+
     it("draws a flat object as key rows", () => {
         render(<ValueField value={{mrr_eur: 34000, runway_months: 9}} />)
         expect(screen.getByText("mrr_eur")).toBeTruthy()
