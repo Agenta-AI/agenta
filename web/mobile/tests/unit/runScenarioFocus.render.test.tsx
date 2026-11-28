@@ -39,14 +39,14 @@ vi.mock("next/router", () => ({
     }),
 }))
 
-import {ScenarioFocusSheet} from "@/features/evaluation-run/focus/ScenarioFocusSheet"
-
 import {
     answerRequest,
     APP_METRICS,
     newServerState,
     type ScenarioServerState,
 } from "./runScenariosFixtures"
+
+import {ScenarioFocusSheet} from "@/features/evaluation-run/focus/ScenarioFocusSheet"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -336,11 +336,11 @@ describe("scenario focus drawer", () => {
     it("Each step shows its own time, tokens and cost", async () => {
         await mount("sc-1", {}, "auto", withStepTraces)
         const outputs = section("Outputs")
-        expect(outputs.textContent).toContain("522ms")
+        expect(outputs.textContent).toContain("522 ms")
         expect(outputs.textContent).toContain("128")
         expect(outputs.textContent).toContain("$0.000012")
         const evaluator = section("Exact Match metrics")
-        expect(evaluator.textContent).toContain("887ms")
+        expect(evaluator.textContent).toContain("887 ms")
         expect(evaluator.textContent).toContain("126")
         // The evaluator reports no cost of its own: the app's cost is not shown under it.
         expect(evaluator.textContent).not.toContain("$")

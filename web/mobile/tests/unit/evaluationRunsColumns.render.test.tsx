@@ -8,9 +8,9 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {EvaluationsScreen} from "@/features/evaluations/list/EvaluationsScreen"
-
 import {page} from "./evaluationRunsFixtures"
+
+import {EvaluationsScreen} from "@/features/evaluations/list/EvaluationsScreen"
 
 const http = vi.hoisted(() => ({post: vi.fn(), delete: vi.fn()}))
 const queries = vi.hoisted(() => ({queryQueryRevisions: vi.fn()}))
@@ -338,7 +338,7 @@ describe("evaluation runs list columns", () => {
         expect(text()).toContain("0.85")
         expect(text()).toContain("70.0%")
         expect(text()).toContain("$0.0012")
-        expect(text()).toContain("522ms")
+        expect(text()).toContain("522 ms")
     })
 
     it("The metrics of every row on screen come in one request", async () => {
