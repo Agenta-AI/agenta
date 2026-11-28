@@ -180,13 +180,14 @@ def _get_bounds(
 def get_metrics_keys_from_schema(
     schema=None,
     path=(),
-) -> List[Dict[str, str]]:
-    metrics: List[Dict[str, str]] = list()
+) -> List[Dict[str, Any]]:
+    metrics: List[Dict[str, Any]] = list()
 
     if not isinstance(schema, dict) or "type" not in schema:
         return metrics
 
     metric_type = None
+    metric_range: Dict[str, Any] = {}
 
     t = schema["type"]
 
@@ -210,11 +211,21 @@ def get_metrics_keys_from_schema(
     elif t == "number":
         metric_type = "numeric/continuous"
 
+        minimum, maximum = schema.get("minimum"), schema.get("maximum")
+        if (
+            isinstance(minimum, (int, float))
+            and isinstance(maximum, (int, float))
+            and not isinstance(minimum, bool)
+            and not isinstance(maximum, bool)
+            and minimum < maximum
+        ):
+            metric_range = {"minimum": minimum, "maximum": maximum}
+
     elif t == "integer":
         metric_type = "numeric/discrete"
 
     if metric_type:
-        metrics.append({"path": ".".join(path), "type": metric_type})
+        metrics.append({"path": ".".join(path), "type": metric_type, **metric_range})
 
     return metrics
 

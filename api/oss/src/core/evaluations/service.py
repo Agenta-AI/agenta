@@ -87,6 +87,7 @@ from oss.src.core.tracing.dtos import (
     ListOperator,
     MetricSpec,
     MetricType,
+    ScoreMetricSpec,
 )
 from oss.src.core.tracing.service import TracingService
 
@@ -168,6 +169,22 @@ DEFAULT_METRICS = [
 METRICS_STEP_TYPES = {"invocation", "annotation"}
 
 DEFAULT_REFRESH_INTERVAL = 1  # minute(s)
+
+
+def _metric_spec(metric: Dict[str, Any]) -> MetricSpec:
+    """A continuous evaluator score gets the fixed-range bin rule; the rest do not."""
+    path = metric.get("path") or "*"
+    if (
+        metric.get("score")
+        and metric.get("type") == MetricType.NUMERIC_CONTINUOUS.value
+    ):
+        return ScoreMetricSpec(
+            type=MetricType.NUMERIC_CONTINUOUS,
+            path=path,
+            declared_min=metric.get("minimum"),
+            declared_max=metric.get("maximum"),
+        )
+    return MetricSpec(type=MetricType(metric.get("type")), path=path)
 
 
 def _first_reference_id(
@@ -1458,7 +1475,7 @@ class EvaluationsService:
             step.key: step.type for step in refreshable_steps
         }
 
-        steps_metrics_keys: Dict[str, List[Dict[str, str]]] = {
+        steps_metrics_keys: Dict[str, List[Dict[str, Any]]] = {
             step_key: [] for step_key in step_types_by_key
         }
 
@@ -1523,7 +1540,7 @@ class EvaluationsService:
 
         # Resolved metric keys per step (declared schema, else trace-inferred);
         # become the run's `mappings`. Rewrite only when something was inferred.
-        metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
+        metrics_keys_by_step: Dict[str, List[Dict[str, Any]]] = {}
         # Trace-inferred outputs schema per step, persisted onto the run step so
         # the UI can type filter columns for schema-less evaluators.
         inferred_schemas_by_step: Dict[str, Dict[str, Any]] = {}
@@ -1593,11 +1610,16 @@ class EvaluationsService:
                 if metrics_keys:
                     metrics_keys_by_step[step.key] = metrics_keys
 
+                # Evaluator outputs are scores and carry the declared range (or
+                # None); DEFAULT_METRICS (cost, duration, tokens, errors) are not.
                 steps_metrics_keys[step.key] += [
                     {
                         "path": "attributes.ag.data.outputs."
                         + metric_key.get("path", ""),
                         "type": metric_key.get("type", ""),
+                        "score": True,
+                        "minimum": metric_key.get("minimum"),
+                        "maximum": metric_key.get("maximum"),
                     }
                     for metric_key in metrics_keys
                 ]
@@ -1657,13 +1679,7 @@ class EvaluationsService:
                     ),
                 )
 
-                specs = [
-                    MetricSpec(
-                        type=MetricType(metric.get("type")),
-                        path=metric.get("path") or "*",
-                    )
-                    for metric in step_metrics_keys
-                ]
+                specs = [_metric_spec(metric) for metric in step_metrics_keys]
 
                 # log.info(f"[METRICS] Step '{step_key}': {len(specs)} metric specs")
                 steps_specs[step_key] = specs
@@ -1807,7 +1823,7 @@ class EvaluationsService:
         project_id: UUID,
         user_id: UUID,
         run: EvaluationRun,
-        inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]],
+        inferred_metrics_keys_by_step: Dict[str, List[Dict[str, Any]]],
         inferred_schemas_by_step: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
         existing_mappings = list(run.data.mappings or [])
