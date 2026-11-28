@@ -12,22 +12,15 @@ import {useAtomValue} from "jotai"
 
 import {AnnotationField} from "@/features/annotations/AnnotationField"
 
-import type {ReviewDraft, ScenarioJudge} from "./useJudgeReviews"
+import {scalarLeaves, setAtPath, type ReviewDraft, type ScenarioJudge} from "./useJudgeReviews"
 
 /** Output types a person corrects in place; text (a reason) keeps the judge's value. */
 const CORRECTABLE = new Set(["boolean", "number", "integer"])
 
-const typeOf = (schema: Record<string, unknown>, value: unknown): string | null => {
-    const type = Array.isArray(schema.type) ? schema.type[0] : schema.type
-    if (typeof type === "string") return type
-    if (Array.isArray(schema.enum) || Array.isArray(schema.anyOf)) return "string"
-    return typeof value === "boolean" ? "boolean" : typeof value === "number" ? "number" : null
-}
-
 /**
- * "Corrected value": the judge's own output fields that hold a flag or a number, from its output
- * schema (else from its values), each drawn as the annotation form draws it, prefilled with the
- * judge's value.
+ * "Corrected value": the judge's own output fields that hold a flag or a number (nested ones by
+ * their dotted path), each drawn as the annotation form draws it with its schema when the judge's
+ * output schema has it, prefilled with the judge's value.
  */
 const JudgeCorrection = ({
     judge,
@@ -43,14 +36,23 @@ const JudgeCorrection = ({
     const t = useT(annotateCatalog)
     const data = useAtomValue(workflowMolecule.selectors.data(judge.revisionId ?? ""))?.data
     const properties = resolveOutputSchemaProperties(data) ?? {}
-    const names = [...new Set([...Object.keys(properties), ...Object.keys(judge.outputs)])]
-    const fields = names.flatMap((name) => {
-        const schema = (properties[name] ?? {}) as Record<string, unknown>
-        const value = name in draft.corrected ? draft.corrected[name] : judge.outputs[name]
-        const type = typeOf(schema, value)
-        if (!type || !CORRECTABLE.has(type)) return []
+    // The corrected outputs so far: the judge's, with the user's changes over them.
+    const current = {...judge.outputs, ...draft.corrected}
+    const fields = scalarLeaves(current).flatMap(({path, value}) => {
+        const schema = (path.length === 1 ? (properties[path[0]] ?? {}) : {}) as Record<
+            string,
+            unknown
+        >
+        const declared = Array.isArray(schema.type) ? schema.type[0] : schema.type
+        const type =
+            typeof declared === "string"
+                ? declared
+                : typeof value === "boolean"
+                  ? "boolean"
+                  : "number"
+        if (!CORRECTABLE.has(type)) return []
         const field: AnnotationMetricField = {...schema, type, value}
-        return [[name, field] as const]
+        return [{path, field}]
     })
     return (
         <div className="flex flex-col gap-3 rounded-lg bg-muted p-3">
@@ -59,14 +61,14 @@ const JudgeCorrection = ({
                     <span className="text-meta text-muted-foreground">
                         {t("evaluations.scenarioFocusAnnotate.correctedValue")}
                     </span>
-                    {fields.map(([name, field]) => (
+                    {fields.map(({path, field}) => (
                         <AnnotationField
-                            key={name}
-                            fieldKey={name}
+                            key={path.join(".")}
+                            fieldKey={path.join(".")}
                             field={field}
                             readOnly={readOnly}
                             onChange={(value) =>
-                                onChange({...draft, corrected: {...draft.corrected, [name]: value}})
+                                onChange({...draft, corrected: setAtPath(current, path, value)})
                             }
                         />
                     ))}

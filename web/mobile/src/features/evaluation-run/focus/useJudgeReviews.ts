@@ -1,15 +1,9 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {
-    createAnnotation,
-    queryAnnotations,
-    updateAnnotation,
-    type Annotation,
-} from "@agenta/entities/annotation"
+import {createAnnotation, updateAnnotation} from "@agenta/entities/annotation"
 import {
     annotationStepSlug,
     buildJudgeReview,
-    readJudgeReview,
     type JudgeVerdict,
 } from "@agenta/entities/evaluationRun"
 import {
@@ -25,6 +19,7 @@ import {useAtomValue} from "jotai"
 import type {ScenarioRow} from "../scenarios/scenarioColumns"
 
 import {scenarioMetricValue, type ScenarioEvaluatorResult} from "./ScenarioFocusResultsTab"
+import {fetchJudgeReviews, JUDGE_REVIEWS_QUERY_KEY, type JudgeReview} from "./useRunReviews"
 
 /** One automatic evaluator (a judge) on one test case: what a review of its result names. */
 export interface ScenarioJudge {
@@ -44,68 +39,18 @@ export interface ScenarioJudge {
     outputs: Record<string, unknown>
 }
 
-/** One saved review of a judge's result. */
-export interface JudgeReview {
-    /** The judge's result trace on its test case: what the review links. */
-    judgeTraceId: string
-    verdict: JudgeVerdict
-    note: string | null
-    authorId: string | null
-    at: string | null
-    annotation: Annotation
-}
-
-/** The first part of every judge review query key: a save reads them all again. */
-export const JUDGE_REVIEWS_QUERY_KEY = ["evaluationRun", "judgeReviews"] as const
-
-/**
- * Judge results per request, and the page each request asks for (the API's largest): 50 results
- * hold up to 20 reviewers each before a page is full.
- */
-const LINKS_PER_QUERY = 50
-const REVIEWS_PER_QUERY = 1000
-
-/**
- * The saved reviews of judge results: the annotations whose inbound `invocation` link names one
- * of the results (`trace.links`; top-level `links` would match the reviews' own ids).
- */
-export async function fetchJudgeReviews(
-    projectId: string,
-    results: readonly {traceId: string; spanId: string}[],
-): Promise<JudgeReview[]> {
-    // One request after the other: a large run has many batches.
-    const pages = []
-    for (let start = 0; start < results.length; start += LINKS_PER_QUERY) {
-        pages.push(
-            await queryAnnotations({
-                projectId,
-                windowing: {limit: REVIEWS_PER_QUERY},
-                annotation: {
-                    links: results
-                        .slice(start, start + LINKS_PER_QUERY)
-                        .map(({traceId, spanId}) => ({trace_id: traceId, span_id: spanId})),
-                },
-            }),
-        )
-    }
-    return pages.flatMap(({annotations}) =>
-        annotations.flatMap((annotation) => {
-            const review = readJudgeReview(annotation)
-            return review?.judgeTraceId
-                ? [
-                      {
-                          judgeTraceId: review.judgeTraceId,
-                          verdict: review.verdict,
-                          note: review.note,
-                          authorId: annotation.created_by_id ?? null,
-                          at: annotation.updated_at ?? annotation.created_at ?? null,
-                          annotation,
-                      },
-                  ]
-                : []
-        }),
+/** The flag and number leaves of `outputs`, with their paths (what a reviewer can correct). */
+export const scalarLeaves = (
+    outputs: Record<string, unknown>,
+    prefix: string[] = [],
+): {path: string[]; value: unknown}[] =>
+    Object.entries(outputs).flatMap(([key, value]) =>
+        value && typeof value === "object" && !Array.isArray(value)
+            ? scalarLeaves(value as Record<string, unknown>, [...prefix, key])
+            : typeof value === "boolean" || typeof value === "number"
+              ? [{path: [...prefix, key], value}]
+              : [],
     )
-}
 
 /** The output field path a mapping reads (`attributes.ag.data.outputs.a.b` -> `a`, `b`). */
 const outputPath = (path: string | null | undefined, name: string): string[] => {
@@ -114,7 +59,7 @@ const outputPath = (path: string | null | undefined, name: string): string[] => 
 }
 
 /** `outputs` with `value` at `path`, nested objects made on the way. */
-const setAtPath = (
+export const setAtPath = (
     outputs: Record<string, unknown>,
     path: readonly string[],
     value: unknown,

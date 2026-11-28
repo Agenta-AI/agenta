@@ -32,8 +32,9 @@ import {ScenarioFocusAnnotateEvaluators, useRunHumanSteps} from "./ScenarioFocus
 import {ScenarioFocusAnnotateReviews} from "./ScenarioFocusAnnotateReviews"
 import {ScenarioFocusAnnotateTestcase} from "./ScenarioFocusAnnotateTestcase"
 import {ScenarioFocusSkeleton} from "./states/ScenarioFocusSkeleton"
-import {useJudgeReviewDrafts, type JudgeReview, type ScenarioJudge} from "./useJudgeReviews"
+import {useJudgeReviewDrafts, type ScenarioJudge} from "./useJudgeReviews"
 import {useRunAnnotationSession} from "./useRunAnnotationSession"
+import type {JudgeReview} from "./useRunReviews"
 import type {TestcaseDraft} from "./useTestcaseDraft"
 
 /**
