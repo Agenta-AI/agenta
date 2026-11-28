@@ -77,6 +77,26 @@ describe("a nav group with no page of its own", () => {
         expect(row.querySelector("svg")).not.toBeNull()
     })
 
+    it("does not toggle on a press inside its own controls", () => {
+        const withControls: SidebarConfig = {
+            ...evaluation,
+            groupAction: (
+                <>
+                    <input aria-label="Filter" />
+                    <span role="button" tabIndex={0}>
+                        Add
+                    </span>
+                </>
+            ),
+        }
+        const {onToggleOpenKey} = renderMenu({items: [withControls]})
+        fireEvent.click(screen.getByLabelText("Filter"))
+        fireEvent.click(screen.getByText("Add"))
+        expect(onToggleOpenKey).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByText("Evaluation"))
+        expect(onToggleOpenKey.mock.calls).toEqual([["evaluation"]])
+    })
+
     it("does not navigate: the row has no link", () => {
         renderMenu()
         expect(rowOf("Evaluation").querySelector("a")).toBeNull()

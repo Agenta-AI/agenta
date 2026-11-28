@@ -93,6 +93,10 @@ const dragAttrs = (item?: SidebarDragItem) =>
           }
         : undefined
 
+// Controls a group row may hold (its groupAction). A press on one of them does not toggle the row.
+const GROUP_ROW_CONTROLS =
+    "a, button, input, select, textarea, label, [role='button'], [contenteditable='true']"
+
 /** Faded in place while dragged — no gap opens, and a heading's rows fade with it. */
 const DRAG_GHOST = "[&_[data-drag-ghost=true]]:opacity-35"
 
@@ -764,9 +768,12 @@ const NavMenuImpl = ({
                             onClick={
                                 toggleOnRow
                                     ? (event) => {
-                                          // The group's own controls (a filter, a "+") act alone.
-                                          if ((event.target as HTMLElement).closest("a, button"))
-                                              return
+                                          // The group's own controls (a filter, a "+", an
+                                          // input) act alone. The row itself is a button too.
+                                          const control = (event.target as HTMLElement).closest(
+                                              GROUP_ROW_CONTROLS,
+                                          )
+                                          if (control && control !== event.currentTarget) return
                                           onToggleOpenKey?.(item.key)
                                       }
                                     : undefined
