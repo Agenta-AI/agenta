@@ -141,7 +141,7 @@ export const ActivityNode = ({
     return (
         <span
             aria-hidden
-            className={`relative z-10 flex size-6 shrink-0 items-center justify-center rounded-md border border-border-muted bg-background ${tone}`}
+            className={`relative z-10 flex size-6 shrink-0 items-center justify-center rounded-round border border-border-muted bg-background ${tone}`}
         >
             {showLogo ? (
                 <IntegrationTile label={appLabel ?? ""} logo={logo} size={16} />

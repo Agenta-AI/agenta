@@ -50,7 +50,7 @@ export const RunStatusDot = ({status}: {status: string | null | undefined}) => {
             role="img"
             aria-label={label}
             title={label}
-            className={`inline-block size-3 rounded-xs ${RUN_STATUS_DOT_COLOR[runStatusTone(status)]}`}
+            className={`inline-block size-3 rounded-round ${RUN_STATUS_DOT_COLOR[runStatusTone(status)]}`}
         />
     )
 }

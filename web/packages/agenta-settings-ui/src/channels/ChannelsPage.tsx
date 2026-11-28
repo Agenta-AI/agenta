@@ -162,7 +162,7 @@ export const ChannelsPage = ({
                                         {platformLabel(platform)}
                                         {summary.dotClass ? (
                                             <span
-                                                className={`inline-block h-1.5 w-1.5 rounded-xs ${summary.dotClass}`}
+                                                className={`inline-block h-1.5 w-1.5 rounded-round ${summary.dotClass}`}
                                             />
                                         ) : null}
                                     </span>

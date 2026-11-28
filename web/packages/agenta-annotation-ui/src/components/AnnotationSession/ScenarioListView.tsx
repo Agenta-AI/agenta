@@ -740,7 +740,7 @@ function mapDefToColumn(
                                     <Check size={12} className="text-success" />
                                 ) : (
                                     <span
-                                        className={`h-2 w-2 rounded-xs ${TAG_DOT_CLASS[tag.color] ?? "bg-muted-foreground"}`}
+                                        className={`h-2 w-2 rounded-round ${TAG_DOT_CLASS[tag.color] ?? "bg-muted-foreground"}`}
                                     />
                                 )}
                                 <span

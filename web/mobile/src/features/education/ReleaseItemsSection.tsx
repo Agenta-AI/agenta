@@ -39,7 +39,10 @@ export const ReleaseItemsSection = ({
                 {items.map((item, index) => (
                     <li key={`${item.area}-${index}`} className="contents">
                         <span className="inline-flex items-center gap-1.5 justify-self-start rounded-sm bg-secondary px-2 py-0.5 text-meta text-foreground">
-                            <span aria-hidden className={`size-1.5 ${areaDot(item.area)}`} />
+                            <span
+                                aria-hidden
+                                className={`size-1.5 rounded-round ${areaDot(item.area)}`}
+                            />
                             {item.area}
                         </span>
                         <span className="pt-0.5 text-body text-muted-foreground">{item.text}</span>

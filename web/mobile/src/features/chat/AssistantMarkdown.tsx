@@ -23,7 +23,7 @@ const proseBase = [
     "[&_:is(h1,h2)]:text-title [&_:is(h3,h4,h5,h6)]:text-subtitle",
     // Lists: our own 5px dot, hung in the indent; a nested list is a ruled block, not more dots.
     "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5",
-    "[&_ul]:list-none [&_ul]:pl-0 [&_ul>li]:relative [&_ul>li]:pl-4 [&_ul>li]:before:absolute [&_ul>li]:before:left-0.5 [&_ul>li]:before:top-[calc(0.125rem_+_0.5lh_-_2.5px)] [&_ul>li]:before:size-[5px] [&_ul>li]:before:rounded-[1px] [&_ul>li]:before:bg-foreground [&_ul>li:has(>input)]:pl-0 [&_ul>li:has(>input)]:before:hidden",
+    "[&_ul]:list-none [&_ul]:pl-0 [&_ul>li]:relative [&_ul>li]:pl-4 [&_ul>li]:before:absolute [&_ul>li]:before:left-0.5 [&_ul>li]:before:top-[calc(0.125rem_+_0.5lh_-_2.5px)] [&_ul>li]:before:size-[5px] [&_ul>li]:before:rounded-round [&_ul>li]:before:bg-foreground [&_ul>li:has(>input)]:pl-0 [&_ul>li:has(>input)]:before:hidden",
     "[&_li_ul]:my-1 [&_li_ul]:border-l [&_li_ul]:border-border-muted [&_li_ul]:pl-3.5 [&_li_ul>li]:pl-0 [&_li_ul>li]:before:hidden",
     "[&_ol]:list-outside [&_ol]:pl-5 [&_ol>li]:marker:text-muted-foreground",
     "[&_blockquote]:my-2 [&_blockquote]:border-l [&_blockquote]:border-border-muted [&_blockquote]:pl-3 [&_blockquote]:not-italic [&_blockquote]:text-muted-foreground [&_blockquote_p]:text-muted-foreground",
