@@ -17,18 +17,17 @@ export const ScenarioFocusAnnotateTestcase = ({
     draft,
     testsetName,
     version,
-    expectedKey,
     onSave,
 }: {
     draft: TestcaseDraft
     testsetName: string
     /** The version of the test set the run used. */
     version: number | null
-    expectedKey: string | null
     onSave: () => void
 }) => {
     const t = useT(annotateCatalog)
     const links = useRunReferenceLinks()
+    const {expectedKey} = draft
     const edited = draft.editedFields
     const saved = draft.saved
     const savedHref = saved?.revisionId ? links.testset(saved.revisionId) : null

@@ -158,6 +158,8 @@ let root: Root
 let counter = 0
 let state: ScenarioServerState
 let client: QueryClient
+/** The page as elements; a fresh copy renders again after the address changes. */
+let build: () => ReturnType<typeof createElement> = () => createElement("div")
 /** The reviews the annotation query returns. */
 let storedReviews: Record<string, unknown>[] = []
 /** True: creating an annotation fails. */
@@ -271,7 +273,17 @@ async function mount({
     http.post.mockImplementation(async (url: string, body: Record<string, unknown>) => {
         posts.push({url, body})
         if (url.endsWith("/simple/traces/query")) {
-            return {data: {count: storedReviews.length, traces: storedReviews}}
+            // Reviews are found by their inbound link to a judge result, as the API filters them.
+            const links = ((body.trace as {links?: {trace_id: string; span_id: string}[]})?.links ??
+                []) as {trace_id: string; span_id: string}[]
+            const found = storedReviews.filter((stored) => {
+                const link = (stored.links as {invocation: {trace_id: string; span_id: string}})
+                    .invocation
+                return links.some(
+                    (item) => item.trace_id === link.trace_id && item.span_id === link.span_id,
+                )
+            })
+            return {data: {count: found.length, traces: found}}
         }
         if (url.endsWith("/simple/traces/")) {
             if (failCreate) throw new Error("Request failed with status code 500")
@@ -292,19 +304,17 @@ async function mount({
         focusRunId: runId,
         tab: "scenarios",
     }
-    await act(async () =>
-        root.render(
+    build = () =>
+        createElement(
+            Provider,
+            {store},
             createElement(
-                Provider,
-                {store},
-                createElement(
-                    QueryClientProvider,
-                    {client},
-                    createElement(ScenarioFocusSheet, {runId, header: header(closed), poll: false}),
-                ),
+                QueryClientProvider,
+                {client},
+                createElement(ScenarioFocusSheet, {runId, header: header(closed), poll: false}),
             ),
-        ),
-    )
+        )
+    await act(async () => root.render(build()))
     await settle()
     await settle()
     return runId
@@ -372,11 +382,9 @@ beforeEach(() => {
         currentUserAtom: atom({id: "u-me", username: "Sam"}),
     })
     Object.values(http).forEach((fn) => fn.mockReset())
-    evaluationsClient.addSteps
-        .mockReset()
-        .mockResolvedValue({
-            run: {id: "run", name: "Capitals check", data: {steps: [], mappings: []}},
-        })
+    evaluationsClient.addSteps.mockReset().mockResolvedValue({
+        run: {id: "run", name: "Capitals check", data: {steps: [], mappings: []}},
+    })
     evaluationsClient.editRun.mockReset().mockResolvedValue({run: {id: "run"}})
     evaluationsClient.openRun.mockReset().mockResolvedValue({run: {id: "run"}})
     submission.submit.mockReset()
@@ -586,6 +594,23 @@ describe("Annotate panel in the test case drawer", () => {
         expect(submission.submit).not.toHaveBeenCalled()
     })
 
+    it("A review draft stays with its test case when the user moves on", async () => {
+        await mount({patch: {failing: ["sc-1", "sc-2"]}})
+        await press("Annotate")
+        await press("Disagree")
+        expect(panel()?.textContent).toContain("1 change to this test case")
+        await press("Next")
+        const target = router.replace.mock.calls.at(-1)?.[0] as {query: Record<string, string>}
+        router.query = target.query
+        await act(async () => root.render(build()))
+        await settle()
+        // The panel stays open on the next test case.
+        expect(dialog().textContent).toContain("Test case #2")
+        expect(section("Evaluator results").textContent).toContain("0 of 1 failed reviewed")
+        expect(section("Evaluator results").textContent).not.toContain("Corrected value")
+        expect(buttonNamed("Save").hasAttribute("disabled")).toBe(true)
+    })
+
     it("A failed save says so with Try again and keeps the change", async () => {
         failCreate = true
         await mount()
@@ -668,6 +693,8 @@ describe("Annotate panel in the test case drawer", () => {
         expect(part.textContent).toContain("The next run can use it.")
         expect(part.textContent).toContain("This run keeps version 7. Its scores do not change.")
         expect(part.textContent).toContain("Open test set")
+        // Its id changed in the new version: it is not edited again from this drawer.
+        expect(buttonNamed("Edit fields").hasAttribute("disabled")).toBe(true)
     })
 
     it("Use as reference writes the output to the expected column, with Undo", async () => {

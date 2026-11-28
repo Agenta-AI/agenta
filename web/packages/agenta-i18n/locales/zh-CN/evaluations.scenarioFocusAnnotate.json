@@ -1,5 +1,7 @@
 {
     "annotations": "标注",
+    "annotationsSaved": "标注已保存",
+    "runInvocationFirst": "请先运行调用以生成输出，再进行标注。",
     "humanEvaluatorCount_other": "{{count}} 个人工评测器",
     "inThisRun": "在此运行中",
     "pickHint": "选择一个人工评测器来标注此测试用例。",

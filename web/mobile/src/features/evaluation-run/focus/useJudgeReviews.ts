@@ -7,8 +7,8 @@ import {
     type Annotation,
 } from "@agenta/entities/annotation"
 import {
+    annotationStepSlug,
     buildJudgeReview,
-    JUDGE_REVIEW_LINK_KEY,
     readJudgeReview,
     type JudgeVerdict,
 } from "@agenta/entities/evaluationRun"
@@ -39,12 +39,58 @@ export interface ScenarioJudge {
 
 /** One saved review of a judge's result. */
 export interface JudgeReview {
-    judgeId: string
+    /** The judge's result trace on its test case: what the review links. */
+    judgeTraceId: string
     verdict: JudgeVerdict
     note: string | null
     authorId: string | null
     at: string | null
     annotation: Annotation
+}
+
+/** The first part of every judge review query key: a save reads them all again. */
+export const JUDGE_REVIEWS_QUERY_KEY = ["evaluationRun", "judgeReviews"] as const
+
+/** Judge results per request: one annotation query filters on this many inbound links. */
+const LINKS_PER_QUERY = 50
+
+/**
+ * The saved reviews of judge results: the annotations whose inbound `invocation` link names one
+ * of the results (`trace.links`; top-level `links` would match the reviews' own ids).
+ */
+export async function fetchJudgeReviews(
+    projectId: string,
+    results: readonly {traceId: string; spanId: string}[],
+): Promise<JudgeReview[]> {
+    const pages = await Promise.all(
+        Array.from({length: Math.ceil(results.length / LINKS_PER_QUERY)}, (_, page) =>
+            queryAnnotations({
+                projectId,
+                annotation: {
+                    links: results
+                        .slice(page * LINKS_PER_QUERY, (page + 1) * LINKS_PER_QUERY)
+                        .map(({traceId, spanId}) => ({trace_id: traceId, span_id: spanId})),
+                },
+            }),
+        ),
+    )
+    return pages.flatMap(({annotations}) =>
+        annotations.flatMap((annotation) => {
+            const review = readJudgeReview(annotation)
+            return review?.judgeTraceId
+                ? [
+                      {
+                          judgeTraceId: review.judgeTraceId,
+                          verdict: review.verdict,
+                          note: review.note,
+                          authorId: annotation.created_by_id ?? null,
+                          at: annotation.updated_at ?? annotation.created_at ?? null,
+                          annotation,
+                      },
+                  ]
+                : []
+        }),
+    )
 }
 
 /** The judges of a test case: the results that are not human, with their step's references. */
@@ -59,7 +105,7 @@ export function scenarioJudges(
         return {
             id: result.id,
             name: result.name,
-            slug: refs?.evaluator?.slug ?? refs?.evaluator_variant?.slug ?? null,
+            slug: refs ? annotationStepSlug({references: refs}) : null,
             evaluatorId: refs?.evaluator?.id ?? null,
             variantId: refs?.evaluator_variant?.id ?? null,
             revisionId: refs?.evaluator_revision?.id ?? null,
@@ -76,32 +122,25 @@ export function scenarioJudges(
     })
 }
 
-export const judgeReviewsQueryKey = (projectId: string, traceIds: readonly string[]) => [
-    "evaluationRun",
-    "judgeReviews",
-    projectId,
-    ...traceIds,
-]
+/** The judge results a review can link: those with a trace and a span. */
+const reviewable = (judges: readonly ScenarioJudge[]) =>
+    judges.flatMap((judge) =>
+        judge.traceId && judge.spanId ? [{traceId: judge.traceId, spanId: judge.spanId}] : [],
+    )
 
 /**
- * The saved reviews of the judges of one test case, read by the judges' result traces. A review
- * belongs to its author: `own` holds the current user's review of each judge.
+ * The saved reviews of the judges of one test case, by judge. A review belongs to its author:
+ * `own` holds the current user's review of each judge.
  */
 export function useJudgeReviews(judges: readonly ScenarioJudge[]) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     // The profile `id`, which an annotation stores as its author (not the login uid).
     const userId = useAtomValue(userAtom)?.id ?? null
-    const traceIds = useMemo(() => judges.flatMap((judge) => judge.traceId ?? []).sort(), [judges])
+    const results = useMemo(() => reviewable(judges), [judges])
     const query = useQuery({
-        queryKey: judgeReviewsQueryKey(projectId, traceIds),
-        enabled: Boolean(projectId) && traceIds.length > 0,
-        queryFn: async () =>
-            (
-                await queryAnnotations({
-                    projectId,
-                    annotationLinks: traceIds.map((trace_id) => ({trace_id})),
-                })
-            ).annotations,
+        queryKey: [...JUDGE_REVIEWS_QUERY_KEY, projectId, ...results.map((r) => r.traceId).sort()],
+        enabled: Boolean(projectId) && results.length > 0,
+        queryFn: () => fetchJudgeReviews(projectId, results),
     })
     const {byJudge, own} = useMemo(() => {
         const judgeOfTrace = new Map(
@@ -109,24 +148,15 @@ export function useJudgeReviews(judges: readonly ScenarioJudge[]) {
         )
         const all = new Map<string, JudgeReview[]>()
         const mine = new Map<string, JudgeReview>()
-        for (const annotation of query.data ?? []) {
-            const review = readJudgeReview(annotation)
-            const traceId = annotation.links?.[JUDGE_REVIEW_LINK_KEY]?.trace_id
-            const judgeId = traceId ? judgeOfTrace.get(traceId) : undefined
-            if (!review || !judgeId) continue
-            const item: JudgeReview = {
-                judgeId,
-                ...review,
-                authorId: annotation.created_by_id ?? null,
-                at: annotation.updated_at ?? annotation.created_at ?? null,
-                annotation,
-            }
-            all.set(judgeId, [...(all.get(judgeId) ?? []), item])
-            if (userId && item.authorId === userId) mine.set(judgeId, item)
+        for (const review of query.data ?? []) {
+            const judgeId = judgeOfTrace.get(review.judgeTraceId)
+            if (!judgeId) continue
+            all.set(judgeId, [...(all.get(judgeId) ?? []), review])
+            if (userId && review.authorId === userId) mine.set(judgeId, review)
         }
         return {byJudge: all, own: mine}
     }, [query.data, judges, userId])
-    return {byJudge, own, isError: query.isError, refetch: query.refetch}
+    return {byJudge, own}
 }
 
 /** What the user set for one judge in the panel, not saved yet. */
@@ -168,23 +198,41 @@ export function useJudgeReviewDrafts({
 }) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const queryClient = useQueryClient()
+    // Drafts by judge result (its trace), not by judge: the judge is the same on every test case,
+    // so a draft made on one test case never shows or saves on the next.
     const [edits, setEdits] = useState<Record<string, ReviewDraft>>({})
+    const keyOf = useCallback(
+        (judgeId: string) => {
+            const judge = judges.find((item) => item.id === judgeId)
+            return judge?.traceId ?? null
+        },
+        [judges],
+    )
 
     const draftFor = useCallback(
-        (judgeId: string): ReviewDraft | null => edits[judgeId] ?? draftOf(own.get(judgeId)),
-        [edits, own],
+        (judgeId: string): ReviewDraft | null => {
+            const key = keyOf(judgeId)
+            return (key ? edits[key] : undefined) ?? draftOf(own.get(judgeId))
+        },
+        [edits, own, keyOf],
     )
     const changed = judges.filter(
-        (judge) => edits[judge.id] && !sameDraft(edits[judge.id], draftOf(own.get(judge.id))),
+        (judge) =>
+            judge.traceId &&
+            edits[judge.traceId] &&
+            !sameDraft(edits[judge.traceId], draftOf(own.get(judge.id))),
     )
     const setDraft = useCallback(
-        (judgeId: string, next: ReviewDraft) => setEdits((prev) => ({...prev, [judgeId]: next})),
-        [],
+        (judgeId: string, next: ReviewDraft) => {
+            const key = keyOf(judgeId)
+            if (key) setEdits((prev) => ({...prev, [key]: next}))
+        },
+        [keyOf],
     )
 
     const saveOne = async (judge: ScenarioJudge) => {
-        const draft = edits[judge.id]
-        if (!judge.evaluatorId || !judge.traceId || !judge.spanId) {
+        const draft = judge.traceId ? edits[judge.traceId] : undefined
+        if (!draft || !judge.evaluatorId || !judge.traceId || !judge.spanId) {
             throw new Error(`The result of ${judge.name} has no trace to review`)
         }
         const payload = buildJudgeReview({
@@ -215,8 +263,9 @@ export function useJudgeReviewDrafts({
               })
             : await createAnnotation(projectId, payload)
         if (!saved) throw new Error(`The review of ${judge.name} was not saved`)
+        const key = judge.traceId
         setEdits((prev) => {
-            const {[judge.id]: _saved, ...rest} = prev
+            const {[key]: _saved, ...rest} = prev
             return rest
         })
     }
@@ -229,9 +278,9 @@ export function useJudgeReviewDrafts({
         try {
             for (const judge of changed) await saveOne(judge)
         } finally {
-            await queryClient.invalidateQueries({queryKey: ["evaluationRun", "judgeReviews"]})
+            await queryClient.invalidateQueries({queryKey: JUDGE_REVIEWS_QUERY_KEY})
         }
     }
 
-    return {draftFor, setDraft, changedCount: changed.length, save, reset: () => setEdits({})}
+    return {draftFor, setDraft, changedCount: changed.length, save}
 }

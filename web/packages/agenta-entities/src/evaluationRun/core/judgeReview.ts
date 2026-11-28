@@ -77,11 +77,19 @@ export function buildJudgeReview(input: JudgeReviewInput): CreateAnnotationPaylo
     }
 }
 
-/** The answer and the note of a review; null for an annotation that is not a review. */
+/**
+ * A review as an annotation holds it: the answer, the note, and the judge result trace it links.
+ * Null for an annotation that is not a review.
+ */
 export function readJudgeReview(annotation: {
     meta?: {verdict?: JudgeVerdict | null; note?: string | null} | null
-}): {verdict: JudgeVerdict; note: string | null} | null {
+    links?: Record<string, {trace_id?: string | null} | undefined> | null
+}): {verdict: JudgeVerdict; note: string | null; judgeTraceId: string | null} | null {
     const verdict = annotation.meta?.verdict
     if (verdict !== "agree" && verdict !== "disagree") return null
-    return {verdict, note: annotation.meta?.note || null}
+    return {
+        verdict,
+        note: annotation.meta?.note || null,
+        judgeTraceId: annotation.links?.[JUDGE_REVIEW_LINK_KEY]?.trace_id ?? null,
+    }
 }

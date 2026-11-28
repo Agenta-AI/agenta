@@ -1,5 +1,7 @@
 {
     "annotations": "Anotações",
+    "annotationsSaved": "Anotações salvas",
+    "runInvocationFirst": "Execute a invocação para gerar uma saída antes de anotar.",
     "humanEvaluatorCount_one": "{{count}} avaliador humano",
     "humanEvaluatorCount_many": "{{count}} avaliadores humanos",
     "humanEvaluatorCount_other": "{{count}} avaliadores humanos",

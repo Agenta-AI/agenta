@@ -221,7 +221,12 @@ export const ScenarioFocusSheet = ({
                     judge.id,
                     {
                         own: judgeReviews.own.get(judge.id)?.verdict ?? null,
-                        all: judgeReviews.byJudge.get(judge.id) ?? [],
+                        all: (judgeReviews.byJudge.get(judge.id) ?? []).map((review) => ({
+                            id: review.annotation.trace_id,
+                            verdict: review.verdict,
+                            authorId: review.authorId,
+                            at: review.at,
+                        })),
                     },
                 ]),
             ),
@@ -282,14 +287,15 @@ export const ScenarioFocusSheet = ({
                         : panel
                           ? "lg:[--ag-sheet-responsive-width:1100px]"
                           : "lg:[--ag-sheet-responsive-width:720px]",
-                    panel && current && "overflow-hidden lg:flex-row",
+                    panel && current && "overflow-y-auto lg:flex-row lg:overflow-hidden",
                 )}
             >
                 <div
                     className={cn(
                         "flex min-h-0 min-w-0 flex-1 flex-col",
                         // A phone has no room for both: the panel takes the drawer's place.
-                        panel && current && "max-lg:hidden",
+                        // While "Edit fields" is on, the inputs stay, with the panel under them.
+                        panel && current && !draft.editing && "max-lg:hidden",
                     )}
                 >
                     <SheetDescription className="sr-only">{`${noun} of ${header.name}`}</SheetDescription>
@@ -379,7 +385,6 @@ export const ScenarioFocusSheet = ({
                         focusJudge={panel.focusJudge}
                         testset={testset}
                         draft={draft}
-                        expectedKey={expectedKey}
                         canEditRun={canEditRun}
                         canEditTestsets={canEditTestsets}
                         onClose={closePanel}

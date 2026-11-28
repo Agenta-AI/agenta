@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    annotationStepSlug,
     buildJudgeReview,
     readJudgeReview,
     reviewAgreement,
@@ -83,16 +84,29 @@ describe("buildJudgeReview", () => {
 
 describe("readJudgeReview", () => {
     it("Reads the answer and the note, and skips other annotations", () => {
-        expect(readJudgeReview({meta: {verdict: "disagree", note: "Too strict"}})).toEqual({
-            verdict: "disagree",
-            note: "Too strict",
-        })
+        expect(
+            readJudgeReview({
+                meta: {verdict: "disagree", note: "Too strict"},
+                links: {invocation: {trace_id: "trace-1"}},
+            }),
+        ).toEqual({verdict: "disagree", note: "Too strict", judgeTraceId: "trace-1"})
         expect(readJudgeReview({meta: {verdict: "agree"}})).toEqual({
             verdict: "agree",
             note: null,
+            judgeTraceId: null,
         })
         expect(readJudgeReview({meta: {}})).toBeNull()
         expect(readJudgeReview({})).toBeNull()
+    })
+})
+
+describe("annotationStepSlug", () => {
+    it("Reads the evaluator slug, else the last part of the step key", () => {
+        expect(annotationStepSlug({key: "app.x", references: {evaluator: {slug: "tone"}}})).toBe(
+            "tone",
+        )
+        expect(annotationStepSlug({key: "app.tone-review", references: {}})).toBe("tone-review")
+        expect(annotationStepSlug({})).toBeNull()
     })
 })
 

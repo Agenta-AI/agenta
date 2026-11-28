@@ -1,7 +1,11 @@
 import {useMemo, useState} from "react"
 
 import {annotationSessionController, type EvaluatorStepRef} from "@agenta/annotation"
-import {evaluationRunQueryAtomFamily, isHumanOrigin} from "@agenta/entities/evaluationRun"
+import {
+    annotationStepSlug,
+    evaluationRunMolecule,
+    evaluationRunQueryAtomFamily,
+} from "@agenta/entities/evaluationRun"
 import {useT} from "@agenta/i18n"
 import annotateCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocusAnnotate"
 import obsAnnotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
@@ -15,28 +19,18 @@ import {SelectEvaluatorsStep} from "@/features/observability/annotate/SelectEval
 import {useEvaluatorsHref} from "@/features/observability/annotate/useEvaluatorsHref"
 import {useHumanEvaluators} from "@/features/observability/annotate/useHumanEvaluators"
 
-/** The slug of a run step's evaluator, as the annotation session reads it. */
-const stepSlug = (step: {
-    key: string
-    references?: Record<string, {slug?: string | null}> | null
-}) =>
-    step.references?.evaluator?.slug ??
-    step.references?.evaluator_variant?.slug ??
-    step.key.split(".").at(-1)
-
-/** The run's human evaluators by slug, and its invocation step key. */
+/** The run's human evaluators by slug, and its input and invocation step keys. */
 export function useRunHumanSteps(runId: string) {
+    const humanSteps = useAtomValue(evaluationRunMolecule.selectors.humanAnnotationSteps(runId))
     const steps = useAtomValue(evaluationRunQueryAtomFamily(runId)).data?.data?.steps
-    return useMemo(() => {
-        const all = steps ?? []
-        return {
-            slugs: all
-                .filter((step) => step.type === "annotation" && isHumanOrigin(step.origin))
-                .flatMap((step) => stepSlug(step) ?? []),
-            inputKey: all.find((step) => step.type === "input")?.key ?? null,
-            invocationKey: all.find((step) => step.type === "invocation")?.key ?? null,
-        }
-    }, [steps])
+    return useMemo(
+        () => ({
+            slugs: humanSteps.flatMap((step) => annotationStepSlug(step) ?? []),
+            inputKey: steps?.find((step) => step.type === "input")?.key ?? null,
+            invocationKey: steps?.find((step) => step.type === "invocation")?.key ?? null,
+        }),
+        [humanSteps, steps],
+    )
 }
 
 /**
@@ -67,14 +61,11 @@ export const ScenarioFocusAnnotateEvaluators = ({
     const evaluatorsHref = useEvaluatorsHref()
     const formEvaluators = useAtomValue(annotationSessionController.selectors.formEvaluators())
     const setFormEvaluators = useSetAtom(annotationSessionController.actions.setFormEvaluators)
-    const hidden = formEvaluators?.hidden ?? []
+    // The evaluators the shared form shows: the run's, without the hidden ones, then the added.
+    const formRefs = useAtomValue(annotationSessionController.selectors.evaluatorStepRefs())
+    const formSlugs = formRefs.flatMap((ref) => ref.slug ?? [])
     const added = formEvaluators?.added ?? []
-
     const inRun = new Set(run.slugs)
-    const formSlugs = [
-        ...run.slugs.filter((slug) => !hidden.includes(slug)),
-        ...added.flatMap((ref) => (ref.slug && !inRun.has(ref.slug) ? [ref.slug] : [])),
-    ]
     const listed = canEditRun
         ? humanEvaluators.evaluators
         : humanEvaluators.evaluators.filter((evaluator) => inRun.has(evaluator.slug ?? ""))
@@ -108,7 +99,7 @@ export const ScenarioFocusAnnotateEvaluators = ({
 
     let body
     if (!hasOutput) {
-        body = <ScenarioMessage title="Run the invocation to generate output before annotating." />
+        body = <ScenarioMessage title={t("evaluations.scenarioFocusAnnotate.runInvocationFirst")} />
     } else if (formSlugs.length === 0) {
         body = (
             <div className="flex flex-col gap-1 px-4 py-3">

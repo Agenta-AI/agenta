@@ -1,5 +1,7 @@
 {
     "annotations": "Annotations",
+    "annotationsSaved": "Annotations saved successfully",
+    "runInvocationFirst": "Run the invocation to generate output before annotating.",
     "humanEvaluatorCount_one": "{{count}} human evaluator",
     "humanEvaluatorCount_other": "{{count}} human evaluators",
     "inThisRun": "In this run",

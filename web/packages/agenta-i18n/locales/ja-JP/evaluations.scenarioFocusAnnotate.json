@@ -1,5 +1,7 @@
 {
     "annotations": "注釈",
+    "annotationsSaved": "注釈を保存しました",
+    "runInvocationFirst": "注釈を付ける前に、呼び出しを実行して出力を生成してください。",
     "humanEvaluatorCount_other": "{{count}} 件の人による評価者",
     "inThisRun": "この実行で使用中",
     "pickHint": "このテストケースに注釈を付ける人による評価者を選んでください。",

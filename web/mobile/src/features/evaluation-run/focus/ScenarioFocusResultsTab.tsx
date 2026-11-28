@@ -127,15 +127,10 @@ export function scenarioEvaluatorResults(
     )
 }
 
-/**
- * The Results tab: one row per evaluator that is not human, failed first, then the human
- * evaluators in their own group with True / False. Each row has its trace button and, on expand,
- * the evaluator call's duration, tokens and cost.
- */
 /** The reviews of one automatic evaluator's result: the user's own answer, and every review. */
 export interface ScenarioResultReviews {
     own: JudgeVerdict | null
-    all: readonly {verdict: JudgeVerdict; authorId: string | null; at: string | null}[]
+    all: readonly {id: string; verdict: JudgeVerdict; authorId: string | null; at: string | null}[]
 }
 
 /** "Dana agreed · 2 days ago": one review under an evaluator's row. */
@@ -161,6 +156,12 @@ const ReviewLine = ({
     )
 }
 
+/**
+ * The Results tab: one row per evaluator that is not human, failed first, then the human
+ * evaluators in their own group with True / False. Each row has its trace button and, on expand,
+ * the evaluator call's duration, tokens and cost. A judge row shows the user's own review mark,
+ * which opens the Annotate panel at that judge, and the count of all reviews.
+ */
 export const ScenarioFocusResultsTab = ({
     results,
     hasEvaluators,
@@ -243,8 +244,8 @@ export const ScenarioFocusResultsTab = ({
                         {metrics && hasExecutionMetrics(metrics) ? (
                             <ExecutionMetricsDisplay metrics={metrics} variant="plain" />
                         ) : null}
-                        {review?.all.map((item, index) => (
-                            <ReviewLine key={index} review={item} />
+                        {review?.all.map((item) => (
+                            <ReviewLine key={item.id} review={item} />
                         ))}
                     </div>
                 ) : null,

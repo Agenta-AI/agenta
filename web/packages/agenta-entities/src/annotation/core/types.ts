@@ -6,6 +6,10 @@
  * @packageDocumentation
  */
 
+import type {z} from "zod"
+
+import type {annotationMetaSchema} from "./schema"
+
 // ============================================================================
 // QUERY PARAMETERS
 // ============================================================================
@@ -30,6 +34,8 @@ export interface AnnotationQueryFilter {
         testset?: AnnotationQueryReference
         testcase?: AnnotationQueryReference
     }
+    /** Inbound links: annotations that link any of these spans (for example a judge's result). */
+    links?: {trace_id: string; span_id: string}[]
 }
 
 /**
@@ -63,20 +69,14 @@ export interface AnnotationDetailParams {
 // ============================================================================
 
 /**
+ * An annotation's free `meta`, as `annotationMetaSchema` reads it. `verdict` and `note` mark a
+ * person's review of an automatic evaluator's result ("agree" or "disagree", and why).
+ */
+export type AnnotationMetaPayload = z.infer<typeof annotationMetaSchema>
+
+/**
  * Payload for creating a new annotation.
  */
-/**
- * An annotation's free `meta`. `verdict` and `note` mark a person's review of an automatic
- * evaluator's result ("agree" or "disagree", and why).
- */
-export interface AnnotationMetaPayload {
-    name?: string
-    description?: string
-    tags?: string[]
-    verdict?: "agree" | "disagree"
-    note?: string
-}
-
 export interface CreateAnnotationPayload {
     /** Annotation data (outputs) */
     data: {outputs?: Record<string, unknown>}

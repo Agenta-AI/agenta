@@ -36,9 +36,6 @@ import {useJudgeReviewDrafts, type JudgeReview, type ScenarioJudge} from "./useJ
 import {useRunAnnotationSession} from "./useRunAnnotationSession"
 import type {TestcaseDraft} from "./useTestcaseDraft"
 
-/** The toast of a save, the same words the annotation form's own save shows. */
-const SAVED_TEXT = "Annotations saved successfully"
-
 /**
  * The Annotate panel beside the test case drawer: "Annotations" (human evaluators), "Evaluator
  * results" (reviews of the automatic evaluators) and "Test case" (changes to the test case, when
@@ -55,7 +52,6 @@ export const ScenarioFocusAnnotatePanel = ({
     focusJudge,
     testset,
     draft,
-    expectedKey,
     canEditRun,
     canEditTestsets,
     onClose,
@@ -74,7 +70,6 @@ export const ScenarioFocusAnnotatePanel = ({
         version: number | null
     } | null
     draft: TestcaseDraft
-    expectedKey: string | null
     canEditRun: boolean
     canEditTestsets: boolean
     onClose: () => void
@@ -103,7 +98,6 @@ export const ScenarioFocusAnnotatePanel = ({
     const [failed, setFailed] = useState(false)
 
     const closed = header.flags.isClosed
-    const readOnly = closed
     const changes = formChanges + reviews.changedCount
 
     /** Adds the evaluators picked here that the run does not have yet, then reads the run again. */
@@ -159,7 +153,8 @@ export const ScenarioFocusAnnotatePanel = ({
             }
             if (reviews.changedCount > 0) {
                 await reviews.save()
-                if (!formSaved) message.success(SAVED_TEXT)
+                if (!formSaved)
+                    message.success(t("evaluations.scenarioFocusAnnotate.annotationsSaved"))
             }
         } catch (cause) {
             console.error("Saving the annotations failed", cause)
@@ -217,7 +212,7 @@ export const ScenarioFocusAnnotatePanel = ({
                         runId={runId}
                         scenarioId={scenarioId}
                         hasOutput={Boolean(row.invocation?.traceId)}
-                        readOnly={readOnly}
+                        readOnly={closed}
                         canEditRun={canEditRun}
                     />
                     <ScenarioFocusAnnotateReviews
@@ -225,14 +220,13 @@ export const ScenarioFocusAnnotatePanel = ({
                         draftFor={reviews.draftFor}
                         onDraft={reviews.setDraft}
                         focusJudge={focusJudge}
-                        readOnly={readOnly}
+                        readOnly={closed}
                     />
                     {testset && canEditTestsets ? (
                         <ScenarioFocusAnnotateTestcase
                             draft={draft}
                             testsetName={testset.name}
                             version={testset.version}
-                            expectedKey={expectedKey}
                             onSave={() => void saveTestcase()}
                         />
                     ) : null}
@@ -242,7 +236,7 @@ export const ScenarioFocusAnnotatePanel = ({
                     <ScenarioFocusSkeleton />
                 </div>
             )}
-            {readOnly ? null : (
+            {closed ? null : (
                 <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-border px-4 py-3">
                     <span className="text-meta text-muted-foreground">
                         {changes > 0

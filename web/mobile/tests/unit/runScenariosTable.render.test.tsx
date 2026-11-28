@@ -226,11 +226,15 @@ describe("scenarios table", () => {
                             scenario_id: id,
                             step_key: "ev",
                             trace_id: `${id}-ev`,
+                            span_id: `${id}-ev-span`,
                         })),
                     },
                 }
             }
-            if (url.endsWith("/simple/traces/query")) {
+            if (
+                url.endsWith("/simple/traces/query") &&
+                (body.trace as {links?: unknown[]})?.links?.length === 2
+            ) {
                 const review = (traceId: string, verdict: string) => ({
                     trace_id: `rv-${traceId}-${verdict}`,
                     span_id: "s",

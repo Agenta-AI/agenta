@@ -56,7 +56,12 @@ export function useTestcaseDraft({
     )
     const [state, setState] = useState<DraftState | null>(null)
     const [saving, setSaving] = useState(false)
-    const [saved, setSaved] = useState<{scenarioId: string; result: SavedTestcase} | null>(null)
+    // What "Save to test set" made in this drawer, by scenario. The next save starts from the
+    // newest of these revisions, so it keeps the corrections saved before it. A saved test case
+    // has a new id in that revision (ids follow the content), so it is not edited again here.
+    const [saved, setSaved] = useState<Record<string, SavedTestcase>>({})
+    const [headRevisionId, setHeadRevisionId] = useState<string | null>(null)
+    const savedHere = saved[scenarioId] ?? null
     const draft = state?.scenarioId === scenarioId ? state : null
     const base = (testcase.data?.data ?? null) as Record<string, unknown> | null
 
@@ -72,7 +77,6 @@ export function useTestcaseDraft({
 
     const update = useCallback(
         (change: (prev: DraftState) => DraftState) => {
-            setSaved(null)
             setState((prev) =>
                 change(
                     prev?.scenarioId === scenarioId
@@ -91,35 +95,37 @@ export function useTestcaseDraft({
     }, [base, draft?.edits, reference, expectedKey, output])
 
     const save = async () => {
-        if (!testset || !testcaseId || !base || saving) return
+        if (!testset || !testcaseId || !base || saving || savedHere) return
         setSaving(true)
         try {
             const response = await patchRevision({
                 projectId,
                 testsetId: testset.testsetId,
-                baseRevisionId: testset.revisionId ?? undefined,
+                baseRevisionId: headRevisionId ?? testset.revisionId ?? undefined,
                 operations: {rows: {replace: [{id: testcaseId, data: values}]}},
             })
             const revision = response?.testset_revision
             invalidateTestsetsListCache()
             invalidateTestsetCache(testset.testsetId)
             invalidateRevisionsListCache(testset.testsetId)
+            const revisionId = typeof revision?.id === "string" ? revision.id : null
             setState(null)
-            setSaved({
-                scenarioId,
-                result: {
-                    revisionId: typeof revision?.id === "string" ? revision.id : null,
+            setHeadRevisionId(revisionId)
+            setSaved((prev) => ({
+                ...prev,
+                [scenarioId]: {
+                    revisionId,
                     version: revision?.version == null ? null : Number(revision.version),
                 },
-            })
+            }))
         } finally {
             setSaving(false)
         }
     }
 
     return {
-        /** The test case is loaded and can be edited. */
-        ready: Boolean(base && testcaseId && testset),
+        /** The test case is loaded and can be edited (not after it was saved here). */
+        ready: Boolean(base && testcaseId && testset && !savedHere),
         editing: Boolean(draft?.editing),
         /** The column "Use as reference" writes to; null hides it. */
         expectedKey,
@@ -128,15 +134,12 @@ export function useTestcaseDraft({
         reference,
         dirty,
         saving,
-        saved: saved?.scenarioId === scenarioId ? saved.result : null,
+        saved: savedHere,
         toggleEditing: () => update((prev) => ({...prev, editing: !prev.editing})),
         setField: (key: string, value: unknown) =>
             update((prev) => ({...prev, edits: {...prev.edits, [key]: value}})),
         setReference: (on: boolean) => update((prev) => ({...prev, reference: on})),
-        discard: () => {
-            setState(null)
-            setSaved(null)
-        },
+        discard: () => setState(null),
         save,
     }
 }

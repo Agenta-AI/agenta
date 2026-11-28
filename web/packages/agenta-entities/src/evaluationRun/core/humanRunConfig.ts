@@ -158,6 +158,22 @@ export function humanAnnotationMappings(
 }
 
 /**
+ * The evaluator slug of an annotation step, as the annotation session reads it: the evaluator's
+ * (or its variant's) slug, else the last part of the step key (`${invocationKey}.${slug}`).
+ */
+export function annotationStepSlug(step: {
+    key?: string | null
+    references?: Record<string, {slug?: string | null} | null | undefined> | null
+}): string | null {
+    return (
+        step.references?.evaluator?.slug ??
+        step.references?.evaluator_variant?.slug ??
+        step.key?.split(".").filter(Boolean).at(-1) ??
+        null
+    )
+}
+
+/**
  * The annotation step of one human evaluator: key `${invocationKey}.${slug}`, origin `human`, the
  * evaluator's references, and the run's input and invocation steps as its inputs. A human run
  * gets one per evaluator; `POST /simple/evaluations/{id}/steps/add` takes it to add an evaluator
