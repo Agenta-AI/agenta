@@ -1,15 +1,7 @@
-import {scenarioStatusLabel, scenarioStatusTone, type StatusTone} from "@agenta/annotation"
+import {scenarioStatusLabel, scenarioStatusTone} from "@agenta/annotation"
 import clsx from "clsx"
 
-import {RUN_STATUS_DOT_COLOR} from "../../evaluations/list/runStatusDotColor"
-
-const WORD: Record<StatusTone, string> = {
-    success: "text-success",
-    error: "text-destructive",
-    warning: "text-warning",
-    processing: "text-muted-foreground",
-    default: "text-muted-foreground",
-}
+import {RUN_STATUS_DOT_COLOR, RUN_STATUS_TEXT_COLOR} from "../../evaluations/list/runStatusDotColor"
 
 /**
  * A scenario status in a table row: a success is a dot only, with the word in the title; every
@@ -42,7 +34,7 @@ export const ScenarioStatusDot = ({
             <span
                 className={clsx(
                     "truncate text-meta font-medium",
-                    WORD[tone],
+                    RUN_STATUS_TEXT_COLOR[tone],
                     tone === "success" && "sr-only",
                 )}
             >

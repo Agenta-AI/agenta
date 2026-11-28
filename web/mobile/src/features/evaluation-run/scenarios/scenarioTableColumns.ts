@@ -8,6 +8,7 @@ import {
     computeColumnGroup,
     type RunColumnGroup,
     type RunStep,
+    unwrapCategoricalStats,
     unwrapStatsForCompare,
 } from "@agenta/entities/evaluationRun/etl"
 import {detectValueShape, type ValueShape} from "@agenta/shared/utils"
@@ -77,34 +78,12 @@ export const cellOf = (
     column: {groupKey: string; name: string},
 ): ScenarioCell | undefined => row.cells[column.groupKey]?.find((cell) => cell.name === column.name)
 
-interface CategoryCount {
-    value: unknown
-    count?: number
-    density?: number
-}
-
-const isCategoryStats = (value: unknown): value is {type: string; freq: CategoryCount[]} =>
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as {type?: unknown}).type === "string" &&
-    (value as {type: string}).type.startsWith("categorical") &&
-    Array.isArray((value as {freq?: unknown}).freq)
-
 /**
- * A per-scenario metric holds a one-row stat blob: its flag or number; for a categorical metric
- * its labels, the most frequent first; else the value.
+ * A per-scenario metric holds a one-row stat blob: for a categorical metric its labels, the most
+ * frequent first; else its flag or number; else the value.
  */
-export const metricValueOf = (cell: ScenarioCell | undefined): unknown => {
-    if (!cell) return undefined
-    if (isCategoryStats(cell.value)) {
-        const weight = (entry: CategoryCount) => entry.density ?? entry.count ?? 1
-        return cell.value.freq
-            .filter((entry) => weight(entry) > 0)
-            .sort((a, b) => weight(b) - weight(a))
-            .flatMap((entry) => (Array.isArray(entry.value) ? entry.value : [entry.value]))
-    }
-    return unwrapStatsForCompare(cell.value)
-}
+export const metricValueOf = (cell: ScenarioCell | undefined): unknown =>
+    cell ? (unwrapCategoricalStats(cell.value) ?? unwrapStatsForCompare(cell.value)) : undefined
 
 const isEmpty = (value: unknown) => value === undefined || value === null || value === ""
 
