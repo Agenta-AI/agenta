@@ -75,28 +75,29 @@ describe("formatCurrencyPrecise", () => {
 
 describe("formatLatency", () => {
     it("formats sub-millisecond values in μs", () => {
-        expect(formatLatency(0.0001)).toBe("100μs")
+        expect(formatLatency(0.0001)).toBe("100 μs")
     })
 
     it("formats millisecond-range values in ms", () => {
-        expect(formatLatency(0.5)).toBe("500ms")
+        expect(formatLatency(0.5)).toBe("500 ms")
     })
 
     it("formats second-range values in s", () => {
-        expect(formatLatency(2.5)).toBe("2.5s")
+        expect(formatLatency(2.5)).toBe("2.5 s")
+        expect(formatLatency(731.08)).toBe("731.08 s")
     })
 
     it("formats exactly 1 second", () => {
-        expect(formatLatency(1)).toBe("1s")
+        expect(formatLatency(1)).toBe("1 s")
     })
 
-    it("formats exactly 1 millisecond as 1ms, not 1000μs", () => {
-        expect(formatLatency(0.001)).toBe("1ms")
+    it("formats exactly 1 millisecond as 1 ms, not 1000 μs", () => {
+        expect(formatLatency(0.001)).toBe("1 ms")
     })
 
     it("moves to the next unit when rounding reaches 1000", () => {
-        expect(formatLatency(0.0009996)).toBe("1ms")
-        expect(formatLatency(0.9996)).toBe("1s")
+        expect(formatLatency(0.0009996)).toBe("1 ms")
+        expect(formatLatency(0.9996)).toBe("1 s")
     })
 
     it("returns '-' for null", () => expect(formatLatency(null)).toBe("-"))

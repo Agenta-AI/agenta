@@ -112,7 +112,7 @@ describe("scenario metrics", () => {
         ]
         const text = (key: string) => metricCellText(key, scenarioMetricStats(metrics, STEPS, key))
         expect(text(COST)).toBe("$0.000012")
-        expect(text(DURATION)).toBe("522ms")
+        expect(text(DURATION)).toBe("522 ms")
         expect(text(TOKENS)).toBe("128")
         expect(text(ERRORS)).toBe("0")
     })
@@ -133,7 +133,7 @@ describe("scenario metrics", () => {
         ]
         const text = (step: string, key: string) =>
             formatMetricValue(key, stepMetricStats(metrics, step, key))
-        expect(text("ev", DURATION)).toBe("887ms")
+        expect(text("ev", DURATION)).toBe("887 ms")
         expect(text("ev", TOKENS)).toBe("126")
         expect(stepMetricStats(metrics, "ev", COST)).toBeNull()
         expect(text("app", COST)).toBe("$0.000012")

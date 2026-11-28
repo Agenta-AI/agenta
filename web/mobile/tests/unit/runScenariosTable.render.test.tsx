@@ -34,9 +34,9 @@ vi.mock("next/router", () => ({
     }),
 }))
 
-import {ScenariosTab} from "@/features/evaluation-run/scenarios/ScenariosTab"
-
 import {answerRequest, newServerState, type ScenarioServerState} from "./runScenariosFixtures"
+
+import {ScenariosTab} from "@/features/evaluation-run/scenarios/ScenariosTab"
 
 const RUN: RunHeader = {
     name: "Capitals check",
@@ -186,7 +186,7 @@ describe("scenarios table", () => {
         expect(headers().slice(-4)).toEqual(["Cost", "Duration", "Tokens", "Errors"])
         const text = rows()[0].textContent ?? ""
         expect(text).toContain("$0.000012")
-        expect(text).toContain("522ms")
+        expect(text).toContain("522 ms")
         expect(text).toContain("128")
     })
 

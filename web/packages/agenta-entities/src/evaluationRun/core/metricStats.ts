@@ -8,6 +8,7 @@
  * @packageDocumentation
  */
 
+import {formatLatency} from "@agenta/shared/utils"
 import type {RadarAxis} from "@agenta/ui/components/presentational/charts"
 
 export interface MetricFrequency {
@@ -296,12 +297,12 @@ export function formatCost(value: number): string {
 }
 
 /**
- * `milliseconds` under 1 s as "N ms", else "N.NN s". Milliseconds, the unit of the duration
- * metric (`attributes.ag.metrics.duration.cumulative`) and of the trace durations.
+ * `milliseconds` with the shared `formatLatency` ("457 ms", "8.48 s"), so the run tiles write
+ * durations like the tables. Milliseconds, the unit of the duration metric
+ * (`attributes.ag.metrics.duration.cumulative`) and of the trace durations.
  */
 export function formatDuration(milliseconds: number): string {
-    if (Math.abs(milliseconds) < 1000) return `${Math.round(milliseconds)} ms`
-    return `${(milliseconds / 1000).toFixed(2)} s`
+    return formatLatency(milliseconds / 1000)
 }
 
 /** "950", "12.3K", "4.5M". */

@@ -18,7 +18,7 @@
  * // Preset formatters
  * formatNumber(1234.567)      // "1,234.57"
  * formatCurrency(0.00123)     // "$0.001230"
- * formatLatency(0.5)          // "500ms"
+ * formatLatency(0.5)          // "500 ms"
  * formatSignificant(0.00456)  // "0.00456"
  *
  * // Custom formatter
@@ -220,19 +220,19 @@ export const formatCurrencyPrecise = (value: number | undefined | null): string 
  *
  * @example
  * ```typescript
- * formatLatency(0.0001)   // "100μs"
- * formatLatency(0.5)      // "500ms"
- * formatLatency(2.5)      // "2.5s"
+ * formatLatency(0.0001)   // "100 μs"
+ * formatLatency(0.5)      // "500 ms"
+ * formatLatency(2.5)      // "2.5 s"
  * ```
  */
 export const formatLatency = (value: number | undefined | null): string => {
     return withFallback(value, (v) => {
-        // Pick the unit from the ROUNDED value, so 999.6μs reads "1ms", not "1000μs".
+        // Pick the unit from the ROUNDED value, so 999.6 μs reads "1 ms", not "1000 μs".
         const us = Math.round(v * 1_000_000)
-        if (Math.abs(us) < 1000) return `${us}μs`
+        if (Math.abs(us) < 1000) return `${us} μs`
         const ms = Math.round(v * 1000)
-        if (Math.abs(ms) < 1000) return `${ms}ms`
-        return `${Math.round(v * 100) / 100}s`
+        if (Math.abs(ms) < 1000) return `${ms} ms`
+        return `${Math.round(v * 100) / 100} s`
     })
 }
 
