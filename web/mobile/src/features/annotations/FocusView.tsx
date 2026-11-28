@@ -123,7 +123,8 @@ export const FocusView = ({
     const canAnnotate = useProjectPermission(projectId, "edit_annotations")
     const onSaved = useRunAnnotationRefresh(activeRunId ?? "")
     const submission = useSubmitAnnotations(scenarioId, {queueId}, onSaved)
-    const runItem = useQueueRunItem(scenarioId)
+    // Only a test case or test set queue can hold a run's items; a trace item has its own trace.
+    const runItem = useQueueRunItem(isTraces ? "" : scenarioId)
     // A run's item has no output until someone runs the app: the form waits for it.
     const resultsUnknown = Boolean(runItem && !runItem.ready)
     const awaitingOutput = resultsUnknown || Boolean(runItem?.invocation.pending)

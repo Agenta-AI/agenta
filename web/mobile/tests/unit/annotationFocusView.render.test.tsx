@@ -74,18 +74,32 @@ vi.mock("@agenta/entities/trace", async (importOriginal) => {
     const span = atom(root)
     const failed = atom({isPending: false, isError: true, data: undefined, refetch: vi.fn()})
     const noSpan = atom(null)
+    const failedSpan = atom({
+        ...root,
+        status_code: "STATUS_CODE_ERROR",
+        events: [
+            {
+                name: "exception",
+                attributes: {"exception.message": "the model provider returned 429"},
+            },
+        ],
+    })
     return {
         ...(await importOriginal<typeof import("@agenta/entities/trace")>()),
         traceEntityAtomFamily: (traceId: string | null) =>
             traceId === "trace-missing" ? failed : loaded,
         traceRootSpanAtomFamily: (traceId: string | null) =>
-            traceId === "trace-missing" ? noSpan : span,
+            traceId === "trace-missing" ? noSpan : traceId === "trace-failed" ? failedSpan : span,
     }
 })
 vi.mock("@agenta/entities/evaluationRun", async (importOriginal) => {
     const {atom} = await import("jotai")
     // One atom each, as the real families give: a new atom per render would render forever.
-    const run = atom<{data: unknown}>({data: null})
+    const run = atom<{data: unknown; isSuccess?: boolean; isError?: boolean}>({
+        data: null,
+        isSuccess: true,
+        isError: false,
+    })
     const steps = atom<{data: unknown[]; isSuccess: boolean; isError: boolean}>({
         data: [],
         isSuccess: true,
@@ -156,7 +170,10 @@ let host: HTMLDivElement
 let root: Root
 
 const setRun = (run: unknown) =>
-    fakeStore.set(evaluationRunQueryAtomFamily("") as never, {data: run} as never)
+    fakeStore.set(
+        evaluationRunQueryAtomFamily("") as never,
+        {data: run, isSuccess: true, isError: false} as never,
+    )
 const setStepResults = (results: unknown[]) =>
     fakeStore.set(
         evaluationRunMolecule.selectors.scenarioSteps({runId: "", scenarioId: ""}) as never,
@@ -233,6 +250,17 @@ describe("the queue's Annotate tab", () => {
         expect(host.textContent).toContain("Conversation2 messages")
         expect(host.textContent).toContain("Annotations")
         expect(host.querySelector("[role=separator]")).not.toBeNull()
+    })
+
+    it("A trace whose root span failed reads Error: MESSAGE with Open trace", async () => {
+        patchSession({
+            traceRefs: {
+                "s-1": {traceId: "trace-failed", spanId: "x"},
+                "s-2": {traceId: "trace-1", spanId: "span-root"},
+            },
+        })
+        await render()
+        expect(host.textContent).toContain("Error: the model provider returned 429")
     })
 
     it("opens an item from the list", async () => {
@@ -442,6 +470,20 @@ describe("the queue's Annotate tab", () => {
             expect(host.querySelectorAll("[role=status]").length).toBeGreaterThan(0)
             await press(document.body, {key: "Enter", metaKey: true})
             expect(fixture.runApp).not.toHaveBeenCalled()
+        })
+
+        it("a failed run read is a failed load with Retry, not a plain test case", async () => {
+            const refetch = vi.fn()
+            patchSession({activeRunId: "run-1"})
+            fakeStore.set(
+                evaluationRunQueryAtomFamily("") as never,
+                {data: undefined, isSuccess: false, isError: true, refetch} as never,
+            )
+            await render()
+            expect(host.textContent).toContain("Could not load this item")
+            expect(button("Mark completed and next")).toBeUndefined()
+            await act(async () => button("Retry")!.click())
+            expect(refetch).toHaveBeenCalled()
         })
 
         it("a failed trace read of a finished app call offers Retry", async () => {

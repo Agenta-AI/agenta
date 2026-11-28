@@ -20,7 +20,7 @@ import {useExpectedColumn} from "@/features/evaluation-run/focus/useExpectedColu
 
 import {InputsSection, OutputSection} from "./QueueValueSections"
 import {ScenarioMessage} from "./ScenarioMessage"
-import {traceTurnActivity} from "./TraceScenarioContent"
+import {TraceReadProblem, traceTurnActivity} from "./TraceScenarioContent"
 import {
     isFailedInvocationStatus,
     useScenarioInvocation,
@@ -53,8 +53,9 @@ export const useQueueRunItem = (scenarioId: string): QueueRunItem | null => {
     const runId = useAtomValue(annotationSessionController.selectors.activeRunId()) ?? ""
     const runQuery = useAtomValue(evaluationRunQueryAtomFamily(runId))
     const steps = runQuery.data?.data?.steps ?? []
-    // Until the run loads nothing tells a run's item from a plain one: wait, as for the results.
-    const runUnknown = Boolean(runId) && runQuery.isPending
+    // Until the run loads nothing tells a run's item from a plain one: wait, as for the results,
+    // and a failed run read is a failed load, not a plain item.
+    const runUnknown = Boolean(scenarioId && runId) && !runQuery.isSuccess
     const invocationStep = steps.find((step) => step.type === "invocation")
     const isRunItem =
         Boolean(invocationStep) &&
@@ -81,12 +82,12 @@ export const useQueueRunItem = (scenarioId: string): QueueRunItem | null => {
             ? {id: scenarioId, invocationStatus: invocationResult?.status}
             : null,
     )
-    return isRunItem || runUnknown
+    return scenarioId && (isRunItem || runUnknown)
         ? {
               runId,
               ready,
-              loadFailed: resultsQuery.isError,
-              retry: () => void resultsQuery.refetch(),
+              loadFailed: runQuery.isError || resultsQuery.isError,
+              retry: () => void (runQuery.isError ? runQuery.refetch() : resultsQuery.refetch()),
               invocationResult,
               invocation,
           }
@@ -168,15 +169,8 @@ export const QueueRunItemContent = ({
                 />
             ) : traceId && traceQuery.isPending ? (
                 <SkeletonBlock className="h-24" />
-            ) : traceId && traceQuery.isError ? (
-                <LoadError
-                    title="Failed to load trace data"
-                    description={null}
-                    retryLabel={tCommon("common.retry")}
-                    onRetry={() => void traceQuery.refetch()}
-                />
             ) : traceId ? (
-                <ScenarioMessage title="Trace data not available" />
+                <TraceReadProblem query={traceQuery} hasRoot={false} />
             ) : null}
         </div>
     )
