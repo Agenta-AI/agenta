@@ -206,7 +206,8 @@
         "REDIS_URI_DURABLE": "redis://redis.railway.internal:6379/0",
         "SUPERTOKENS_CONNECTION_URI": "http://supertokens.railway.internal:3567",
         "AGENTA_INSECURE_EGRESS_ALLOWED": "false",
-        "AGENTA_LLM_GATEWAY_ENABLED": "true"
+        "AGENTA_LLM_GATEWAY_ENABLED": "true",
+        "AGENTA_TELEMETRY_INSTANCE_KIND": "test"
       },
       "optionalVariables": [
         "COMPOSIO_API_KEY",
@@ -327,7 +328,8 @@
         "REDIS_URI": "redis://redis.railway.internal:6379/0",
         "REDIS_URI_VOLATILE": "redis://redis.railway.internal:6379/0",
         "REDIS_URI_DURABLE": "redis://redis.railway.internal:6379/0",
-        "SUPERTOKENS_CONNECTION_URI": "http://supertokens.railway.internal:3567"
+        "SUPERTOKENS_CONNECTION_URI": "http://supertokens.railway.internal:3567",
+        "AGENTA_TELEMETRY_INSTANCE_KIND": "test"
       }
     },
     "worker-queues": {
@@ -354,7 +356,8 @@
         "REDIS_URI": "redis://redis.railway.internal:6379/0",
         "REDIS_URI_VOLATILE": "redis://redis.railway.internal:6379/0",
         "REDIS_URI_DURABLE": "redis://redis.railway.internal:6379/0",
-        "SUPERTOKENS_CONNECTION_URI": "http://supertokens.railway.internal:3567"
+        "SUPERTOKENS_CONNECTION_URI": "http://supertokens.railway.internal:3567",
+        "AGENTA_TELEMETRY_INSTANCE_KIND": "test"
       }
     },
     "cron": {
@@ -381,7 +384,8 @@
         "REDIS_URI": "redis://redis.railway.internal:6379/0",
         "REDIS_URI_VOLATILE": "redis://redis.railway.internal:6379/0",
         "REDIS_URI_DURABLE": "redis://redis.railway.internal:6379/0",
-        "SUPERTOKENS_CONNECTION_URI": "http://supertokens.railway.internal:3567"
+        "SUPERTOKENS_CONNECTION_URI": "http://supertokens.railway.internal:3567",
+        "AGENTA_TELEMETRY_INSTANCE_KIND": "test"
       }
     },
     "alembic": {
@@ -408,7 +412,8 @@
         "PGPORT": "${{Postgres.PGPORT}}",
         "PGUSER": "${{Postgres.POSTGRES_USER}}",
         "PGPASSWORD": "${{Postgres.POSTGRES_PASSWORD}}",
-        "PGDATABASE": "postgres"
+        "PGDATABASE": "postgres",
+        "AGENTA_TELEMETRY_INSTANCE_KIND": "test"
       }
     },
     "supertokens": {

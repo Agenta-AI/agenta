@@ -529,6 +529,9 @@ main() {
 
     unset_vars worker-streams AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
 
+    set_optional_vars worker-streams \
+        "AGENTA_TELEMETRY_INSTANCE_KIND=${AGENTA_TELEMETRY_INSTANCE_KIND:-}"
+
     set_vars worker-queues \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
         AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
@@ -540,6 +543,9 @@ main() {
 
     unset_vars worker-queues AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
 
+    set_optional_vars worker-queues \
+        "AGENTA_TELEMETRY_INSTANCE_KIND=${AGENTA_TELEMETRY_INSTANCE_KIND:-}"
+
     set_vars cron \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
         AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
@@ -550,6 +556,9 @@ main() {
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
 
     unset_vars cron AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
+
+    set_optional_vars cron \
+        "AGENTA_TELEMETRY_INSTANCE_KIND=${AGENTA_TELEMETRY_INSTANCE_KIND:-}"
 
     set_vars alembic \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
