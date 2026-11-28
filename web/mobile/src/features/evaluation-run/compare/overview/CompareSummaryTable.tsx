@@ -51,7 +51,7 @@ export const CompareSummaryTable = ({
     rows: readonly CompareSummaryRow[]
 }) => {
     const t = useT(runOverviewCatalog)
-    const {detail, assertions} = useRunTileText(false)
+    const {value: tileValue, detail, assertions} = useRunTileText(false)
     const changeText = useChangeText()
 
     return (
@@ -105,7 +105,9 @@ export const CompareSummaryTable = ({
                                     const value =
                                         cell === "loading"
                                             ? TILE_PENDING
-                                            : (tile?.value ?? TILE_MISSING)
+                                            : tile
+                                              ? tileValue(tile)
+                                              : TILE_MISSING
                                     return (
                                         <td
                                             key={columns[index]?.runId ?? index}

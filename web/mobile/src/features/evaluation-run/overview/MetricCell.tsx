@@ -15,7 +15,8 @@ import {MiniHistogram, ShareBar} from "@agenta/ui/components/presentational/char
 export const dataColor = (index: number) => `var(--data-${(index % 6) + 1})`
 
 // Numbers in the chosen language: "75 %" and "0,82" in German.
-export const percent = (share: number) => formatNumber(share, {style: "percent", maximumFractionDigits: 0})
+export const percent = (share: number) =>
+    formatNumber(share, {style: "percent", maximumFractionDigits: 0})
 /** 3 significant digits, as `format3Sig`. */
 const sig3 = (value: number) => formatNumber(value, {maximumSignificantDigits: 3})
 /** A mean on 0 to 1 with 2 decimals, else 3 significant digits, as `formatMean`. */

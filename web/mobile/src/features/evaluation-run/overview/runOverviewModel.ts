@@ -5,6 +5,7 @@ import {
     runTiles,
     type EvaluationMetric,
     type EvaluatorRow,
+    type FailedStep,
     type PassedState,
     type RunFailures,
     type RunHeader,
@@ -17,10 +18,16 @@ import type {OverviewMetric, OverviewNames, ScenarioMetricsState} from "./useRun
 /** The per-test-case query as the overview reads it: ready, loading, or not available. */
 export function scenarioMetricsStateOf(query: {
     isSuccess: boolean
-    data: EvaluationMetric[] | undefined
+    data: {rows: EvaluationMetric[]; failedSteps: FailedStep[]} | undefined
     fetchStatus: string
 }): ScenarioMetricsState {
-    if (query.isSuccess) return {status: "ready", rows: query.data ?? []}
+    if (query.isSuccess) {
+        return {
+            status: "ready",
+            rows: query.data?.rows ?? [],
+            failedSteps: query.data?.failedSteps ?? [],
+        }
+    }
     return query.fetchStatus === "fetching" ? {status: "pending"} : {status: "unavailable"}
 }
 
@@ -54,27 +61,20 @@ export function runOverviewModel({
         {runWideOnly: online},
     )
 
-    let failures: RunFailures | null = null
-    if (scenarioMetrics.status === "ready") {
-        const evaluatorStepKeys = (references?.evaluators ?? []).map((e) => e.stepKey)
-        // The app step reports cost, duration and tokens; an evaluator step is never one.
-        const invocationStepKeys = [
-            ...new Set(
-                metrics.flatMap((metric) =>
-                    metric.kind === "invocation" &&
-                    metric.stepKey &&
-                    !evaluatorStepKeys.includes(metric.stepKey)
-                        ? [metric.stepKey]
-                        : [],
-                ),
-            ),
-        ]
-        failures = runFailures(scenarioMetrics.rows, {invocationStepKeys, evaluatorStepKeys})
-    }
+    const failures: RunFailures | null =
+        scenarioMetrics.status === "ready"
+            ? runFailures(
+                  scenarioMetrics.rows,
+                  scenarioMetrics.failedSteps,
+                  (references?.evaluators ?? []).map((evaluator) => evaluator.stepKey),
+              )
+            : null
 
     const binary = rows.flatMap((row) => row.metrics.filter((m) => m.kind === "binary"))
     const counted =
-        scenarioMetrics.status === "ready" ? passedTestCases(scenarioMetrics.rows, binary) : null
+        scenarioMetrics.status === "ready"
+            ? passedTestCases(scenarioMetrics.rows, binary, failures?.notRunIds ?? new Set())
+            : null
     const passed: PassedState =
         scenarioMetrics.status === "ready"
             ? counted

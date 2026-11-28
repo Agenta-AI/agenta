@@ -22,9 +22,9 @@ vi.mock("@agenta/shared/api", async (original) => ({
     axios: http,
     getAgentaApiUrl: () => "https://agenta.test/api",
 }))
-// The per-test-case metric rows are read through the Fern evaluations client; the same fake
-// server answers them.
-const fern = vi.hoisted(() => ({queryMetrics: vi.fn()}))
+// The per-test-case metric rows and the failed step results are read through the Fern evaluations
+// client; the same fake server answers them.
+const fern = vi.hoisted(() => ({queryMetrics: vi.fn(), queryResults: vi.fn()}))
 vi.mock("@agenta/sdk/resources", async (original) => ({
     ...(await original<typeof import("@agenta/sdk/resources")>()),
     getEvaluationsClient: () => fern,
@@ -385,6 +385,10 @@ beforeEach(() => {
     fern.queryMetrics.mockReset()
     fern.queryMetrics.mockImplementation(
         async (body: RequestBody) => answer("/evaluations/metrics/query", body).data,
+    )
+    fern.queryResults.mockReset()
+    fern.queryResults.mockImplementation(
+        async (body: RequestBody) => answer("/evaluations/results/query", body).data,
     )
     http.get.mockResolvedValue({data: {}})
     router.replace.mockReset()
