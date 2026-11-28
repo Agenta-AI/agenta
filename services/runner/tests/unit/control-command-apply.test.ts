@@ -569,6 +569,36 @@ describe("applyCommand", () => {
     );
   });
 
+  it("stops a run that resolved no project scope through the same direct command", async () => {
+    // #7760: a run with no project scope is still registered, with an UNKNOWN project, and an
+    // unknown project matches any caller (`findExecution`). So a Stop for such a run reaches it
+    // through `POST /cancel` like any other, and it never has to travel the heartbeat.
+    const controller = new AbortController();
+    registerExecution({
+      projectId: undefined,
+      sessionId: SESSION,
+      turnId: TURN,
+      startedAt: 900,
+      abort: (reason = USER_STOP_ABORT_REASON) => controller.abort(reason),
+    });
+    const { reported, report } = collector();
+
+    const pending = applyCommand(command(), { report });
+    await Promise.resolve();
+    assert.equal(
+      isUserStopAbort(controller.signal),
+      true,
+      "a direct Stop is a user Stop even when the run parked nothing",
+    );
+
+    unregisterExecution(SESSION, TURN);
+    const outcome = await pending;
+
+    assert.equal(outcome.result, "applied");
+    assert.equal(outcome.execution.state, "stopped");
+    assert.deepEqual(reported, [outcome]);
+  });
+
   it("does NOT park when the abort carries no label", () => {
     // The regression this guards: the first version of the control route called
     // `controller.abort()` with no reason, so every Stop through it destroyed the sandbox.
