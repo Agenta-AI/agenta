@@ -17,11 +17,29 @@ export interface ScenarioPayload {
 /** A value with no answer yet is written as null, so its key still shows. */
 const plain = (value: unknown) => (value === undefined ? null : value)
 
-/** An evaluator value: a category as its label (its labels when there are several), else the stats' value. */
+/**
+ * Named values as one object. A name that repeats (two apps of one run both write `outputs`)
+ * gets " 2", " 3" after it, so no value hides another.
+ */
+export function valuesByName(entries: readonly (readonly [string, unknown])[]) {
+    const values: Record<string, unknown> = {}
+    for (const [name, value] of entries) {
+        let key = name
+        for (let n = 2; key in values; n++) key = `${name} ${n}`
+        values[key] = value
+    }
+    return values
+}
+
+/**
+ * An evaluator value: a category as its label, else the stats' value. A single choice reads as
+ * its label; a multiple choice stays a list, also with one label.
+ */
 const metricValue = (value: unknown) => {
     const labels = unwrapCategoricalStats(value)
     if (labels === null) return unwrapStatsForCompare(value)
-    return labels.length === 1 ? labels[0] : labels
+    const multiple = (value as {type?: unknown}).type === "categorical/multiple"
+    return labels.length === 1 && !multiple ? labels[0] : labels
 }
 
 /**
@@ -34,11 +52,11 @@ export function scenarioPayload(
     labels: Record<string, string>,
 ): ScenarioPayload {
     const valuesOf = (kind: string, read: (value: unknown) => unknown = plain) =>
-        Object.fromEntries(
+        valuesByName(
             groups
                 .filter(({group}) => group.kind === kind)
                 .flatMap(({group}) => row.cells[group.key] ?? [])
-                .map((cell) => [cell.name, read(cell.value)]),
+                .map((cell) => [cell.name, read(cell.value)] as const),
         )
     const evaluators = Object.fromEntries(
         groups

@@ -3,6 +3,7 @@ import type {ToolUIPart} from "ai"
 
 import type {ActivityStep} from "../model/activitySteps"
 
+import {valueAsText} from "./CopyValueButton"
 import type {TurnActivity} from "./MessagesValue"
 
 type Loose = Record<string, unknown>
@@ -45,6 +46,7 @@ const durationOf = (span: TraceSpan): number | undefined => {
 const toolStep = (span: TraceSpan): ActivityStep => {
     const failed = span.status_code === "STATUS_CODE_ERROR"
     const data = at(span.attributes, ["ag", "data"])
+    const output = at(data, ["outputs"])
     const callId = at(span.attributes, ["ag", "meta", "tool", "call", "id"])
     const id = typeof callId === "string" && callId ? callId : span.span_id
     const part = {
@@ -52,8 +54,14 @@ const toolStep = (span: TraceSpan): ActivityStep => {
         toolCallId: id,
         input: at(data, ["inputs"]),
         ...(failed
-            ? {state: "output-error", errorText: span.status_message ?? ""}
-            : {state: "output-available", output: at(data, ["outputs"])}),
+            ? {
+                  state: "output-error",
+                  // A failed call can record its result and no message: the result is the error.
+                  errorText:
+                      span.status_message ||
+                      (output === undefined || output === null ? "" : valueAsText(output)),
+              }
+            : {state: "output-available", output}),
     } as unknown as ToolUIPart
     return {kind: "tool", key: span.span_id, part, files: [], durationMs: durationOf(span)}
 }

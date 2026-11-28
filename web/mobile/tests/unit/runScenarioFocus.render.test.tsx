@@ -247,6 +247,8 @@ const traceReads: string[] = []
 const traceApi = {
     outputs: (): unknown => ({answer: "Tokyo"}),
     failGet: false,
+    /** The trace API finds no trace: `{count: 0}`. */
+    missing: false,
     tokens: {prompt: 100, completion: 28, total: 128} as Record<string, number>,
 }
 
@@ -425,6 +427,7 @@ beforeEach(() => {
     views.testsets = true
     traceApi.outputs = () => ({answer: "Tokyo"})
     traceApi.failGet = false
+    traceApi.missing = false
     traceApi.tokens = {prompt: 100, completion: 28, total: 128}
     // The trace API is read with fetch: the page's traces in one query, one trace by id.
     vi.stubGlobal("fetch", async (input: string | URL | Request) => {
@@ -446,6 +449,7 @@ beforeEach(() => {
         const byId = url.match(/\/traces\/([^/?]+)/)?.[1]
         if (byId) {
             if (traceApi.failGet) return json({detail: "boom"}, 500)
+            if (traceApi.missing) return json({count: 0})
             return json({count: 1, trace: appTrace(byId, traceApi.outputs())})
         }
         return json({count: 0, traces: [], spans: []})
@@ -832,6 +836,14 @@ describe("scenario focus drawer", () => {
         await act(async () => store.set(closeTraceDrawerAtom))
         await settle()
         expect(text()).toContain("Test case #1")
+    })
+
+    it("A trace the API does not find offers Try again", async () => {
+        traceApi.outputs = chatOutput
+        traceApi.missing = true
+        await mount("sc-1", {}, "auto", withAppTrace())
+        await settle()
+        expect(section("Output").textContent).toContain("Could not load the tool calls")
     })
 
     it("A human row says who gave the value and when", async () => {

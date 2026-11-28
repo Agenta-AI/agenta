@@ -107,6 +107,28 @@ describe("toolStepsFromTrace", () => {
         expect(failed.output).toBeUndefined()
     })
 
+    it("shows the recorded result of a failed span that has no message", () => {
+        const failed = toolStepsFromTrace({
+            count: 1,
+            traces: {
+                tr: {
+                    spans: {
+                        t: tool("t", "Bash", 0, 1, {
+                            status_code: "STATUS_CODE_ERROR",
+                            attributes: {
+                                ag: {data: {inputs: {command: "ls"}, outputs: "exit code 2"}},
+                            },
+                        }),
+                    },
+                },
+            },
+        } as unknown as TracesResponse)[0].steps[0]
+        expect(failed.kind === "tool" && failed.part).toMatchObject({
+            state: "output-error",
+            errorText: "exit code 2",
+        })
+    })
+
     it("takes the recorded duration, else the span's start and end", () => {
         expect(parts().map(({step}) => step.durationMs)).toEqual([1000, 1000, 2000, 3000, 4210])
     })

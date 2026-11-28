@@ -7,6 +7,7 @@ import {Button, SkeletonBlock} from "@agenta/ui/ui"
 
 import type {ScenarioCell, ScenarioStep} from "../scenarios/scenarioColumns"
 
+import {valuesByName} from "./scenarioPayload"
 import {ScenarioStepTools} from "./ScenarioStepTools"
 import type {useScenarioTrace} from "./useScenarioTrace"
 
@@ -14,9 +15,7 @@ type ScenarioTrace = ReturnType<typeof useScenarioTrace>
 
 /** The output to draw: one cell's value, or the cells by name when the app has several. */
 const outputValue = (cells: ScenarioCell[]) =>
-    cells.length === 1
-        ? cells[0].value
-        : Object.fromEntries(cells.map((cell) => [cell.name, cell.value]))
+    cells.length === 1 ? cells[0].value : valuesByName(cells.map((cell) => [cell.name, cell.value]))
 
 /** The line a trace that did not load leaves above the output, with Try again. */
 const ToolCallsError = ({onRetry}: {onRetry: () => void}) => {

@@ -45,8 +45,9 @@ export function useScenarioTrace(row: ScenarioRow) {
         turns,
         toolCallCount: turns.reduce((sum, turn) => sum + turn.steps.length, 0),
         root,
-        // The trace API answers null when the read failed.
-        failed: enabled && (query.isError || (query.isSuccess && data === null)),
+        // The trace API answers null when the read failed, and no spans when it found no trace
+        // (a finished app call always writes one): both offer Try again.
+        failed: enabled && (query.isError || (query.isSuccess && root === null)),
         retry: () => void query.refetch(),
     }
 }
