@@ -43,6 +43,7 @@ import {
     evaluationRunMolecule,
     findScenarioTraceResult,
     queryEvaluationResults,
+    runScenarioMetricsQueryKey,
     type EvaluationResult,
     type EvaluationRunDataStep,
 } from "@agenta/entities/evaluationRun"
@@ -1651,7 +1652,17 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 runId,
                 scenarioId,
             })
-            if (!queueId) await metricWrites
+            if (queueId) {
+                // The run overview counts passed test cases from these metrics: read them again
+                // once the queue save has written them.
+                void metricWrites.then(() =>
+                    getHostQueryClient().invalidateQueries({
+                        queryKey: runScenarioMetricsQueryKey(projectId, runId),
+                    }),
+                )
+            } else {
+                await metricWrites
+            }
         }
 
         const submittedAnnotations = responses.filter(isAnnotationResponse)

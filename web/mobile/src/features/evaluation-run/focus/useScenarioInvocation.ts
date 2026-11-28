@@ -4,6 +4,7 @@ import {
     evaluationRunQueryAtomFamily,
     evaluationRunQueryKey,
     runLevelMetricsQueryKey,
+    runScenarioMetricsQueryKey,
 } from "@agenta/entities/evaluationRun"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
@@ -72,6 +73,7 @@ export function useScenarioInvocation(
                     [
                         runScenariosQueryKey(projectId, runId),
                         runLevelMetricsQueryKey(projectId, runId),
+                        runScenarioMetricsQueryKey(projectId, runId),
                         evaluationRunQueryKey(runId),
                     ].map((queryKey) => queryClient.invalidateQueries({queryKey})),
                 )

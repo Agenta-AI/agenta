@@ -1,10 +1,12 @@
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
 import {
     runLevelMetricsQueryAtomFamily,
     runMetricCatalogAtomFamily,
-    runQueryConfigQueryAtomFamily,
     runReferencesAtomFamily,
+    runScenarioMetricsQueryAtomFamily,
+    type EvaluationMetric,
+    type FailedStep,
     type RunMetricEntry,
 } from "@agenta/entities/evaluationRun"
 import {testsetQueryAtomFamily, testsetRevisionHeaderAtomFamily} from "@agenta/entities/testset"
@@ -31,21 +33,23 @@ export interface OverviewNames {
 
 interface OverviewNameIds {
     evaluatorIds: string[]
-    testsetIds: string[]
+    testsetIds?: string[]
     /** The test set revisions whose version the run does not name; "" for the others. */
     testsetRevisionIds?: string[]
-    applicationId: string | null
-    revisionId: string | null
+    applicationId?: string | null
+    revisionId?: string | null
 }
 
 /**
- * The names the overview shows. The atom is rebuilt only when an id changes: the catalog and the
- * references are new arrays after every poll, and a new atom would read all the names again.
+ * The names of a run's evaluators, test sets, application and variant. The atom is rebuilt only
+ * when an id changes: the catalog and the references are new arrays after every poll, and a new
+ * atom would read all the names again.
  */
 export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
-    const {applicationId, revisionId} = ids
+    const applicationId = ids.applicationId ?? null
+    const revisionId = ids.revisionId ?? null
     const evaluatorKey = [...new Set(ids.evaluatorIds)].join(",")
-    const testsetKey = ids.testsetIds.join(",")
+    const testsetKey = (ids.testsetIds ?? []).join(",")
     const testsetRevisionKey = (ids.testsetRevisionIds ?? []).join(",")
     const namesAtom = useMemo(() => {
         const evaluatorIds = evaluatorKey ? evaluatorKey.split(",") : []
@@ -73,27 +77,29 @@ export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
     return useAtomValue(namesAtom)
 }
 
-const NO_QUERY = {queryId: "", revisionId: null}
+/**
+ * The per-test-case rows behind the "Passed" tile, and the failed step results behind the failed
+ * test cases. They load once the run has finished; a running or online run never reads them, so
+ * they are not available there.
+ */
+export type ScenarioMetricsState =
+    | {status: "pending"}
+    | {status: "unavailable"}
+    | {status: "ready"; rows: EvaluationMetric[]; failedSteps: FailedStep[]}
 
-/** Everything the Overview tab of one run reads. Compare runs are a later step. */
+/** Everything the Overview tab of one run reads. The run facts are in the header's meta line. */
 export function useRunOverview(runId: string) {
     const references = useAtomValue(runReferencesAtomFamily(runId))
     const metricsQuery = useAtomValue(runLevelMetricsQueryAtomFamily(runId))
     const catalog = useAtomValue(runMetricCatalogAtomFamily(runId))
-    // A live run's trace query, at the revision the run stored; a run without one reads nothing.
-    const queryConfig = useAtomValue(
-        runQueryConfigQueryAtomFamily(references?.queries[0] ?? NO_QUERY),
-    )
+    const scenarioQuery = useAtomValue(runScenarioMetricsQueryAtomFamily(runId))
 
+    // Only the evaluator names; the header's meta line reads the others.
     const names = useOverviewNames({
-        evaluatorIds: catalog.flatMap((entry) => entry.evaluatorId ?? []),
-        testsetIds: references?.testsets.map((testset) => testset.testsetId) ?? [],
-        testsetRevisionIds:
-            references?.testsets.map((testset) =>
-                testset.version === null ? (testset.revisionId ?? "") : "",
-            ) ?? [],
-        applicationId: references?.applicationId ?? null,
-        revisionId: references?.revisionId ?? null,
+        evaluatorIds: [
+            ...catalog.flatMap((entry) => entry.evaluatorId ?? []),
+            ...(references?.evaluators.map((evaluator) => evaluator.evaluatorId) ?? []),
+        ],
     })
 
     const metrics = useMemo<OverviewMetric[]>(
@@ -111,13 +117,28 @@ export function useRunOverview(runId: string) {
         [catalog, names.evaluators],
     )
 
+    useEffect(() => {
+        if (scenarioQuery.isError) {
+            console.error("[RunOverview] per-test-case metrics failed to load", scenarioQuery.error)
+        }
+    }, [scenarioQuery.isError, scenarioQuery.error])
+
+    const scenarioMetrics: ScenarioMetricsState = scenarioQuery.isSuccess
+        ? {status: "ready", ...scenarioQuery.data}
+        : scenarioQuery.fetchStatus === "fetching"
+          ? {status: "pending"}
+          : {status: "unavailable"}
+
     return {
         references,
         metrics,
         metricsPending: metricsQuery.isPending,
         metricsError: metricsQuery.isError ? metricsQuery.error : null,
         names,
-        query: queryConfig.isPending ? undefined : (queryConfig.data ?? null),
-        onRetryMetrics: () => void metricsQuery.refetch(),
+        scenarioMetrics,
+        onRetryMetrics: () => {
+            void metricsQuery.refetch()
+            if (scenarioQuery.isError) void scenarioQuery.refetch()
+        },
     }
 }

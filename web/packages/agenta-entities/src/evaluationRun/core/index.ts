@@ -86,6 +86,35 @@ export {
     type RadarMetricInput,
 } from "./metricStats"
 
+export {
+    binaryCounts,
+    buildEvaluatorRows,
+    categorySegments,
+    chartValue,
+    formatMean,
+    histogramBarsOf,
+    isUnitScale,
+    metricKind,
+    passedTestCases,
+    runFailures,
+    runTiles,
+    SCENARIO_METRICS_LIMIT,
+    TILE_MISSING,
+    TILE_PENDING,
+    type CategorySegment,
+    type EvaluatorRow,
+    type EvaluatorRowMetric,
+    type EvaluatorRowMetricInput,
+    type EvaluatorRowStepInput,
+    type HistogramBar,
+    type MetricKind,
+    type PassedState,
+    type RunFailures,
+    type RunTile,
+    type RunTileDetail,
+    type RunTileId,
+    type RunTilesInput,
+} from "./evaluatorRows"
 export {findScenarioTraceResult} from "./scenarioTrace"
 export {
     buildQuerySlug,

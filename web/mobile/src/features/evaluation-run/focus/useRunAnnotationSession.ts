@@ -1,7 +1,11 @@
 import {useCallback, useEffect} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
-import {evaluationRunQueryKey, runLevelMetricsQueryKey} from "@agenta/entities/evaluationRun"
+import {
+    evaluationRunQueryKey,
+    runLevelMetricsQueryKey,
+    runScenarioMetricsQueryKey,
+} from "@agenta/entities/evaluationRun"
 import {traceSpanMolecule} from "@agenta/entities/trace"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useQueryClient} from "@tanstack/react-query"
@@ -12,8 +16,9 @@ import {runScenariosQueryKey} from "../scenarios/useRunScenarios"
 /**
  * Opens the run in the annotation controllers while the screen is mounted, so the shared form
  * annotates this run's scenarios, and closes it on leave. `onSaved` reads again what a save
- * changes: the scenario rows, the run status, the run metrics, and the replaced annotation traces,
- * which the rows read a text value from and would otherwise keep from before the save.
+ * changes: the scenario rows, the run status, the run metrics (run-level and per test case), and
+ * the replaced annotation traces, which the rows read a text value from and would otherwise keep
+ * from before the save.
  */
 export const useRunAnnotationSession = (runId: string) => {
     const openRun = useSetAtom(annotationSessionController.actions.openRun)
@@ -37,6 +42,7 @@ export const useRunAnnotationSession = (runId: string) => {
             for (const queryKey of [
                 runScenariosQueryKey(projectId, runId),
                 runLevelMetricsQueryKey(projectId, runId),
+                runScenarioMetricsQueryKey(projectId, runId),
                 evaluationRunQueryKey(runId),
             ]) {
                 void queryClient.invalidateQueries({queryKey})

@@ -2,6 +2,7 @@ import {useMemo} from "react"
 
 import {
     compareMetricKey,
+    isAggregatableMetric,
     runHeaderAtomFamily,
     runLevelMetricsQueryAtomFamily,
     runMetricCatalogAtomFamily,
@@ -57,17 +58,23 @@ export function useCompareOverview(runIds: readonly string[]): CompareRunOvervie
                     slot,
                     header,
                     references,
-                    metrics: catalog.map((entry) => {
-                        const evaluatorName = entry.evaluatorId
-                            ? (evaluators[entry.evaluatorId] ?? entry.evaluatorSlug)
-                            : null
-                        return {
-                            ...entry,
-                            id: compareMetricKey(entry),
-                            label: metricDisplayLabel(entry.label, evaluatorName),
-                            evaluatorName,
-                        }
-                    }),
+                    // Text metrics stay out of compare, as they do in the single-run table.
+                    metrics: catalog
+                        .filter(
+                            (entry) =>
+                                entry.kind === "invocation" || isAggregatableMetric(entry.stats),
+                        )
+                        .map((entry) => {
+                            const evaluatorName = entry.evaluatorId
+                                ? (evaluators[entry.evaluatorId] ?? entry.evaluatorSlug)
+                                : null
+                            return {
+                                ...entry,
+                                id: compareMetricKey(entry),
+                                label: metricDisplayLabel(entry.label, evaluatorName),
+                                evaluatorName,
+                            }
+                        }),
                     metricsPending: metricsQuery.isPending,
                     metricsError: metricsQuery.isError ? metricsQuery.error : null,
                     names: {
