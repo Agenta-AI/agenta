@@ -48,8 +48,10 @@ export const spanErrorText = (span: TraceSpan): string | null => {
     if (!failed) return null
     return (
         textOf(attributes["exception.message"]) ??
+        textOf(attributes.message) ??
         textOf(span.status_message) ??
         textOf(attributes["exception.type"]) ??
+        textOf(attributes.type) ??
         span.status_code ??
         "STATUS_CODE_ERROR"
     )

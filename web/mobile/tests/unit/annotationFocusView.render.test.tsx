@@ -80,7 +80,8 @@ vi.mock("@agenta/entities/trace", async (importOriginal) => {
         events: [
             {
                 name: "exception",
-                attributes: {"exception.message": "the model provider returned 429"},
+                // The unprefixed shape some SDKs store.
+                attributes: {message: "the model provider returned 429"},
             },
         ],
     })
