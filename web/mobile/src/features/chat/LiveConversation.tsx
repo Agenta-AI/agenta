@@ -73,6 +73,7 @@ import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
+import dynamic from "next/dynamic"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ContentRailCapContext} from "@/components/contentRailCap"
@@ -119,13 +120,19 @@ import {mergeAssistantRuns} from "./turnRuns"
 import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useChildApprovals} from "./useChildApprovals"
-import {useOpenModelSetup} from "./useOpenModelSetup"
+import {useManageModelProviders} from "./useManageModelProviders"
 import {usePersonalSetupStep} from "./usePersonalSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
 
 const tNow = createT(chatMobileLiveCatalog)
+
+// Loaded on the first Set up that no Configuration pane can take.
+const ProvidersDrawer = dynamic(
+    () => import("./RunErrorProviderDrawer").then((m) => m.RunErrorProviderDrawer),
+    {ssr: false},
+)
 
 /**
  * The LIVE conversation screen — the same engine the desktop chat runs on
@@ -447,7 +454,9 @@ export const LiveConversation = ({
     // Subscribed here so the check starts with the screen's other requests.
     const modelSetup = useAgentModelSetup(entityId)
     const setupBlocked = modelSetup.blocked && !modelBlocked
-    const openModelSetup = useOpenModelSetup()
+    // Set up on the banner goes where "Manage model providers" goes: the pane's Model view when
+    // this chat's agent has a Configuration pane, else the providers drawer (the builder).
+    const modelProviders = useManageModelProviders()
     // The strips stay hidden until the vault, the wallet and the needs-setup check answer, but the
     // parked task must NOT go out on that same unknown — see `pendingTaskPolicy`.
     const modelKeyLoading = modelKey.loading || walletPending || modelSetup.loading
@@ -1301,9 +1310,15 @@ export const LiveConversation = ({
                                     {modelBlocked ? null : (
                                         <ModelSetupBanner
                                             revisionId={entityId}
-                                            onSetUp={openModelSetup}
+                                            onSetUp={modelProviders.open}
                                         />
                                     )}
+                                    {modelProviders.drawerOpen ? (
+                                        <ProvidersDrawer
+                                            open
+                                            onClose={modelProviders.closeDrawer}
+                                        />
+                                    ) : null}
                                 </ContentRail>
                             </div>
                         )}
