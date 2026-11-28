@@ -463,6 +463,31 @@ describe("scenarios table", () => {
             expect([...document.querySelectorAll('[role="menu"]')].at(-1)?.textContent).toContain(
                 "400 px",
             )
+            expect(button("Wider")?.disabled).toBe(true)
+        } finally {
+            window.localStorage.removeItem(storageKey)
+        }
+    })
+
+    it("Wider stops the label column at 400 px, and the saved width stays there", async () => {
+        const runId = await mount({ids: ["sc-1"]})
+        const key = host
+            .querySelector<HTMLElement>('th[data-column-key$="::country"]')
+            ?.getAttribute("data-column-key")
+        const storageKey = `agenta:evaluation-run:scenario-view:${runId}`
+        window.localStorage.setItem(storageKey, JSON.stringify({widths: {[key ?? ""]: 390}}))
+        try {
+            act(() => root.unmount())
+            root = createRoot(host)
+            await mount({ids: ["sc-1"]}, RUN, runId)
+            await openMenu(button("country"))
+            await click(button("Wider"))
+            expect([...document.querySelectorAll('[role="menu"]')].at(-1)?.textContent).toContain(
+                "400 px",
+            )
+            expect(button("Wider")?.disabled).toBe(true)
+            const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? "{}")
+            expect(saved.widths[key ?? ""]).toBe(400)
         } finally {
             window.localStorage.removeItem(storageKey)
         }

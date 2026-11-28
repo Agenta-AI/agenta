@@ -35,6 +35,7 @@ export const ScenarioColumnMenu = ({
     align = "left",
     narrow = false,
     width,
+    maxWidth,
     sorted,
     onSort,
     onWidth,
@@ -48,6 +49,8 @@ export const ScenarioColumnMenu = ({
     /** Compact metric columns: 4px side padding, as their cells. */
     narrow?: boolean
     width: number
+    /** The widest the column gets; Wider is off there. */
+    maxWidth?: number
     sorted: SortDirection | null
     onSort: (direction: SortDirection) => void
     onWidth: (width: number) => void
@@ -100,7 +103,8 @@ export const ScenarioColumnMenu = ({
                         variant="outline"
                         size="icon-xs"
                         aria-label={t("evaluations.scenarios.wider")}
-                        onClick={() => onWidth(width + WIDTH_STEP)}
+                        disabled={maxWidth !== undefined && width >= maxWidth}
+                        onClick={() => onWidth(Math.min(maxWidth ?? Infinity, width + WIDTH_STEP))}
                     >
                         +
                     </Button>

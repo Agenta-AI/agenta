@@ -1,5 +1,5 @@
 import type {CSSProperties, ReactNode} from "react"
-import {createContext, useContext, useMemo} from "react"
+import {createContext, useCallback, useContext, useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
 import scenariosCatalog from "@agenta/i18n/catalogs/evaluations.scenarios"
@@ -76,6 +76,7 @@ const ColumnHeader = ({
     label,
     title,
     defaultWidth,
+    maxWidth,
     right = false,
     narrow = false,
 }: {
@@ -83,6 +84,7 @@ const ColumnHeader = ({
     label: string
     title: string
     defaultWidth: number
+    maxWidth?: number
     right?: boolean
     narrow?: boolean
 }) => {
@@ -95,6 +97,7 @@ const ColumnHeader = ({
             align={right ? "right" : "left"}
             narrow={narrow}
             width={widths[columnKey] ?? defaultWidth}
+            maxWidth={maxWidth}
             sorted={sort?.key === columnKey ? sort.direction : null}
             onSort={(direction) => onSort({key: columnKey, direction})}
             onWidth={(width) => onWidth(columnKey, width)}
@@ -223,9 +226,31 @@ export const ScenarioTable = ({
     )
 
     const headerState = useMemo<ScenarioHeaderState>(() => ({widths, sort}), [widths, sort])
+    // The label column's saved width stays at the cap too, from the menu and from a drag.
+    const labelKey = label?.key
+    const capWidth = useCallback(
+        (key: string, width: number) =>
+            key === labelKey ? Math.min(width, LEAD_WIDTH.labelMax) : width,
+        [labelKey],
+    )
+    const onCappedWidth = useCallback(
+        (key: string, width: number | null) =>
+            onWidth(key, width === null ? null : capWidth(key, width)),
+        [onWidth, capWidth],
+    )
+    const onCappedWidths = useCallback<ScenarioWidthsChange>(
+        (change) =>
+            onWidths((current) => {
+                const next = typeof change === "function" ? change(current) : change
+                return labelKey && next[labelKey] !== undefined
+                    ? {...next, [labelKey]: capWidth(labelKey, next[labelKey])}
+                    : next
+            }),
+        [onWidths, labelKey, capWidth],
+    )
     const actions = useMemo<ScenarioTableActions>(
-        () => ({onSort, onWidth, onHide, onAnnotate, onRetry}),
-        [onSort, onWidth, onHide, onAnnotate, onRetry],
+        () => ({onSort, onWidth: onCappedWidth, onHide, onAnnotate, onRetry}),
+        [onSort, onCappedWidth, onHide, onAnnotate, onRetry],
     )
 
     const columns = useMemo<ColumnDefs<ScenarioEntry>>(() => {
@@ -357,6 +382,7 @@ export const ScenarioTable = ({
                         label={name}
                         title={name}
                         defaultWidth={width}
+                        maxWidth={LEAD_WIDTH.labelMax}
                     />,
                     {fixed: true, last: true},
                 ),
@@ -474,7 +500,7 @@ export const ScenarioTable = ({
                     rowHeight={ROW_HEIGHT[rowHeight] + 1}
                     enableColumnResizing
                     columnSizing={widths}
-                    onColumnSizingChange={onWidths}
+                    onColumnSizingChange={onCappedWidths}
                     loading={loading}
                     emptyText={emptyText}
                     onRow={(entry) =>
